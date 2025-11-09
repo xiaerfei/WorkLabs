@@ -1,0 +1,42 @@
+{
+  "name": "ffmpeg-kit-local",
+  "version": "1.0.0",
+  "summary": "本地集成的 FFmpeg Kit 框架",
+  "description": "包含本地的 ffmpegkit 及相关 FFmpeg 核心框架，用于音视频处理。",
+  "homepage": "https://github.com/your-repo/ffmpeg-kit-local",
+  "authors": {
+    "Your Name": "your@email.com"
+  },
+  "platforms": {
+    "osx": "10.15"
+  },
+  "requires_arc": true,
+  "libraries": [
+    "z",
+    "bz2",
+    "c++",
+    "iconv"
+  ],
+  "source": {
+    "path": "."
+  },
+  "vendored_frameworks": [
+    "ffmpegkit.xcframework",
+    "libavcodec.xcframework",
+    "libavdevice.xcframework",
+    "libavfilter.xcframework",
+    "libavformat.xcframework",
+    "libavutil.xcframework",
+    "libswresample.xcframework",
+    "libswscale.xcframework"
+  ],
+  "osx": {
+    "frameworks": [
+      "AudioToolbox",
+      "CoreAudio",
+      "CoreMedia",
+      "VideoToolbox",
+      "OpenGL"
+    ]
+  }
+}
