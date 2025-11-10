@@ -176,6 +176,7 @@ code_sign_if_enabled() {
 }
 
 if [[ "$CONFIGURATION" == "Debug" ]]; then
+  install_framework "${BUILT_PRODUCTS_DIR}/Masonry/Masonry.framework"
   install_framework "${BUILT_PRODUCTS_DIR}/ReactiveObjC/ReactiveObjC.framework"
   install_framework "${PODS_XCFRAMEWORKS_BUILD_DIR}/ffmpeg-kit-local/ffmpegkit.framework"
   install_framework "${PODS_XCFRAMEWORKS_BUILD_DIR}/ffmpeg-kit-local/libavcodec.framework"
@@ -187,6 +188,7 @@ if [[ "$CONFIGURATION" == "Debug" ]]; then
   install_framework "${PODS_XCFRAMEWORKS_BUILD_DIR}/ffmpeg-kit-local/libswscale.framework"
 fi
 if [[ "$CONFIGURATION" == "Release" ]]; then
+  install_framework "${BUILT_PRODUCTS_DIR}/Masonry/Masonry.framework"
   install_framework "${BUILT_PRODUCTS_DIR}/ReactiveObjC/ReactiveObjC.framework"
   install_framework "${PODS_XCFRAMEWORKS_BUILD_DIR}/ffmpeg-kit-local/ffmpegkit.framework"
   install_framework "${PODS_XCFRAMEWORKS_BUILD_DIR}/ffmpeg-kit-local/libavcodec.framework"

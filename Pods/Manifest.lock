@@ -1,13 +1,16 @@
 PODS:
   - ffmpeg-kit-local (1.0.0)
+  - Masonry (1.1.0)
   - ReactiveObjC (3.1.1)
 
 DEPENDENCIES:
   - ffmpeg-kit-local (from `./LocalPodspecs/ffmpeg-kit-macos-full/`)
+  - Masonry
   - ReactiveObjC
 
 SPEC REPOS:
   trunk:
+    - Masonry
     - ReactiveObjC
 
 EXTERNAL SOURCES:
@@ -16,8 +19,9 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   ffmpeg-kit-local: 77e54a4fcc45dab294fc3f024483fd2030660f45
+  Masonry: 678fab65091a9290e40e2832a55e7ab731aad201
   ReactiveObjC: 011caa393aa0383245f2dcf9bf02e86b80b36040
 
-PODFILE CHECKSUM: 54f07192f79ae41ea0dabce8cfd040755a6e46e7
+PODFILE CHECKSUM: 2c386ffd5d04f01b854e28ba86058d1acfae19e8
 
 COCOAPODS: 1.16.2
