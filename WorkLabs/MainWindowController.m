@@ -32,10 +32,8 @@
     ]] distinctUntilChanged] subscribeNext:^(NSNumber *visible) {
         @strongify(self);
         if (visible.boolValue) {
-            NSLog(@"显示");
             [self.window showTitleBar];
         } else {
-            NSLog(@"隐藏");
             [self.window hideTitleBar];
         }
     }];
