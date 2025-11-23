@@ -22,22 +22,21 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nonatomic, strong, readonly) AVCaptureSession *session;
 @property (nonatomic, strong, readonly) AVCaptureVideoPreviewLayer *previewLayer;
+@property (nonatomic, strong, readonly) AVCaptureDevice *currentDevice;
 
-/// 单例
 + (instancetype)manager;
 
-/// 启动采集（自动检查权限）
 - (void)startCapture;
-
-/// 停止采集
 - (void)stopCapture;
+- (BOOL)isRunning;
 
-/// 添加订阅者
-- (void)addSubscriber:(id<WLCameraCaptureSubscriber>)subscriber;
+- (void)switchWithDevice:(AVCaptureDevice *)device;
 
-/// 移除订阅者
-- (void)removeSubscriber:(id<WLCameraCaptureSubscriber>)subscriber;
+// Combine-style subscriber mgmt
+- (void)subscriber:(id<WLCameraCaptureSubscriber>)subscriber;
+- (void)unsubscriber:(id<WLCameraCaptureSubscriber>)subscriber;
 
 @end
+
 
 NS_ASSUME_NONNULL_END

@@ -1,18 +1,18 @@
 //
-//  MainWindowController.m
+//  WLMainWindowController.m
 //  WorkLabs
 //
 //  Created by erfeixia on 2025/11/9.
 //
 
-#import "MainWindowController.h"
+#import "WLMainWindowController.h"
 #import "NSWindow+WLExtend.h"
 #import <ReactiveObjC.h>
-@interface MainWindowController () <NSWindowDelegate>
+@interface WLMainWindowController () <NSWindowDelegate>
 @property (nonatomic, strong) NSTrackingArea *contentViewTrackingArea; // 存储 trackingArea
 @end
 
-@implementation MainWindowController
+@implementation WLMainWindowController
 
 - (void)windowDidLoad {
     [super windowDidLoad];

@@ -1,5 +1,5 @@
 //
-//  MainWindowController.h
+//  WLMainWindowController.h
 //  WorkLabs
 //
 //  Created by erfeixia on 2025/11/9.
@@ -9,7 +9,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface MainWindowController : NSWindowController
+@interface WLMainWindowController : NSWindowController
 
 @end
 

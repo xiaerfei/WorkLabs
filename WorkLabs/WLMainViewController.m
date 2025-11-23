@@ -1,23 +1,24 @@
 //
-//  MainViewController.m
+//  WLMainViewController.m
 //  WorkLabs
 //
 //  Created by erfeixia on 2025/11/9.
 //
 
-#import "MainViewController.h"
+#import "WLMainViewController.h"
 #include <libavformat/avformat.h>
 #import "NSView+BackgroundColor.h"
 #import "WLCameraCaptureManager.h"
+#import "WLVideoDeviceManager.h"
 #import "WLViedoPreview.h"
 #import <Masonry.h>
 
-@interface MainViewController () <WLCameraCaptureSubscriber>
+@interface WLMainViewController () <WLCameraCaptureSubscriber>
 @property (weak) IBOutlet NSView *bottomBarView;
 @property (nonatomic, strong) WLViedoPreview *videoPreview;
 @end
 
-@implementation MainViewController
+@implementation WLMainViewController
 
 - (void)viewDidLoad {
     [super viewDidLoad];
@@ -40,9 +41,19 @@
     }];
     
     WLCameraCaptureManager *manager = [WLCameraCaptureManager manager];
-    [manager addSubscriber:self];
+    [manager subscriber:self];
     // 启动采集
     [manager startCapture];
+    
+    NSArray *devices = [WLVideoDeviceManager videoDevices];
+
+    for (AVCaptureDevice *device in devices) {
+        NSLog(@"摄像头名称: %@", device.localizedName);
+        NSLog(@"     uniqueID : %@", device.uniqueID);
+        NSLog(@"      modelID : %@", device.modelID);
+        NSLog(@"localizedName : %@", device.localizedName);
+        NSLog(@" manufacturer : %@", device.manufacturer);
+    }
 }
 
 #pragma mark - WLCameraCaptureSubscriber
