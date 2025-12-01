@@ -1,0 +1,6 @@
+framework module TVURSignal {
+  umbrella header "TVURSignal-umbrella.h"
+
+  export *
+  module * { export * }
+}

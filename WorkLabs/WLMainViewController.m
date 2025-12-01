@@ -8,12 +8,15 @@
 #import "WLMainViewController.h"
 #include <libavformat/avformat.h>
 #import "NSView+BackgroundColor.h"
-#import "WLCameraCaptureManager.h"
-#import "WLVideoDeviceManager.h"
+#import "WLCameraManager.h"
+#import "WLDevicesManager.h"
 #import "WLViedoPreview.h"
 #import <Masonry.h>
+#import "TVUCameraManager.h"
 
-@interface WLMainViewController () <WLCameraCaptureSubscriber>
+#import <TVURSignal.h>
+
+@interface WLMainViewController () <WLCameraCaptureSubscriber, TVUCameraManagerDelegate>
 @property (weak) IBOutlet NSView *bottomBarView;
 @property (nonatomic, strong) WLViedoPreview *videoPreview;
 @end
@@ -39,13 +42,24 @@
         make.top.left.right.equalTo(self.view);
         make.bottom.equalTo(self.bottomBarView.mas_top);
     }];
+    NSArray <WLDeviceItem *> *videoDevices = [[WLDevicesManager manager] currentVideoDevices];
+    for (WLDeviceItem *item in videoDevices) {
+        NSLog(@"%@", item.description);
+    }
     
-    WLCameraCaptureManager *manager = [WLCameraCaptureManager manager];
+    NSArray <WLDeviceItem *> *audioDevices = [[WLDevicesManager manager] currentAudioDevices];
+    for (WLDeviceItem *item in audioDevices) {
+        NSLog(@"%@", item.description);
+    }
+}
+
+- (void)startWLCamera {
+    WLCameraManager *manager = [WLCameraManager manager];
     [manager subscriber:self];
     // 启动采集
     [manager startCapture];
     
-    NSArray *devices = [WLVideoDeviceManager videoDevices];
+    NSArray *devices = [[WLDevicesManager manager] currentVideoDevices];
 
     for (AVCaptureDevice *device in devices) {
         NSLog(@"摄像头名称: %@", device.localizedName);
@@ -56,10 +70,27 @@
     }
 }
 
+- (void)startTVUCamera {
+    TVUCameraManager *manager = [TVUCameraManager manager];
+    manager.delegate = self;
+    
+    NSArray <WLDeviceItem *> *devices = [[WLDevicesManager manager] currentVideoDevices];
+    if (devices.count == 0) {
+        return;
+    }
+    
+    [manager startCaptureSessionWithDevice:devices.firstObject.device];
+    
+}
 #pragma mark - WLCameraCaptureSubscriber
-- (void)cameraCaptureManager:(WLCameraCaptureManager *)manager
+- (void)cameraCaptureManager:(WLCameraManager *)manager
        didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer {
     [self.videoPreview.displayLayer.sampleBufferRenderer enqueueSampleBuffer:sampleBuffer];
 }
 
+- (void)tvuCaptureOutput:(AVCaptureOutput *)output
+   didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
+          fromConnection:(AVCaptureConnection *)connection {
+    [self.videoPreview.displayLayer.sampleBufferRenderer enqueueSampleBuffer:sampleBuffer];
+}
 @end

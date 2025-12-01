@@ -1,6 +1,7 @@
 ${PODS_ROOT}/Target Support Files/Pods-WorkLabs/Pods-WorkLabs-frameworks.sh
 ${BUILT_PRODUCTS_DIR}/Masonry/Masonry.framework
 ${BUILT_PRODUCTS_DIR}/ReactiveObjC/ReactiveObjC.framework
+${BUILT_PRODUCTS_DIR}/TVURSignal/TVURSignal.framework
 ${PODS_XCFRAMEWORKS_BUILD_DIR}/ffmpeg-kit-local/ffmpegkit.framework/ffmpegkit
 ${PODS_XCFRAMEWORKS_BUILD_DIR}/ffmpeg-kit-local/libavcodec.framework/libavcodec
 ${PODS_XCFRAMEWORKS_BUILD_DIR}/ffmpeg-kit-local/libavdevice.framework/libavdevice

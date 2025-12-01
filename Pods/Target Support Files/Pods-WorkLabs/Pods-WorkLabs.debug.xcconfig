@@ -1,10 +1,10 @@
 CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = NO
-FRAMEWORK_SEARCH_PATHS = $(inherited) "${PODS_CONFIGURATION_BUILD_DIR}/Masonry" "${PODS_CONFIGURATION_BUILD_DIR}/ReactiveObjC" "${PODS_ROOT}/../LocalPodspecs/ffmpeg-kit-macos-full" "${PODS_XCFRAMEWORKS_BUILD_DIR}/ffmpeg-kit-local"
+FRAMEWORK_SEARCH_PATHS = $(inherited) "${PODS_CONFIGURATION_BUILD_DIR}/Masonry" "${PODS_CONFIGURATION_BUILD_DIR}/ReactiveObjC" "${PODS_CONFIGURATION_BUILD_DIR}/TVURSignal" "${PODS_ROOT}/../LocalPodspecs/ffmpeg-kit-macos-full" "${PODS_XCFRAMEWORKS_BUILD_DIR}/ffmpeg-kit-local"
 GCC_PREPROCESSOR_DEFINITIONS = $(inherited) COCOAPODS=1
-HEADER_SEARCH_PATHS = $(inherited) "${PODS_CONFIGURATION_BUILD_DIR}/Masonry/Masonry.framework/Headers" "${PODS_CONFIGURATION_BUILD_DIR}/ReactiveObjC/ReactiveObjC.framework/Headers"
+HEADER_SEARCH_PATHS = $(inherited) "${PODS_CONFIGURATION_BUILD_DIR}/Masonry/Masonry.framework/Headers" "${PODS_CONFIGURATION_BUILD_DIR}/ReactiveObjC/ReactiveObjC.framework/Headers" "${PODS_CONFIGURATION_BUILD_DIR}/TVURSignal/TVURSignal.framework/Headers"
 LD_RUNPATH_SEARCH_PATHS = $(inherited) '@executable_path/../Frameworks' '@loader_path/Frameworks'
-OTHER_LDFLAGS = $(inherited) -l"bz2" -l"c++" -l"iconv" -l"z" -framework "AppKit" -framework "AudioToolbox" -framework "CoreAudio" -framework "CoreMedia" -framework "Foundation" -framework "Masonry" -framework "OpenGL" -framework "ReactiveObjC" -framework "VideoToolbox" -framework "ffmpegkit" -framework "libavcodec" -framework "libavdevice" -framework "libavfilter" -framework "libavformat" -framework "libavutil" -framework "libswresample" -framework "libswscale"
-OTHER_MODULE_VERIFIER_FLAGS = $(inherited) "-F${PODS_CONFIGURATION_BUILD_DIR}/Masonry" "-F${PODS_CONFIGURATION_BUILD_DIR}/ReactiveObjC" "-F${PODS_CONFIGURATION_BUILD_DIR}/ffmpeg-kit-local"
+OTHER_LDFLAGS = $(inherited) -l"bz2" -l"c++" -l"iconv" -l"z" -framework "AppKit" -framework "AudioToolbox" -framework "Cocoa" -framework "CoreAudio" -framework "CoreMedia" -framework "Foundation" -framework "Masonry" -framework "OpenGL" -framework "ReactiveObjC" -framework "TVURSignal" -framework "VideoToolbox" -framework "ffmpegkit" -framework "libavcodec" -framework "libavdevice" -framework "libavfilter" -framework "libavformat" -framework "libavutil" -framework "libswresample" -framework "libswscale"
+OTHER_MODULE_VERIFIER_FLAGS = $(inherited) "-F${PODS_CONFIGURATION_BUILD_DIR}/Masonry" "-F${PODS_CONFIGURATION_BUILD_DIR}/ReactiveObjC" "-F${PODS_CONFIGURATION_BUILD_DIR}/TVURSignal" "-F${PODS_CONFIGURATION_BUILD_DIR}/ffmpeg-kit-local"
 PODS_BUILD_DIR = ${BUILD_DIR}
 PODS_CONFIGURATION_BUILD_DIR = ${PODS_BUILD_DIR}/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)
 PODS_PODFILE_DIR_PATH = ${SRCROOT}/.

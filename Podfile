@@ -8,5 +8,6 @@ target 'WorkLabs' do
 
   pod 'ReactiveObjC'
   pod 'ffmpeg-kit-local', :path => './LocalPodspecs/ffmpeg-kit-macos-full/'
+  pod 'TVURSignal',       :path => './LocalPodspecs/TVURSignal/'
   pod 'Masonry'
 end

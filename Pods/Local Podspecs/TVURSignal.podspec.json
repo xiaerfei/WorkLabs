@@ -1,0 +1,27 @@
+{
+  "name": "TVURSignal",
+  "version": "1.0.0",
+  "summary": "TVURSignal 框架",
+  "description": "包含本地的 TVURSignal 相关核心框架。",
+  "homepage": "https://github.com/your-repo/TVURSignal",
+  "authors": {
+    "Your Name": "your@email.com"
+  },
+  "license": {
+    "type": "MIT",
+    "file": "LICENSE.md"
+  },
+  "platforms": {
+    "osx": "10.15"
+  },
+  "requires_arc": true,
+  "source": {
+    "path": "."
+  },
+  "source_files": "Classes/**/*.{h,m}",
+  "osx": {
+    "frameworks": [
+      "Cocoa"
+    ]
+  }
+}

@@ -1,5 +1,5 @@
 //
-//  WLCameraCaptureManager.h
+//  WLCameraManager.h
 //  WorkLabs
 //
 //  Created by TVUM4Pro on 2025/11/10.
@@ -10,15 +10,16 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@class WLCameraCaptureManager;
+@class WLCameraManager;
 
 @protocol WLCameraCaptureSubscriber <NSObject>
 @required
-- (void)cameraCaptureManager:(WLCameraCaptureManager *)manager
+- (void)cameraCaptureManager:(WLCameraManager *)manager
        didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer;
 @end
 
-@interface WLCameraCaptureManager : NSObject <AVCaptureVideoDataOutputSampleBufferDelegate>
+@interface WLCameraManager : NSObject <AVCaptureVideoDataOutputSampleBufferDelegate>
+
 
 @property (nonatomic, strong, readonly) AVCaptureSession *session;
 @property (nonatomic, strong, readonly) AVCaptureVideoPreviewLayer *previewLayer;
@@ -32,7 +33,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)switchWithDevice:(AVCaptureDevice *)device;
 
-// Combine-style subscriber mgmt
 - (void)subscriber:(id<WLCameraCaptureSubscriber>)subscriber;
 - (void)unsubscriber:(id<WLCameraCaptureSubscriber>)subscriber;
 
