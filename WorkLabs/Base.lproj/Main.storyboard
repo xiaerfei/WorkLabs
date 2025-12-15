@@ -711,8 +711,27 @@
                         <subviews>
                             <customView translatesAutoresizingMaskIntoConstraints="NO" id="xEC-kV-BYz">
                                 <rect key="frame" x="0.0" y="0.0" width="480" height="60"/>
+                                <subviews>
+                                    <button translatesAutoresizingMaskIntoConstraints="NO" id="dAh-Ux-MSh">
+                                        <rect key="frame" x="430" y="12" width="30" height="37"/>
+                                        <buttonCell key="cell" type="square" bezelStyle="shadowlessSquare" image="gearshape" catalog="system" imagePosition="only" alignment="center" imageScaling="proportionallyUpOrDown" inset="2" id="b92-Hl-Mtk">
+                                            <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                                            <font key="font" metaFont="system"/>
+                                        </buttonCell>
+                                        <constraints>
+                                            <constraint firstAttribute="height" constant="30" id="4S8-8H-SFf"/>
+                                            <constraint firstAttribute="width" constant="30" id="v2L-jM-ae8"/>
+                                        </constraints>
+                                        <connections>
+                                            <action selector="settingButtonAction:" target="XfG-lQ-9wD" id="CMs-05-fHq"/>
+                                            <segue destination="pFn-mm-jqD" kind="show" id="Gxe-D6-yIq"/>
+                                        </connections>
+                                    </button>
+                                </subviews>
                                 <constraints>
+                                    <constraint firstItem="dAh-Ux-MSh" firstAttribute="centerY" secondItem="xEC-kV-BYz" secondAttribute="centerY" id="5az-kY-ebq"/>
                                     <constraint firstAttribute="height" constant="60" id="aN9-hW-jys"/>
+                                    <constraint firstAttribute="trailing" secondItem="dAh-Ux-MSh" secondAttribute="trailing" constant="20" symbolic="YES" id="l6I-AT-1Gq"/>
                                 </constraints>
                             </customView>
                         </subviews>
@@ -730,5 +749,21 @@
             </objects>
             <point key="canvasLocation" x="75" y="696"/>
         </scene>
+        <!--设置-->
+        <scene sceneID="hbl-ew-ggp">
+            <objects>
+                <viewController title="设置" id="pFn-mm-jqD" sceneMemberID="viewController">
+                    <view key="view" id="cT2-pK-mxm">
+                        <rect key="frame" x="0.0" y="0.0" width="480" height="270"/>
+                        <autoresizingMask key="autoresizingMask"/>
+                    </view>
+                </viewController>
+                <customObject id="Jhb-6c-YEd" userLabel="First Responder" customClass="NSResponder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="74" y="1227"/>
+        </scene>
     </scenes>
+    <resources>
+        <image name="gearshape" catalog="system" width="16" height="16"/>
+    </resources>
 </document>

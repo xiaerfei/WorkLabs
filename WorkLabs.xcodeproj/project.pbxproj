@@ -7,6 +7,20 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		9CB18F2E2EF035CD00C248B0 /* NSView+BackgroundColor.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CB18F0E2EF035CD00C248B0 /* NSView+BackgroundColor.m */; };
+		9CB18F2F2EF035CD00C248B0 /* NSWindow+WLExtend.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CB18F102EF035CD00C248B0 /* NSWindow+WLExtend.m */; };
+		9CB18F302EF035CD00C248B0 /* WLViedoPreview.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CB18F132EF035CD00C248B0 /* WLViedoPreview.m */; };
+		9CB18F312EF035CD00C248B0 /* NSArray+Function.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CB18F172EF035CD00C248B0 /* NSArray+Function.m */; };
+		9CB18F322EF035CD00C248B0 /* NSObject+BaseDataType.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CB18F192EF035CD00C248B0 /* NSObject+BaseDataType.m */; };
+		9CB18F332EF035CD00C248B0 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CB18F1C2EF035CD00C248B0 /* AppDelegate.m */; };
+		9CB18F342EF035CD00C248B0 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CB18F1F2EF035CD00C248B0 /* main.m */; };
+		9CB18F352EF035CD00C248B0 /* TVUCameraManager.mm in Sources */ = {isa = PBXBuildFile; fileRef = 9CB18F232EF035CD00C248B0 /* TVUCameraManager.mm */; };
+		9CB18F362EF035CD00C248B0 /* WLCameraManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CB18F252EF035CD00C248B0 /* WLCameraManager.m */; };
+		9CB18F372EF035CD00C248B0 /* WLDevicesManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CB18F272EF035CD00C248B0 /* WLDevicesManager.m */; };
+		9CB18F382EF035CD00C248B0 /* WLMainViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CB18F292EF035CD00C248B0 /* WLMainViewController.m */; };
+		9CB18F392EF035CD00C248B0 /* WLMainWindowController.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CB18F2B2EF035CD00C248B0 /* WLMainWindowController.m */; };
+		9CB18F3A2EF035CD00C248B0 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 9CB18F1D2EF035CD00C248B0 /* Assets.xcassets */; };
+		9CB18F3C2EF035CD00C248B0 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 9CB18F212EF035CD00C248B0 /* Main.storyboard */; };
 		D3427D0A4434AAD9602A7B97 /* Pods_WorkLabs.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 82F01650BE4715EDB1B95D8C /* Pods_WorkLabs.framework */; };
 /* End PBXBuildFile section */
 
@@ -14,29 +28,35 @@
 		807CD9DDD0463F62C938810D /* Pods-WorkLabs.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-WorkLabs.release.xcconfig"; path = "Target Support Files/Pods-WorkLabs/Pods-WorkLabs.release.xcconfig"; sourceTree = "<group>"; };
 		82F01650BE4715EDB1B95D8C /* Pods_WorkLabs.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_WorkLabs.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		9CA6B4412EC069B2002C613D /* WorkLabs.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WorkLabs.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		9CB18F0D2EF035CD00C248B0 /* NSView+BackgroundColor.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "NSView+BackgroundColor.h"; sourceTree = "<group>"; };
+		9CB18F0E2EF035CD00C248B0 /* NSView+BackgroundColor.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "NSView+BackgroundColor.m"; sourceTree = "<group>"; };
+		9CB18F0F2EF035CD00C248B0 /* NSWindow+WLExtend.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "NSWindow+WLExtend.h"; sourceTree = "<group>"; };
+		9CB18F102EF035CD00C248B0 /* NSWindow+WLExtend.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "NSWindow+WLExtend.m"; sourceTree = "<group>"; };
+		9CB18F122EF035CD00C248B0 /* WLViedoPreview.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLViedoPreview.h; sourceTree = "<group>"; };
+		9CB18F132EF035CD00C248B0 /* WLViedoPreview.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLViedoPreview.m; sourceTree = "<group>"; };
+		9CB18F162EF035CD00C248B0 /* NSArray+Function.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "NSArray+Function.h"; sourceTree = "<group>"; };
+		9CB18F172EF035CD00C248B0 /* NSArray+Function.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "NSArray+Function.m"; sourceTree = "<group>"; };
+		9CB18F182EF035CD00C248B0 /* NSObject+BaseDataType.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "NSObject+BaseDataType.h"; sourceTree = "<group>"; };
+		9CB18F192EF035CD00C248B0 /* NSObject+BaseDataType.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "NSObject+BaseDataType.m"; sourceTree = "<group>"; };
+		9CB18F1B2EF035CD00C248B0 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
+		9CB18F1C2EF035CD00C248B0 /* AppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
+		9CB18F1D2EF035CD00C248B0 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		9CB18F1E2EF035CD00C248B0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		9CB18F1F2EF035CD00C248B0 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
+		9CB18F202EF035CD00C248B0 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
+		9CB18F222EF035CD00C248B0 /* TVUCameraManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = TVUCameraManager.h; sourceTree = "<group>"; };
+		9CB18F232EF035CD00C248B0 /* TVUCameraManager.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = TVUCameraManager.mm; sourceTree = "<group>"; };
+		9CB18F242EF035CD00C248B0 /* WLCameraManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLCameraManager.h; sourceTree = "<group>"; };
+		9CB18F252EF035CD00C248B0 /* WLCameraManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLCameraManager.m; sourceTree = "<group>"; };
+		9CB18F262EF035CD00C248B0 /* WLDevicesManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLDevicesManager.h; sourceTree = "<group>"; };
+		9CB18F272EF035CD00C248B0 /* WLDevicesManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLDevicesManager.m; sourceTree = "<group>"; };
+		9CB18F282EF035CD00C248B0 /* WLMainViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLMainViewController.h; sourceTree = "<group>"; };
+		9CB18F292EF035CD00C248B0 /* WLMainViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLMainViewController.m; sourceTree = "<group>"; };
+		9CB18F2A2EF035CD00C248B0 /* WLMainWindowController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLMainWindowController.h; sourceTree = "<group>"; };
+		9CB18F2B2EF035CD00C248B0 /* WLMainWindowController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLMainWindowController.m; sourceTree = "<group>"; };
+		9CB18F2C2EF035CD00C248B0 /* WorkLabs.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = WorkLabs.entitlements; sourceTree = "<group>"; };
 		AC89CF9A75BA89BDAEBA99CD /* Pods-WorkLabs.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-WorkLabs.debug.xcconfig"; path = "Target Support Files/Pods-WorkLabs/Pods-WorkLabs.debug.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
-
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		2C1B9F312EC1D94A0094B6CF /* Exceptions for "WorkLabs" folder in "WorkLabs" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = 9CA6B4402EC069B2002C613D /* WorkLabs */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
-/* Begin PBXFileSystemSynchronizedRootGroup section */
-		9CA6B4432EC069B2002C613D /* WorkLabs */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				2C1B9F312EC1D94A0094B6CF /* Exceptions for "WorkLabs" folder in "WorkLabs" target */,
-			);
-			path = WorkLabs;
-			sourceTree = "<group>";
-		};
-/* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		9CA6B43E2EC069B2002C613D /* Frameworks */ = {
@@ -53,7 +73,7 @@
 		9CA6B4382EC069B2002C613D = {
 			isa = PBXGroup;
 			children = (
-				9CA6B4432EC069B2002C613D /* WorkLabs */,
+				9CB18F2D2EF035CD00C248B0 /* WorkLabs */,
 				9CA6B4422EC069B2002C613D /* Products */,
 				E77F8B1DE8DAB9204493E876 /* Pods */,
 				D8B068687708BF0CFB038443 /* Frameworks */,
@@ -66,6 +86,72 @@
 				9CA6B4412EC069B2002C613D /* WorkLabs.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		9CB18F112EF035CD00C248B0 /* Category */ = {
+			isa = PBXGroup;
+			children = (
+				9CB18F0D2EF035CD00C248B0 /* NSView+BackgroundColor.h */,
+				9CB18F0E2EF035CD00C248B0 /* NSView+BackgroundColor.m */,
+				9CB18F0F2EF035CD00C248B0 /* NSWindow+WLExtend.h */,
+				9CB18F102EF035CD00C248B0 /* NSWindow+WLExtend.m */,
+			);
+			path = Category;
+			sourceTree = "<group>";
+		};
+		9CB18F142EF035CD00C248B0 /* Custom */ = {
+			isa = PBXGroup;
+			children = (
+				9CB18F122EF035CD00C248B0 /* WLViedoPreview.h */,
+				9CB18F132EF035CD00C248B0 /* WLViedoPreview.m */,
+			);
+			path = Custom;
+			sourceTree = "<group>";
+		};
+		9CB18F152EF035CD00C248B0 /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				9CB18F112EF035CD00C248B0 /* Category */,
+				9CB18F142EF035CD00C248B0 /* Custom */,
+			);
+			path = UI;
+			sourceTree = "<group>";
+		};
+		9CB18F1A2EF035CD00C248B0 /* WLUtils */ = {
+			isa = PBXGroup;
+			children = (
+				9CB18F152EF035CD00C248B0 /* UI */,
+				9CB18F162EF035CD00C248B0 /* NSArray+Function.h */,
+				9CB18F172EF035CD00C248B0 /* NSArray+Function.m */,
+				9CB18F182EF035CD00C248B0 /* NSObject+BaseDataType.h */,
+				9CB18F192EF035CD00C248B0 /* NSObject+BaseDataType.m */,
+			);
+			path = WLUtils;
+			sourceTree = "<group>";
+		};
+		9CB18F2D2EF035CD00C248B0 /* WorkLabs */ = {
+			isa = PBXGroup;
+			children = (
+				9CB18F1A2EF035CD00C248B0 /* WLUtils */,
+				9CB18F1B2EF035CD00C248B0 /* AppDelegate.h */,
+				9CB18F1C2EF035CD00C248B0 /* AppDelegate.m */,
+				9CB18F1D2EF035CD00C248B0 /* Assets.xcassets */,
+				9CB18F1E2EF035CD00C248B0 /* Info.plist */,
+				9CB18F1F2EF035CD00C248B0 /* main.m */,
+				9CB18F212EF035CD00C248B0 /* Main.storyboard */,
+				9CB18F222EF035CD00C248B0 /* TVUCameraManager.h */,
+				9CB18F232EF035CD00C248B0 /* TVUCameraManager.mm */,
+				9CB18F242EF035CD00C248B0 /* WLCameraManager.h */,
+				9CB18F252EF035CD00C248B0 /* WLCameraManager.m */,
+				9CB18F262EF035CD00C248B0 /* WLDevicesManager.h */,
+				9CB18F272EF035CD00C248B0 /* WLDevicesManager.m */,
+				9CB18F282EF035CD00C248B0 /* WLMainViewController.h */,
+				9CB18F292EF035CD00C248B0 /* WLMainViewController.m */,
+				9CB18F2A2EF035CD00C248B0 /* WLMainWindowController.h */,
+				9CB18F2B2EF035CD00C248B0 /* WLMainWindowController.m */,
+				9CB18F2C2EF035CD00C248B0 /* WorkLabs.entitlements */,
+			);
+			path = WorkLabs;
 			sourceTree = "<group>";
 		};
 		D8B068687708BF0CFB038443 /* Frameworks */ = {
@@ -101,9 +187,6 @@
 			buildRules = (
 			);
 			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				9CA6B4432EC069B2002C613D /* WorkLabs */,
 			);
 			name = WorkLabs;
 			productName = WorkLabs;
@@ -148,6 +231,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9CB18F3A2EF035CD00C248B0 /* Assets.xcassets in Resources */,
+				9CB18F3C2EF035CD00C248B0 /* Main.storyboard in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -204,10 +289,33 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9CB18F2E2EF035CD00C248B0 /* NSView+BackgroundColor.m in Sources */,
+				9CB18F2F2EF035CD00C248B0 /* NSWindow+WLExtend.m in Sources */,
+				9CB18F302EF035CD00C248B0 /* WLViedoPreview.m in Sources */,
+				9CB18F312EF035CD00C248B0 /* NSArray+Function.m in Sources */,
+				9CB18F322EF035CD00C248B0 /* NSObject+BaseDataType.m in Sources */,
+				9CB18F332EF035CD00C248B0 /* AppDelegate.m in Sources */,
+				9CB18F342EF035CD00C248B0 /* main.m in Sources */,
+				9CB18F352EF035CD00C248B0 /* TVUCameraManager.mm in Sources */,
+				9CB18F362EF035CD00C248B0 /* WLCameraManager.m in Sources */,
+				9CB18F372EF035CD00C248B0 /* WLDevicesManager.m in Sources */,
+				9CB18F382EF035CD00C248B0 /* WLMainViewController.m in Sources */,
+				9CB18F392EF035CD00C248B0 /* WLMainWindowController.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXVariantGroup section */
+		9CB18F212EF035CD00C248B0 /* Main.storyboard */ = {
+			isa = PBXVariantGroup;
+			children = (
+				9CB18F202EF035CD00C248B0 /* Base */,
+			);
+			name = Main.storyboard;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
 		9CA6B4522EC069B4002C613D /* Debug */ = {

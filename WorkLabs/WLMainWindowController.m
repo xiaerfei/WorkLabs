@@ -16,17 +16,20 @@
 
 - (void)windowDidLoad {
     [super windowDidLoad];
+
+}
+
+- (void)setupHideBarSignal {
     // 设置窗口代理以便接收尺寸变化通知
     self.window.delegate = self;
     
     [self setupTrackingArea];
     [self.window hideTitleBar];
     
-    
     @weakify(self);
     [[[RACSignal merge:@[
         [[self rac_signalForSelector:@selector(mouseEntered:)] mapReplace:@YES],
-        [[self rac_signalForSelector:@selector(mouseExited:)] flattenMap:^__kindof RACSignal * _Nullable(RACTuple * _Nullable value) {
+        [[self rac_signalForSelector:@selector(mouseExited:)] flattenMap:^RACSignal *(RACTuple *value) {
             return [[RACSignal return:@NO] delay:5];
         }]
     ]] distinctUntilChanged] subscribeNext:^(NSNumber *visible) {
@@ -38,6 +41,7 @@
         }
     }];
 }
+
 
 - (void)setupTrackingArea {
     // 移除旧的 trackingArea (如果存在)

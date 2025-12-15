@@ -52,7 +52,11 @@
         NSLog(@"%@", item.description);
     }
 }
-
+#pragma mark - Action Methods
+- (IBAction)settingButtonAction:(NSButton *)sender {
+    
+}
+#pragma mark - Private Methods
 - (void)startWLCamera {
     WLCameraManager *manager = [WLCameraManager manager];
     [manager subscriber:self];
@@ -68,19 +72,6 @@
         NSLog(@"localizedName : %@", device.localizedName);
         NSLog(@" manufacturer : %@", device.manufacturer);
     }
-}
-
-- (void)startTVUCamera {
-    TVUCameraManager *manager = [TVUCameraManager manager];
-    manager.delegate = self;
-    
-    NSArray <WLDeviceItem *> *devices = [[WLDevicesManager manager] currentVideoDevices];
-    if (devices.count == 0) {
-        return;
-    }
-    
-    [manager startCaptureSessionWithDevice:devices.firstObject.device];
-    
 }
 #pragma mark - WLCameraCaptureSubscriber
 - (void)cameraCaptureManager:(WLCameraManager *)manager

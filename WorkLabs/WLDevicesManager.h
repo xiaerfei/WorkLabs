@@ -38,8 +38,8 @@ NS_ASSUME_NONNULL_BEGIN
 ///< 订阅 Audio 设备变化
 @property (nonatomic, strong, readonly) RACSignal <WLDeviceItem *>*audioSignal;
 
-- (NSArray <WLDeviceFormat *> * _Nullable)currentVideoDevices;
-- (NSArray <WLDeviceFormat *> * _Nullable)currentAudioDevices;
+- (NSArray <WLDeviceItem *> * _Nullable)currentVideoDevices;
+- (NSArray <WLDeviceItem *> * _Nullable)currentAudioDevices;
 @end
 
 NS_ASSUME_NONNULL_END
