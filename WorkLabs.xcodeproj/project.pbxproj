@@ -7,6 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		2C80D4AD2EF2AABD00AB8D7F /* WLEventSubscription.m in Sources */ = {isa = PBXBuildFile; fileRef = 2C80D4AC2EF2AABD00AB8D7F /* WLEventSubscription.m */; };
+		2C80D4B02EF2AAFA00AB8D7F /* WLEventDisposeBag.m in Sources */ = {isa = PBXBuildFile; fileRef = 2C80D4AF2EF2AAFA00AB8D7F /* WLEventDisposeBag.m */; };
+		2C80D4B32EF2AB5100AB8D7F /* WLEventItem.m in Sources */ = {isa = PBXBuildFile; fileRef = 2C80D4B22EF2AB5100AB8D7F /* WLEventItem.m */; };
+		2CC1ECBB2EF0F3EE003A35ED /* WLSettingViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 2CC1ECBA2EF0F3EE003A35ED /* WLSettingViewController.m */; };
+		2CC1ECFD2EF2448D003A35ED /* WLVideoSelectView.m in Sources */ = {isa = PBXBuildFile; fileRef = 2CC1ECFC2EF2448D003A35ED /* WLVideoSelectView.m */; };
+		2CC1ED002EF24FAB003A35ED /* WLEvent.m in Sources */ = {isa = PBXBuildFile; fileRef = 2CC1ECFF2EF24FAB003A35ED /* WLEvent.m */; };
 		9CB18F2E2EF035CD00C248B0 /* NSView+BackgroundColor.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CB18F0E2EF035CD00C248B0 /* NSView+BackgroundColor.m */; };
 		9CB18F2F2EF035CD00C248B0 /* NSWindow+WLExtend.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CB18F102EF035CD00C248B0 /* NSWindow+WLExtend.m */; };
 		9CB18F302EF035CD00C248B0 /* WLViedoPreview.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CB18F132EF035CD00C248B0 /* WLViedoPreview.m */; };
@@ -25,6 +31,19 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		2C80D4AA2EF2A99A00AB8D7F /* WLEventConst.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLEventConst.h; sourceTree = "<group>"; };
+		2C80D4AB2EF2AABD00AB8D7F /* WLEventSubscription.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLEventSubscription.h; sourceTree = "<group>"; };
+		2C80D4AC2EF2AABD00AB8D7F /* WLEventSubscription.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLEventSubscription.m; sourceTree = "<group>"; };
+		2C80D4AE2EF2AAFA00AB8D7F /* WLEventDisposeBag.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLEventDisposeBag.h; sourceTree = "<group>"; };
+		2C80D4AF2EF2AAFA00AB8D7F /* WLEventDisposeBag.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLEventDisposeBag.m; sourceTree = "<group>"; };
+		2C80D4B12EF2AB5100AB8D7F /* WLEventItem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLEventItem.h; sourceTree = "<group>"; };
+		2C80D4B22EF2AB5100AB8D7F /* WLEventItem.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLEventItem.m; sourceTree = "<group>"; };
+		2CC1ECB92EF0F3EE003A35ED /* WLSettingViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLSettingViewController.h; sourceTree = "<group>"; };
+		2CC1ECBA2EF0F3EE003A35ED /* WLSettingViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLSettingViewController.m; sourceTree = "<group>"; };
+		2CC1ECFB2EF2448D003A35ED /* WLVideoSelectView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLVideoSelectView.h; sourceTree = "<group>"; };
+		2CC1ECFC2EF2448D003A35ED /* WLVideoSelectView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLVideoSelectView.m; sourceTree = "<group>"; };
+		2CC1ECFE2EF24FAB003A35ED /* WLEvent.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLEvent.h; sourceTree = "<group>"; };
+		2CC1ECFF2EF24FAB003A35ED /* WLEvent.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLEvent.m; sourceTree = "<group>"; };
 		807CD9DDD0463F62C938810D /* Pods-WorkLabs.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-WorkLabs.release.xcconfig"; path = "Target Support Files/Pods-WorkLabs/Pods-WorkLabs.release.xcconfig"; sourceTree = "<group>"; };
 		82F01650BE4715EDB1B95D8C /* Pods_WorkLabs.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_WorkLabs.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		9CA6B4412EC069B2002C613D /* WorkLabs.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WorkLabs.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -70,6 +89,22 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		2C80D4A92EF2A92B00AB8D7F /* Event */ = {
+			isa = PBXGroup;
+			children = (
+				2CC1ECFE2EF24FAB003A35ED /* WLEvent.h */,
+				2CC1ECFF2EF24FAB003A35ED /* WLEvent.m */,
+				2C80D4B12EF2AB5100AB8D7F /* WLEventItem.h */,
+				2C80D4B22EF2AB5100AB8D7F /* WLEventItem.m */,
+				2C80D4AB2EF2AABD00AB8D7F /* WLEventSubscription.h */,
+				2C80D4AC2EF2AABD00AB8D7F /* WLEventSubscription.m */,
+				2C80D4AE2EF2AAFA00AB8D7F /* WLEventDisposeBag.h */,
+				2C80D4AF2EF2AAFA00AB8D7F /* WLEventDisposeBag.m */,
+				2C80D4AA2EF2A99A00AB8D7F /* WLEventConst.h */,
+			);
+			path = Event;
+			sourceTree = "<group>";
+		};
 		9CA6B4382EC069B2002C613D = {
 			isa = PBXGroup;
 			children = (
@@ -120,6 +155,7 @@
 		9CB18F1A2EF035CD00C248B0 /* WLUtils */ = {
 			isa = PBXGroup;
 			children = (
+				2C80D4A92EF2A92B00AB8D7F /* Event */,
 				9CB18F152EF035CD00C248B0 /* UI */,
 				9CB18F162EF035CD00C248B0 /* NSArray+Function.h */,
 				9CB18F172EF035CD00C248B0 /* NSArray+Function.m */,
@@ -136,9 +172,9 @@
 				9CB18F1B2EF035CD00C248B0 /* AppDelegate.h */,
 				9CB18F1C2EF035CD00C248B0 /* AppDelegate.m */,
 				9CB18F1D2EF035CD00C248B0 /* Assets.xcassets */,
+				9CB18F212EF035CD00C248B0 /* Main.storyboard */,
 				9CB18F1E2EF035CD00C248B0 /* Info.plist */,
 				9CB18F1F2EF035CD00C248B0 /* main.m */,
-				9CB18F212EF035CD00C248B0 /* Main.storyboard */,
 				9CB18F222EF035CD00C248B0 /* TVUCameraManager.h */,
 				9CB18F232EF035CD00C248B0 /* TVUCameraManager.mm */,
 				9CB18F242EF035CD00C248B0 /* WLCameraManager.h */,
@@ -149,6 +185,10 @@
 				9CB18F292EF035CD00C248B0 /* WLMainViewController.m */,
 				9CB18F2A2EF035CD00C248B0 /* WLMainWindowController.h */,
 				9CB18F2B2EF035CD00C248B0 /* WLMainWindowController.m */,
+				2CC1ECB92EF0F3EE003A35ED /* WLSettingViewController.h */,
+				2CC1ECBA2EF0F3EE003A35ED /* WLSettingViewController.m */,
+				2CC1ECFB2EF2448D003A35ED /* WLVideoSelectView.h */,
+				2CC1ECFC2EF2448D003A35ED /* WLVideoSelectView.m */,
 				9CB18F2C2EF035CD00C248B0 /* WorkLabs.entitlements */,
 			);
 			path = WorkLabs;
@@ -289,17 +329,23 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2CC1ED002EF24FAB003A35ED /* WLEvent.m in Sources */,
 				9CB18F2E2EF035CD00C248B0 /* NSView+BackgroundColor.m in Sources */,
 				9CB18F2F2EF035CD00C248B0 /* NSWindow+WLExtend.m in Sources */,
 				9CB18F302EF035CD00C248B0 /* WLViedoPreview.m in Sources */,
 				9CB18F312EF035CD00C248B0 /* NSArray+Function.m in Sources */,
+				2CC1ECBB2EF0F3EE003A35ED /* WLSettingViewController.m in Sources */,
 				9CB18F322EF035CD00C248B0 /* NSObject+BaseDataType.m in Sources */,
 				9CB18F332EF035CD00C248B0 /* AppDelegate.m in Sources */,
+				2CC1ECFD2EF2448D003A35ED /* WLVideoSelectView.m in Sources */,
 				9CB18F342EF035CD00C248B0 /* main.m in Sources */,
+				2C80D4AD2EF2AABD00AB8D7F /* WLEventSubscription.m in Sources */,
 				9CB18F352EF035CD00C248B0 /* TVUCameraManager.mm in Sources */,
+				2C80D4B02EF2AAFA00AB8D7F /* WLEventDisposeBag.m in Sources */,
 				9CB18F362EF035CD00C248B0 /* WLCameraManager.m in Sources */,
 				9CB18F372EF035CD00C248B0 /* WLDevicesManager.m in Sources */,
 				9CB18F382EF035CD00C248B0 /* WLMainViewController.m in Sources */,
+				2C80D4B32EF2AB5100AB8D7F /* WLEventItem.m in Sources */,
 				9CB18F392EF035CD00C248B0 /* WLMainWindowController.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
