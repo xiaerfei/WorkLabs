@@ -13,8 +13,8 @@
 
 
 
-typedef NS_ENUM(NSUInteger, WLEventType) {
-    WLEventTypeVideoDeviceChange,
+typedef NS_ENUM(NSUInteger, WLObserve) {
+    WLObserveVideoDeviceChange,
 };
 
 #endif /* WLEventConst_h */

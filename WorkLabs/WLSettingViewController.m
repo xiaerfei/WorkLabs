@@ -16,6 +16,7 @@
 @property (nonatomic, strong) NSStackView *stackView;
 
 @property (nonatomic, strong) WLVideoSelectView *videoSelectView;
+@property (nonatomic, strong) WLEventDisposeBag *bag;
 @end
 
 @implementation WLSettingViewController
@@ -46,19 +47,20 @@
     
     [self.videoSelectView updateWithDeviceItems:[[WLDevicesManager manager] currentVideoDevices]];
     
-    WLEventObserve()
-        .type(WLEventTypeVideoDeviceChange)
-        .payload(@[])
-        .send();
+    self.bag = [WLEventDisposeBag new];
     
-    WLEventObserve()
-        .subscribe(@[])
-        .owner(self)
+    WLObserve(@[@(WLObserveVideoDeviceChange)])
         .mainQueue()
-        .block(^(WLEventType type, id payload) {
-            
+        .dispose(self.bag)
+        .name(@"SettingObserve")
+        .block(^(WLObserve type, id payload) {
+            NSLog(@"Setting Receive: %@", payload);
         });
     
+    WLSend()
+        .type(WLObserveVideoDeviceChange)
+        .payload(@"send value ...")
+        .send();
 }
 
 - (void)dealloc {

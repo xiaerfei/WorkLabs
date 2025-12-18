@@ -6,43 +6,24 @@
 //
 
 #import <Foundation/Foundation.h>
-#import "WLEventSubscription.h"
+#import "WLEventObserveItem.h"
 #import "WLEventDisposeBag.h"
+#import "WLEventSendItem.h"
 #import "WLEventConst.h"
-#import "WLEventItem.h"
+
+#define WLSend() [[WLEvent event] send]
+
+#define WLObserve(Events) [[WLEvent event] observe].observe(Events)
 
 NS_ASSUME_NONNULL_BEGIN
 @interface WLEvent : NSObject
 
 + (instancetype)event;
 
-- (WLEventItem *)subscribe;
+- (WLEventSendItem *)send;
+- (WLEventObserveItem *)observe;
 
-/*
- 发送：
- WLEventObserve()
-    .type(WLEventTypeVideoDeviceChange)
-    .payload(@[])
-    .send();
- */
-
-
-/*
- 订阅
- 
- WLEventDisposeBag *bag = WLEventDisposeBag.new;
- 
- WLEventObserve()
-    .subscribe(@[])
-    .owner(self)
-    .mainQueue()
-    .dispose(bag)
-    .block(^(WLEventType type, id payload) {
-
-    });
- */
-
-- (void)removeOwner:(id)owner;
+- (void)removeObserve:(id)observe;
 
 @end
 NS_ASSUME_NONNULL_END

@@ -13,12 +13,14 @@
 #import "WLViedoPreview.h"
 #import <Masonry.h>
 #import "TVUCameraManager.h"
-
 #import <TVURSignal.h>
+
+#import "WLEvent.h"
 
 @interface WLMainViewController () <WLCameraCaptureSubscriber, TVUCameraManagerDelegate>
 @property (weak) IBOutlet NSView *bottomBarView;
 @property (nonatomic, strong) WLViedoPreview *videoPreview;
+@property (nonatomic, strong) WLEventDisposeBag *bag;
 @end
 
 @implementation WLMainViewController
@@ -51,10 +53,19 @@
     for (WLDeviceItem *item in audioDevices) {
         NSLog(@"%@", item.description);
     }
+    
+    self.bag = [WLEventDisposeBag new];
+    
+    WLObserve(@[@(WLObserveVideoDeviceChange)])
+        .mainQueue()
+        .dispose(self.bag)
+        .name(@"MainObserve")
+        .block(^(WLObserve type, id payload) {
+            NSLog(@"Main Receive: %@", payload);
+        });
 }
 #pragma mark - Action Methods
 - (IBAction)settingButtonAction:(NSButton *)sender {
-    
 }
 #pragma mark - Private Methods
 - (void)startWLCamera {

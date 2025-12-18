@@ -10,7 +10,7 @@
 NS_ASSUME_NONNULL_BEGIN
 
 @interface WLEventDisposeBag : NSObject
-- (void)disposeOwner:(id)owner;
+- (void)disposeObserve:(id)observe;
 - (void)dispose;
 @end
 

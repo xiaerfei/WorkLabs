@@ -6,16 +6,16 @@
 //
 
 #import "WLEventDisposeBag.h"
-#import "WLEventItem.h"
+#import "WLEventObserveItem.h"
 #import "WLEvent.h"
 
-@interface WLEventItem ()
-- (WLEventItem *(^)(id owner))remove;
+@interface WLEventObserveItem ()
+- (void)_disposeSelf;
 @end
 
 @interface WLEventDisposeBag ()
 @property (nonatomic, strong) dispatch_queue_t lockQueue;
-@property (nonatomic, strong) NSHashTable *tokens; // weak or strong? token一般需要strong持有
+@property (nonatomic, strong) NSHashTable <WLEventObserveItem *>*tokens; // weak or strong? token一般需要strong持有
 @end
 
 @implementation WLEventDisposeBag
@@ -38,35 +38,31 @@
     });
 }
 
-- (void)disposeOwner:(id)owner {
-    if (!owner) return;
+- (void)disposeObserve:(id)observe {
+    if (!observe) return;
 
-    __block NSArray *all = nil;
+    __block NSArray <WLEventObserveItem *>*all = nil;
     dispatch_sync(self.lockQueue, ^{
         all = self.tokens.allObjects;
     });
 
-    for (id obj in all) {
-        // token 实际是 WLEventItem（作为订阅句柄），它实现了 remove(owner)
-        if ([obj respondsToSelector:@selector(remove:)]) {
-            WLEventItem *item = (WLEventItem *)obj;
-            item.remove(owner);
+    for (WLEventObserveItem *obj in all) {
+        if (obj == observe) {
+            [obj _disposeSelf];
+            break;
         }
     }
 }
 
 - (void)dispose {
-    __block NSArray *all = nil;
+    __block NSArray <WLEventObserveItem *>*all = nil;
     dispatch_sync(self.lockQueue, ^{
         all = self.tokens.allObjects;
         [self.tokens removeAllObjects];
     });
 
-    for (id obj in all) {
-        if ([obj respondsToSelector:@selector(_disposeSelf)]) {
-            // WLEventItem 内部方法，直接释放对应订阅
-            [obj performSelector:@selector(_disposeSelf)];
-        }
+    for (WLEventObserveItem * obj in all) {
+        [obj _disposeSelf];
     }
 }
 

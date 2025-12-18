@@ -7,9 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		2C80D4AD2EF2AABD00AB8D7F /* WLEventSubscription.m in Sources */ = {isa = PBXBuildFile; fileRef = 2C80D4AC2EF2AABD00AB8D7F /* WLEventSubscription.m */; };
 		2C80D4B02EF2AAFA00AB8D7F /* WLEventDisposeBag.m in Sources */ = {isa = PBXBuildFile; fileRef = 2C80D4AF2EF2AAFA00AB8D7F /* WLEventDisposeBag.m */; };
-		2C80D4B32EF2AB5100AB8D7F /* WLEventItem.m in Sources */ = {isa = PBXBuildFile; fileRef = 2C80D4B22EF2AB5100AB8D7F /* WLEventItem.m */; };
+		2C80D4B32EF2AB5100AB8D7F /* WLEventSendItem.m in Sources */ = {isa = PBXBuildFile; fileRef = 2C80D4B22EF2AB5100AB8D7F /* WLEventSendItem.m */; };
 		2CC1ECBB2EF0F3EE003A35ED /* WLSettingViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 2CC1ECBA2EF0F3EE003A35ED /* WLSettingViewController.m */; };
 		2CC1ECFD2EF2448D003A35ED /* WLVideoSelectView.m in Sources */ = {isa = PBXBuildFile; fileRef = 2CC1ECFC2EF2448D003A35ED /* WLVideoSelectView.m */; };
 		2CC1ED002EF24FAB003A35ED /* WLEvent.m in Sources */ = {isa = PBXBuildFile; fileRef = 2CC1ECFF2EF24FAB003A35ED /* WLEvent.m */; };
@@ -27,17 +26,16 @@
 		9CB18F392EF035CD00C248B0 /* WLMainWindowController.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CB18F2B2EF035CD00C248B0 /* WLMainWindowController.m */; };
 		9CB18F3A2EF035CD00C248B0 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 9CB18F1D2EF035CD00C248B0 /* Assets.xcassets */; };
 		9CB18F3C2EF035CD00C248B0 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 9CB18F212EF035CD00C248B0 /* Main.storyboard */; };
+		9CB742C72EF42E4D00E773A3 /* WLEventObserveItem.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CB742C62EF42E4D00E773A3 /* WLEventObserveItem.m */; };
 		D3427D0A4434AAD9602A7B97 /* Pods_WorkLabs.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 82F01650BE4715EDB1B95D8C /* Pods_WorkLabs.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		2C80D4AA2EF2A99A00AB8D7F /* WLEventConst.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLEventConst.h; sourceTree = "<group>"; };
-		2C80D4AB2EF2AABD00AB8D7F /* WLEventSubscription.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLEventSubscription.h; sourceTree = "<group>"; };
-		2C80D4AC2EF2AABD00AB8D7F /* WLEventSubscription.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLEventSubscription.m; sourceTree = "<group>"; };
 		2C80D4AE2EF2AAFA00AB8D7F /* WLEventDisposeBag.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLEventDisposeBag.h; sourceTree = "<group>"; };
 		2C80D4AF2EF2AAFA00AB8D7F /* WLEventDisposeBag.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLEventDisposeBag.m; sourceTree = "<group>"; };
-		2C80D4B12EF2AB5100AB8D7F /* WLEventItem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLEventItem.h; sourceTree = "<group>"; };
-		2C80D4B22EF2AB5100AB8D7F /* WLEventItem.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLEventItem.m; sourceTree = "<group>"; };
+		2C80D4B12EF2AB5100AB8D7F /* WLEventSendItem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLEventSendItem.h; sourceTree = "<group>"; };
+		2C80D4B22EF2AB5100AB8D7F /* WLEventSendItem.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLEventSendItem.m; sourceTree = "<group>"; };
 		2CC1ECB92EF0F3EE003A35ED /* WLSettingViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLSettingViewController.h; sourceTree = "<group>"; };
 		2CC1ECBA2EF0F3EE003A35ED /* WLSettingViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLSettingViewController.m; sourceTree = "<group>"; };
 		2CC1ECFB2EF2448D003A35ED /* WLVideoSelectView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLVideoSelectView.h; sourceTree = "<group>"; };
@@ -74,6 +72,8 @@
 		9CB18F2A2EF035CD00C248B0 /* WLMainWindowController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLMainWindowController.h; sourceTree = "<group>"; };
 		9CB18F2B2EF035CD00C248B0 /* WLMainWindowController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLMainWindowController.m; sourceTree = "<group>"; };
 		9CB18F2C2EF035CD00C248B0 /* WorkLabs.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = WorkLabs.entitlements; sourceTree = "<group>"; };
+		9CB742C52EF42E4D00E773A3 /* WLEventObserveItem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLEventObserveItem.h; sourceTree = "<group>"; };
+		9CB742C62EF42E4D00E773A3 /* WLEventObserveItem.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLEventObserveItem.m; sourceTree = "<group>"; };
 		AC89CF9A75BA89BDAEBA99CD /* Pods-WorkLabs.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-WorkLabs.debug.xcconfig"; path = "Target Support Files/Pods-WorkLabs/Pods-WorkLabs.debug.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -94,10 +94,10 @@
 			children = (
 				2CC1ECFE2EF24FAB003A35ED /* WLEvent.h */,
 				2CC1ECFF2EF24FAB003A35ED /* WLEvent.m */,
-				2C80D4B12EF2AB5100AB8D7F /* WLEventItem.h */,
-				2C80D4B22EF2AB5100AB8D7F /* WLEventItem.m */,
-				2C80D4AB2EF2AABD00AB8D7F /* WLEventSubscription.h */,
-				2C80D4AC2EF2AABD00AB8D7F /* WLEventSubscription.m */,
+				2C80D4B12EF2AB5100AB8D7F /* WLEventSendItem.h */,
+				2C80D4B22EF2AB5100AB8D7F /* WLEventSendItem.m */,
+				9CB742C52EF42E4D00E773A3 /* WLEventObserveItem.h */,
+				9CB742C62EF42E4D00E773A3 /* WLEventObserveItem.m */,
 				2C80D4AE2EF2AAFA00AB8D7F /* WLEventDisposeBag.h */,
 				2C80D4AF2EF2AAFA00AB8D7F /* WLEventDisposeBag.m */,
 				2C80D4AA2EF2A99A00AB8D7F /* WLEventConst.h */,
@@ -339,13 +339,13 @@
 				9CB18F332EF035CD00C248B0 /* AppDelegate.m in Sources */,
 				2CC1ECFD2EF2448D003A35ED /* WLVideoSelectView.m in Sources */,
 				9CB18F342EF035CD00C248B0 /* main.m in Sources */,
-				2C80D4AD2EF2AABD00AB8D7F /* WLEventSubscription.m in Sources */,
 				9CB18F352EF035CD00C248B0 /* TVUCameraManager.mm in Sources */,
 				2C80D4B02EF2AAFA00AB8D7F /* WLEventDisposeBag.m in Sources */,
 				9CB18F362EF035CD00C248B0 /* WLCameraManager.m in Sources */,
 				9CB18F372EF035CD00C248B0 /* WLDevicesManager.m in Sources */,
+				9CB742C72EF42E4D00E773A3 /* WLEventObserveItem.m in Sources */,
 				9CB18F382EF035CD00C248B0 /* WLMainViewController.m in Sources */,
-				2C80D4B32EF2AB5100AB8D7F /* WLEventItem.m in Sources */,
+				2C80D4B32EF2AB5100AB8D7F /* WLEventSendItem.m in Sources */,
 				9CB18F392EF035CD00C248B0 /* WLMainWindowController.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

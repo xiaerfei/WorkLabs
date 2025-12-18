@@ -13,20 +13,13 @@ NS_ASSUME_NONNULL_BEGIN
 @class WLEventDisposeBag, WLEvent;
 
 @interface WLEventSendItem : NSObject
+
 - (instancetype)initWithEvent:(WLEvent *)event;
 
-- (WLEventSendItem *(^)(WLEventType type))type;
+- (WLEventSendItem *(^)(WLObserve type))type;
 - (WLEventSendItem *(^)(id payload))payload;
 - (WLEventSendItem *(^)(void))send;
 
-
-- (WLEventSendItem *(^)(NSArray <NSNumber *>*events))subscribe;
-- (WLEventSendItem *(^)(id owner))owner;
-- (WLEventSendItem *(^)(void))mainQueue;
-- (WLEventSendItem *(^)(dispatch_queue_t _Nullable queue))queue;
-- (WLEventSendItem *(^)(void(^block)(WLEventType event, id payload)))block;
-
-- (WLEventSendItem *(^)(WLEventDisposeBag *bag))dispose;
 @end
 
 NS_ASSUME_NONNULL_END

@@ -7,10 +7,16 @@
 
 #import "WLEvent.h"
 
+@interface WLEventObserveItem ()
+@property (nonatomic, copy) NSArray<NSNumber *> *mevents;
+@property (nonatomic, strong, nullable) dispatch_queue_t mcallbackQueue;
+@property (nonatomic, copy) void(^mblock)(WLObserve event, id payload);
+@property (nonatomic, copy) NSString *mname;
+@end
 
 @interface WLEvent ()
 @property (nonatomic, strong) dispatch_queue_t isolationQueue; // 并发 + barrier
-@property (nonatomic, strong) NSMutableArray<WLEventSubscription *> *subscriptions;
+@property (nonatomic, strong) NSMutableArray<WLEventObserveItem *> *subscriptions;
 @end
 
 #pragma mark - WLEvent
@@ -34,59 +40,51 @@
     return self;
 }
 
-- (WLEventItem *)subscribe {
-    return [[WLEventItem alloc] initWithEvent:self];
+- (WLEventSendItem *)subscribe {
+    return [[WLEventSendItem alloc] initWithEvent:self];
 }
 
-- (void)removeOwner:(id)owner {
-    [self _removeByOwner:owner];
+- (WLEventSendItem *)send {
+    return [[WLEventSendItem alloc] initWithEvent:self];
 }
+
+- (WLEventObserveItem *)observe {
+    return [[WLEventObserveItem alloc] initWithEvent:self];
+}
+
+- (void)removeObserve:(id)observe {
+    if (!observe) return;
+    dispatch_barrier_async(self.isolationQueue, ^{
+        [self.subscriptions removeObject:observe];
+    });
+}
+
 #pragma mark - internal
 
-- (void)_addSubscription:(WLEventSubscription *)sub {
+- (void)_addObserve:(WLEventObserveItem *)sub {
     if (!sub) return;
     dispatch_barrier_async(self.isolationQueue, ^{
         [self.subscriptions addObject:sub];
     });
 }
 
-- (void)_removeSubscription:(WLEventSubscription *)sub {
+- (void)_removeObserve:(WLEventObserveItem *)sub {
     if (!sub) return;
     dispatch_barrier_async(self.isolationQueue, ^{
         [self.subscriptions removeObject:sub];
     });
 }
 
-- (void)_removeByOwner:(id)owner {
-    if (!owner) return;
-    dispatch_barrier_async(self.isolationQueue, ^{
-        NSIndexSet *set = [self.subscriptions indexesOfObjectsPassingTest:^BOOL(WLEventSubscription * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
-            return obj.owner == owner;
-        }];
-        if (set.count) {
-            [self.subscriptions removeObjectsAtIndexes:set];
-        }
-    });
-}
-
-- (void)_sendEvent:(WLEventType)type payload:(id)payload {
+- (void)_sendEvent:(WLObserve)type payload:(id)payload {
     // 快照，避免回调中修改订阅导致崩溃
-    __block NSArray<WLEventSubscription *> *snapshot = nil;
+    __block NSArray<WLEventObserveItem *> *snapshot = nil;
     dispatch_sync(self.isolationQueue, ^{
         snapshot = [self.subscriptions copy];
     });
 
-    for (WLEventSubscription *sub in snapshot) {
-        if (sub.disposed) continue;
-
-        // owner 已释放则自动清理（延后 barrier 清理）
-        if (sub.owner == nil) {
-            [self _removeSubscription:sub];
-            continue;
-        }
-
+    for (WLEventObserveItem *sub in snapshot) {
         BOOL match = NO;
-        for (NSNumber *n in sub.events) {
+        for (NSNumber *n in sub.mevents) {
             if (n.unsignedIntegerValue == type) {
                 match = YES;
                 break;
@@ -95,12 +93,11 @@
         if (!match) continue;
 
         void (^invoke)(void) = ^{
-            if (sub.disposed) return;
-            if (sub.block) sub.block(type, payload);
+            if (sub.mblock) sub.mblock(type, payload);
         };
 
-        if (sub.callbackQueue) {
-            dispatch_async(sub.callbackQueue, invoke);
+        if (sub.mcallbackQueue) {
+            dispatch_async(sub.mcallbackQueue, invoke);
         } else {
             invoke();
         }
