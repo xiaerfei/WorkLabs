@@ -105,6 +105,48 @@
 			path = Event;
 			sourceTree = "<group>";
 		};
+		9C7D40492F0BFD5B00756788 /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				9C7D404A2F0BFD8100756788 /* Main */,
+				9C7D404B2F0BFDA500756788 /* Setting */,
+			);
+			path = UI;
+			sourceTree = "<group>";
+		};
+		9C7D404A2F0BFD8100756788 /* Main */ = {
+			isa = PBXGroup;
+			children = (
+				9CB18F282EF035CD00C248B0 /* WLMainViewController.h */,
+				9CB18F292EF035CD00C248B0 /* WLMainViewController.m */,
+				9CB18F2A2EF035CD00C248B0 /* WLMainWindowController.h */,
+				9CB18F2B2EF035CD00C248B0 /* WLMainWindowController.m */,
+			);
+			path = Main;
+			sourceTree = "<group>";
+		};
+		9C7D404B2F0BFDA500756788 /* Setting */ = {
+			isa = PBXGroup;
+			children = (
+				2CC1ECB92EF0F3EE003A35ED /* WLSettingViewController.h */,
+				2CC1ECBA2EF0F3EE003A35ED /* WLSettingViewController.m */,
+			);
+			path = Setting;
+			sourceTree = "<group>";
+		};
+		9C7D404C2F0BFDD500756788 /* Camera */ = {
+			isa = PBXGroup;
+			children = (
+				9CB18F222EF035CD00C248B0 /* TVUCameraManager.h */,
+				9CB18F232EF035CD00C248B0 /* TVUCameraManager.mm */,
+				9CB18F242EF035CD00C248B0 /* WLCameraManager.h */,
+				9CB18F252EF035CD00C248B0 /* WLCameraManager.m */,
+				9CB18F262EF035CD00C248B0 /* WLDevicesManager.h */,
+				9CB18F272EF035CD00C248B0 /* WLDevicesManager.m */,
+			);
+			path = Camera;
+			sourceTree = "<group>";
+		};
 		9CA6B4382EC069B2002C613D = {
 			isa = PBXGroup;
 			children = (
@@ -168,6 +210,8 @@
 		9CB18F2D2EF035CD00C248B0 /* WorkLabs */ = {
 			isa = PBXGroup;
 			children = (
+				9C7D404C2F0BFDD500756788 /* Camera */,
+				9C7D40492F0BFD5B00756788 /* UI */,
 				9CB18F1A2EF035CD00C248B0 /* WLUtils */,
 				9CB18F1B2EF035CD00C248B0 /* AppDelegate.h */,
 				9CB18F1C2EF035CD00C248B0 /* AppDelegate.m */,
@@ -175,18 +219,6 @@
 				9CB18F212EF035CD00C248B0 /* Main.storyboard */,
 				9CB18F1E2EF035CD00C248B0 /* Info.plist */,
 				9CB18F1F2EF035CD00C248B0 /* main.m */,
-				9CB18F222EF035CD00C248B0 /* TVUCameraManager.h */,
-				9CB18F232EF035CD00C248B0 /* TVUCameraManager.mm */,
-				9CB18F242EF035CD00C248B0 /* WLCameraManager.h */,
-				9CB18F252EF035CD00C248B0 /* WLCameraManager.m */,
-				9CB18F262EF035CD00C248B0 /* WLDevicesManager.h */,
-				9CB18F272EF035CD00C248B0 /* WLDevicesManager.m */,
-				9CB18F282EF035CD00C248B0 /* WLMainViewController.h */,
-				9CB18F292EF035CD00C248B0 /* WLMainViewController.m */,
-				9CB18F2A2EF035CD00C248B0 /* WLMainWindowController.h */,
-				9CB18F2B2EF035CD00C248B0 /* WLMainWindowController.m */,
-				2CC1ECB92EF0F3EE003A35ED /* WLSettingViewController.h */,
-				2CC1ECBA2EF0F3EE003A35ED /* WLSettingViewController.m */,
 				2CC1ECFB2EF2448D003A35ED /* WLVideoSelectView.h */,
 				2CC1ECFC2EF2448D003A35ED /* WLVideoSelectView.m */,
 				9CB18F2C2EF035CD00C248B0 /* WorkLabs.entitlements */,
