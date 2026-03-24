@@ -47,7 +47,9 @@
         make.top.left.right.equalTo(self.view);
         make.bottom.equalTo(self.bottomBarView.mas_top);
     }];
-    self.mediaSource = [[WLMediaSource alloc] initWithPath:@"/Users/erfeixia/Downloads/Test-4K.mp4"];
+    NSString *path = @"/Users/erfeixia/Downloads/Test-4K.mp4";
+    path = @"/Users/erfeixia/Downloads/hdr_video.MOV";
+    self.mediaSource = [[WLMediaSource alloc] initWithPath:path];
     self.mediaSource.delegate = self;
 }
 #pragma mark - Action Methods

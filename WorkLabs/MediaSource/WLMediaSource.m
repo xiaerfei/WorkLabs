@@ -251,6 +251,7 @@
             }
             [node flush];
         }
+        [NSThread sleepForTimeInterval:0.05];
     }
 }
 #pragma mark - initial FFmpeg

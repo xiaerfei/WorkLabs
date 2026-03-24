@@ -30,6 +30,7 @@
 		9CB18F392EF035CD00C248B0 /* WLMainWindowController.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CB18F2B2EF035CD00C248B0 /* WLMainWindowController.m */; };
 		9CB18F3A2EF035CD00C248B0 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 9CB18F1D2EF035CD00C248B0 /* Assets.xcassets */; };
 		9CB18F3C2EF035CD00C248B0 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 9CB18F212EF035CD00C248B0 /* Main.storyboard */; };
+		9CB196772F72C2EC007C6FB1 /* WLAudioPlayer.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CB196762F72C2EC007C6FB1 /* WLAudioPlayer.m */; };
 		9CB742C72EF42E4D00E773A3 /* WLEventObserveItem.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CB742C62EF42E4D00E773A3 /* WLEventObserveItem.m */; };
 		9CC059982F0D4915004FEB9C /* TVUAudioManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CC059972F0D4915004FEB9C /* TVUAudioManager.m */; };
 		D3427D0A4434AAD9602A7B97 /* Pods_WorkLabs.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 82F01650BE4715EDB1B95D8C /* Pods_WorkLabs.framework */; };
@@ -85,6 +86,8 @@
 		9CB18F2A2EF035CD00C248B0 /* WLMainWindowController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLMainWindowController.h; sourceTree = "<group>"; };
 		9CB18F2B2EF035CD00C248B0 /* WLMainWindowController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLMainWindowController.m; sourceTree = "<group>"; };
 		9CB18F2C2EF035CD00C248B0 /* WorkLabs.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = WorkLabs.entitlements; sourceTree = "<group>"; };
+		9CB196752F72C2EC007C6FB1 /* WLAudioPlayer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLAudioPlayer.h; sourceTree = "<group>"; };
+		9CB196762F72C2EC007C6FB1 /* WLAudioPlayer.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLAudioPlayer.m; sourceTree = "<group>"; };
 		9CB742C52EF42E4D00E773A3 /* WLEventObserveItem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLEventObserveItem.h; sourceTree = "<group>"; };
 		9CB742C62EF42E4D00E773A3 /* WLEventObserveItem.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLEventObserveItem.m; sourceTree = "<group>"; };
 		9CC059962F0D4915004FEB9C /* TVUAudioManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = TVUAudioManager.h; sourceTree = "<group>"; };
@@ -131,6 +134,8 @@
 				9C012D1A2F6E674200FB5170 /* WLNodeQueue.m */,
 				9C012D132F6E4DE000FB5170 /* WLResample.h */,
 				9C012D142F6E4DE900FB5170 /* WLResample.m */,
+				9CB196752F72C2EC007C6FB1 /* WLAudioPlayer.h */,
+				9CB196762F72C2EC007C6FB1 /* WLAudioPlayer.m */,
 			);
 			path = MediaSource;
 			sourceTree = "<group>";
@@ -414,6 +419,7 @@
 				9CB18F2E2EF035CD00C248B0 /* NSView+BackgroundColor.m in Sources */,
 				9C10ABC22F6E3E4B0022A777 /* WLMediaSource.m in Sources */,
 				9CB18F2F2EF035CD00C248B0 /* NSWindow+WLExtend.m in Sources */,
+				9CB196772F72C2EC007C6FB1 /* WLAudioPlayer.m in Sources */,
 				9CB18F302EF035CD00C248B0 /* WLViedoPreview.m in Sources */,
 				9CB18F312EF035CD00C248B0 /* NSArray+Function.m in Sources */,
 				2CC1ECBB2EF0F3EE003A35ED /* WLSettingViewController.m in Sources */,
