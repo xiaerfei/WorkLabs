@@ -23,10 +23,11 @@
 @property (nonatomic, assign, readwrite) WLMediaSourceState state;
 @property (nonatomic, assign, readwrite, getter=isRunning) BOOL running;
 
-@property (atomic, assign) BOOL isVideoDecoding;
-@property (atomic, assign) BOOL isAudioDecoding;
+@property (atomic, assign, getter=isVideoDecoding) BOOL videoDecoding;
+@property (atomic, assign, getter=isAudioDecoding) BOOL audioDecoding;
 
-@property (nonatomic, assign, readwrite, getter=isRendering) BOOL rendering;
+@property (nonatomic, assign, readwrite, getter=isVideoRendering) BOOL videoRendering;
+@property (nonatomic, assign, readwrite, getter=isAudioRendering) BOOL audioRendering;
 
 @property (nonatomic, unsafe_unretained) AVFormatContext *formatContext;
 @property (nonatomic, unsafe_unretained) AVCodecContext  *audioCodecContext;
@@ -131,9 +132,10 @@
 }
 
 - (void)configureDecode {
-    self.isVideoDecoding = YES;
-    self.isAudioDecoding = YES;
-    self.rendering = YES;
+    self.videoDecoding = YES;
+    self.audioDecoding = YES;
+    self.videoRendering = YES;
+    self.audioRendering = YES;
     [NSThread detachNewThreadSelector:@selector(videoDecodeThread) toTarget:self withObject:nil];
     [NSThread detachNewThreadSelector:@selector(audioDecodeThread) toTarget:self withObject:nil];
     
@@ -167,7 +169,7 @@
 - (void)audioDecodeThread {
     [NSThread currentThread].name = @"com.wl-decode-audio.thread";
     AVFrame *frame = av_frame_alloc();
-    while (self.isVideoDecoding) {
+    while (self.isAudioDecoding) {
         int result = [self decodeFrame:self.audioCodecContext
                                  frame:frame
                                  queue:self.audioPacketQueue];
@@ -177,7 +179,7 @@
             node.frame = av_frame_clone(frame); // 引用计数+1
             node.type = WLDecodeTypeAudio;
             node.pts = frame->pts * av_q2d(self.formatContext->streams[self.audioStreamIndex]->time_base);
-            [self.videoFrameQueue enQueue:node];
+            [self.audioFrameQueue enQueue:node];
         } else if (result == AVERROR_EOF) {
             break;
         }
@@ -224,13 +226,16 @@
 #pragma mark - Render Thread
 - (void)videoRenderThread {
     /// 开始渲染视频
-    while (self.isRendering) {
-        WLDecodeNode *node =  [self.videoFrameQueue deQueueWithBlock:NO];
+    while (self.isVideoRendering) {
+        WLDecodeNode *node = [self.videoFrameQueue deQueueWithBlock:NO];
         if (node) {
             if (node.frame->format == AV_PIX_FMT_VIDEOTOOLBOX) {
                 CVPixelBufferRef pixelBuffer = (CVPixelBufferRef)node.frame->data[3];
+                if (pixelBuffer && [self.delegate respondsToSelector:@selector(mediaSource:didOutputVideoPixelBuffer:pts:)]) {
+                    [self.delegate mediaSource:self didOutputVideoPixelBuffer:pixelBuffer pts:node.pts];
+                }
             }
-            [node flush];            
+            [node flush];
         }
         [NSThread sleepForTimeInterval:0.05];
     }
@@ -238,10 +243,14 @@
 
 - (void)audioRenderThread {
     /// 开始渲染音频
-    while (self.isRendering) {
-        WLDecodeNode *node =  [self.videoFrameQueue deQueueWithBlock:YES];
-        [node flush];
-        [NSThread sleepForTimeInterval:0.05];
+    while (self.isAudioRendering) {
+        WLDecodeNode *node = [self.audioFrameQueue deQueueWithBlock:YES];
+        if (node) {
+            if ([self.delegate respondsToSelector:@selector(mediaSource:didOutputAudioFrame:pts:)]) {
+                [self.delegate mediaSource:self didOutputAudioFrame:node.frame pts:node.pts];
+            }
+            [node flush];
+        }
     }
 }
 #pragma mark - initial FFmpeg

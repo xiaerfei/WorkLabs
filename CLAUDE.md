@@ -4,99 +4,82 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-WorkLabs is a macOS application for video and audio capture, with streaming capabilities using FFmpeg. The app captures from system cameras and microphones, provides a live preview, and includes device management.
+WorkLabs is a macOS application for video and audio capture/playback, with streaming capabilities using FFmpeg. The app captures from system cameras and microphones, decodes media files via FFmpeg, provides a live preview, and includes device management.
 
 - **Platform**: macOS 15.2+
-- **Language**: Objective‑C
+- **Language**: Objective‑C (ARC)
 - **Dependency Manager**: CocoaPods
-- **Workspace**: `WorkLabs.xcworkspace` (use this, not the `.xcodeproj`)
+- **Workspace**: `WorkLabs.xcworkspace` (always use this, not the `.xcodeproj`)
 
-## Common Development Tasks
+## Build & Run
 
-### Install Dependencies
 ```bash
+# Install dependencies (run after cloning or modifying Podfile)
 pod install
-```
-Always open `WorkLabs.xcworkspace` after running `pod install`. The Pods directory is not checked into git.
 
-### Build the Project
-```bash
+# Build (Debug)
 xcodebuild -workspace WorkLabs.xcworkspace -scheme WorkLabs -configuration Debug
+
+# Build (Release)
+xcodebuild -workspace WorkLabs.xcworkspace -scheme WorkLabs -configuration Release
 ```
-For release builds, change `-configuration Debug` to `-configuration Release`.
 
-### Run the App
-Open `WorkLabs.xcworkspace` in Xcode and press ⌘R. The main interface is defined in `Base.lproj/Main.storyboard` with `WLMainViewController` as the initial view controller.
+No unit tests exist yet. The app logs device lists and event notifications to the console for debugging.
 
-### Code Style
-- Objective‑C with ARC.
-- Uses Masonry for Auto Layout (programmatic constraints).
-- Reactive patterns via ReactiveObjC and the custom `TVURSignal` library.
-- A custom event system (`WLEvent`) is used for internal component communication.
+## Code Style
+
+- Masonry for Auto Layout (programmatic constraints, not Interface Builder).
+- Reactive patterns via ReactiveObjC and the custom `TVURSignal` local pod.
+- Decoupled communication via the `WLEvent` event‑bus (`WLObserve()` / `WLSend()` macros).
+- Comments in the codebase are primarily in Chinese.
 
 ## Architecture
 
-### Key Components
+### Data Flow: Two Video Pipelines
 
-**Managers**
-- `WLVideoManager` – Wraps `AVCaptureSession` for video capture; uses the `WLCameraCaptureSubscriber` protocol to deliver sample buffers.
-- `TVUVideoManager` – Alternative camera manager from TVUNetworks; conforms to `TVUCameraManagerDelegate`.
-- `TVUAudioManager` – (Currently a stub) intended for audio capture.
-- `WLDevicesManager` – Enumerates available video and audio devices (`AVCaptureDevice`).
+**1. Live Camera Capture** (`Video/`)
+- `WLVideoManager` wraps `AVCaptureSession`; delivers `CMSampleBufferRef` to objects conforming to `WLCameraCaptureSubscriber`.
+- `TVUVideoManager` is an alternative camera manager (TVUNetworks SDK); uses `TVUCameraManagerDelegate`.
+- `WLDevicesManager` enumerates `AVCaptureDevice` instances.
+- Frames are rendered via `WLViedoPreview` (note the typo is intentional in the codebase) which uses `AVSampleBufferDisplayLayer`.
 
-**UI**
-- `WLMainViewController` – Primary view controller; sets up video preview and device listing.
-- `WLSettingViewController` – Settings panel (empty as of now).
-- `WLViedoPreview` – Custom view that uses `AVSampleBufferDisplayLayer` to render captured video frames.
+**2. FFmpeg Media Playback** (`MediaSource/`)
+- `WLMediaSource` is the main orchestrator: opens a file with `AVFormatContext`, finds best video/audio streams, sets up codec contexts (with VideoToolbox hardware acceleration when available), and spawns dedicated threads.
+- Threading model (all `NSThread`):
+  - **Parse thread** — reads packets via `av_read_frame`, routes to video/audio packet queues.
+  - **Video decode thread** — pulls from video packet queue, decodes, pushes to video frame queue.
+  - **Audio decode thread** — pulls from audio packet queue, decodes, pushes to audio frame queue.
+  - **Video render thread** — pulls decoded frames for display.
+  - **Audio render thread** — pulls decoded frames for audio output.
+- `WLNodeQueue` — thread‑safe queue (with blocking dequeue support) connecting producers to consumers.
+- `WLDecodeNode` — wraps an `AVPacket` or `AVFrame` as a linked‑list node; `flush` frees the underlying FFmpeg data.
+- `WLResample` — stub for future audio resampling via `libswresample`.
 
-**Utilities**
-- `WLEvent` – Lightweight event‑bus for decoupled communication (observe/send patterns).
-- `TVURSignal` – Local reactive‑signal library (similar to ReactiveObjC).
-- `NSArray+Function`, `NSObject+BaseDataType` – Helper categories.
+### Event System
 
-**Third‑Party Dependencies**
-- `ReactiveObjC` – Reactive programming.
-- `ffmpeg‑kit‑local` – Local pod providing FFmpeg frameworks (located in `LocalPodspecs/ffmpeg‑kit‑macos‑full/`).
-- `Masonry` – DSL for Auto Layout.
+`WLEvent` is a lightweight event bus. Event types are defined as `WLObserve` enum values in `WLEventConst.h`. Usage pattern:
 
-### Project Layout
-```
-WorkLabs/
-├── UI/                    # View controllers and windows
-│   ├── Main/             # WLMainViewController, WLMainWindowController
-│   └── Setting/          # WLSettingViewController
-├── Video/                # Camera managers (WLVideoManager, TVUVideoManager)
-├── Audio/                # TVUAudioManager
-├── WLUtils/              # Utilities
-│   ├── Event/            # WLEvent system
-│   ├── UI/               # Categories and custom views
-│   └── NSArray+Function, NSObject+BaseDataType
-├── AppDelegate.[hm]
-└── main.m
-LocalPodspecs/            # Local podspecs for ffmpeg‑kit and TVURSignal
-Pods/                     # Generated by CocoaPods (ignored)
+```objc
+// Observe
+WLObserve(@[@(WLObserveVideoDeviceChange)])
+    .mainQueue()
+    .dispose(self.bag)
+    .block(^(WLObserve type, id payload) { ... });
+
+// Send
+WLSend().send(@(WLObserveVideoDeviceChange)).payload(data);
 ```
 
-### Design Notes
-- The app prints the linked FFmpeg version (`libavformat`) at startup.
-- Video frames are delivered via `CMSampleBufferRef` to subscribers.
-- Device changes are observed through the `WLEvent` system (see `WLObserve(@[@(WLObserveVideoDeviceChange)])` in `WLMainViewController.m`).
-- The `TVURSignal` library is used for reactive bindings (see `TVURSignal.h` in `LocalPodspecs/TVURSignal/`).
+### Dependencies
 
-## Workflow Tips
-1. **Adding a new dependency**: Edit `Podfile`, run `pod install`, then open the workspace.
-2. **Adding a new source file**: Place it in the appropriate subdirectory under `WorkLabs/` and add it to the Xcode project via the workspace (the `.xcodeproj/project.pbxproj` will be updated).
-3. **Running the app from the command line**: Use `xcodebuild` with the `-scheme` and `-workspace` flags as shown above.
-4. **Debugging**: The app logs device lists and event notifications to the console.
+- **ReactiveObjC** — reactive programming
+- **Masonry** — Auto Layout DSL
+- **ffmpeg‑kit‑local** — local pod in `LocalPodspecs/ffmpeg‑kit‑macos‑full/` providing FFmpeg frameworks (libavformat, libavcodec, libswscale, libswresample, etc.)
+- **TVURSignal** — local pod in `LocalPodspecs/TVURSignal/`, a reactive signal library
 
-## Important Files
-- `Podfile` – CocoaPods dependencies.
-- `WorkLabs.xcworkspace` – The workspace to open in Xcode.
-- `WorkLabs/Base.lproj/Main.storyboard` – Main storyboard (contains menu bar and window).
-- `WorkLabs/UI/Main/WLMainViewController.m` – Entry point for custom logic.
-- `LocalPodspecs/` – Contains local podspecs for ffmpeg‑kit and TVURSignal.
+### Key Stubs / Incomplete Areas
 
-## Notes
-- The project does not currently include unit tests.
-- The `TVUAudioManager` is a stub and may need implementation for audio capture.
-- The `可切源推流时间戳设计.md` file contains design discussions about streaming timestamp handling (Chinese).
+- `TVUAudioManager` — empty stub, needs implementation for live audio capture.
+- `WLResample` — empty stub for audio resampling.
+- `WLMediaSource.stop` — not yet implemented; currently only `doExit` cleans up resources.
+- Video/audio render threads in `WLMediaSource` extract frames but don't yet push them to display/output.

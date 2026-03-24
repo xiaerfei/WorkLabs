@@ -19,7 +19,7 @@
 
 #import "WLMediaSource.h"
 
-@interface WLMainViewController () <WLCameraCaptureSubscriber, TVUCameraManagerDelegate>
+@interface WLMainViewController () <WLCameraCaptureSubscriber, TVUCameraManagerDelegate, WLMediaSourceDelegate>
 @property (weak) IBOutlet NSView *bottomBarView;
 @property (nonatomic, strong) WLViedoPreview *videoPreview;
 @property (nonatomic, strong) WLEventDisposeBag *bag;
@@ -47,26 +47,8 @@
         make.top.left.right.equalTo(self.view);
         make.bottom.equalTo(self.bottomBarView.mas_top);
     }];
-    NSArray <WLDeviceItem *> *videoDevices = [[WLDevicesManager manager] currentVideoDevices];
-    for (WLDeviceItem *item in videoDevices) {
-        NSLog(@"%@", item.description);
-    }
-    
-    NSArray <WLDeviceItem *> *audioDevices = [[WLDevicesManager manager] currentAudioDevices];
-    for (WLDeviceItem *item in audioDevices) {
-        NSLog(@"%@", item.description);
-    }
-    
-    self.bag = [WLEventDisposeBag new];
-    
-    WLObserve(@[@(WLObserveVideoDeviceChange)])
-        .mainQueue()
-        .dispose(self.bag)
-        .name(@"MainObserve")
-        .block(^(WLObserve type, id payload) {
-            NSLog(@"Main Receive: %@", payload);
-        });
     self.mediaSource = [[WLMediaSource alloc] initWithPath:@"/Users/erfeixia/Downloads/Test-4K.mp4"];
+    self.mediaSource.delegate = self;
 }
 #pragma mark - Action Methods
 - (IBAction)settingButtonAction:(NSButton *)sender {
@@ -82,16 +64,6 @@
     [manager subscriber:self];
     // 启动采集
     [manager startCapture];
-    
-    NSArray *devices = [[WLDevicesManager manager] currentVideoDevices];
-
-    for (AVCaptureDevice *device in devices) {
-        NSLog(@"摄像头名称: %@", device.localizedName);
-        NSLog(@"     uniqueID : %@", device.uniqueID);
-        NSLog(@"      modelID : %@", device.modelID);
-        NSLog(@"localizedName : %@", device.localizedName);
-        NSLog(@" manufacturer : %@", device.manufacturer);
-    }
 }
 #pragma mark - WLCameraCaptureSubscriber
 - (void)cameraCaptureManager:(WLVideoManager *)manager
@@ -103,5 +75,37 @@
    didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
           fromConnection:(AVCaptureConnection *)connection {
     [self.videoPreview.displayLayer.sampleBufferRenderer enqueueSampleBuffer:sampleBuffer];
+}
+#pragma mark - WLMediaSourceDelegate
+- (void)mediaSource:(WLMediaSource *)source didOutputVideoPixelBuffer:(CVPixelBufferRef)pixelBuffer pts:(Float64)pts {
+    CMSampleBufferRef sampleBuffer = [self sampleBufferFromPixelBuffer:pixelBuffer pts:pts];
+    if (sampleBuffer) {
+        [self.videoPreview.displayLayer.sampleBufferRenderer enqueueSampleBuffer:sampleBuffer];
+        CFRelease(sampleBuffer);
+    }
+}
+
+- (void)mediaSource:(WLMediaSource *)source didOutputAudioFrame:(AVFrame *)frame pts:(Float64)pts {
+    // TODO: 音频播放实现
+}
+#pragma mark - Private Methods (MediaSource)
+- (CMSampleBufferRef)sampleBufferFromPixelBuffer:(CVPixelBufferRef)pixelBuffer pts:(Float64)pts {
+    CMVideoFormatDescriptionRef formatDescription = NULL;
+    OSStatus status = CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, pixelBuffer, &formatDescription);
+    if (status != noErr) return NULL;
+
+    CMSampleTimingInfo timingInfo;
+    timingInfo.duration = kCMTimeInvalid;
+    timingInfo.presentationTimeStamp = CMTimeMakeWithSeconds(pts, 600);
+    timingInfo.decodeTimeStamp = kCMTimeInvalid;
+
+    CMSampleBufferRef sampleBuffer = NULL;
+    status = CMSampleBufferCreateReadyWithImageBuffer(kCFAllocatorDefault,
+                                                      pixelBuffer,
+                                                      formatDescription,
+                                                      &timingInfo,
+                                                      &sampleBuffer);
+    CFRelease(formatDescription);
+    return (status == noErr) ? sampleBuffer : NULL;
 }
 @end
