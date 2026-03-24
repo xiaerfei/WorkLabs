@@ -8,19 +8,22 @@
 #import "WLMainViewController.h"
 #include <libavformat/avformat.h>
 #import "NSView+BackgroundColor.h"
-#import "WLCameraManager.h"
+#import "WLVideoManager.h"
 #import "WLDevicesManager.h"
 #import "WLViedoPreview.h"
 #import <Masonry.h>
-#import "TVUCameraManager.h"
+#import "TVUVideoManager.h"
 #import <TVURSignal.h>
 
 #import "WLEvent.h"
+
+#import "WLMediaSource.h"
 
 @interface WLMainViewController () <WLCameraCaptureSubscriber, TVUCameraManagerDelegate>
 @property (weak) IBOutlet NSView *bottomBarView;
 @property (nonatomic, strong) WLViedoPreview *videoPreview;
 @property (nonatomic, strong) WLEventDisposeBag *bag;
+@property (nonatomic, strong) WLMediaSource *mediaSource;
 @end
 
 @implementation WLMainViewController
@@ -63,13 +66,19 @@
         .block(^(WLObserve type, id payload) {
             NSLog(@"Main Receive: %@", payload);
         });
+    self.mediaSource = [[WLMediaSource alloc] initWithPath:@"/Users/erfeixia/Downloads/Test-4K.mp4"];
 }
 #pragma mark - Action Methods
 - (IBAction)settingButtonAction:(NSButton *)sender {
+    
+}
+
+- (IBAction)startButtonAction:(NSButton *)sender {
+    [self.mediaSource start];
 }
 #pragma mark - Private Methods
 - (void)startWLCamera {
-    WLCameraManager *manager = [WLCameraManager manager];
+    WLVideoManager *manager = [WLVideoManager manager];
     [manager subscriber:self];
     // 启动采集
     [manager startCapture];
@@ -85,7 +94,7 @@
     }
 }
 #pragma mark - WLCameraCaptureSubscriber
-- (void)cameraCaptureManager:(WLCameraManager *)manager
+- (void)cameraCaptureManager:(WLVideoManager *)manager
        didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer {
     [self.videoPreview.displayLayer.sampleBufferRenderer enqueueSampleBuffer:sampleBuffer];
 }

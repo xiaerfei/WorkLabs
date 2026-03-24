@@ -6,7 +6,7 @@
 //  Copyright © 2024 tvunetworks. All rights reserved.
 //
 
-#import "TVUCameraManager.h"
+#import "TVUVideoManager.h"
 #include <syslog.h>
 
 #define log4cplus_error(category, logFmt, ...) \
@@ -15,7 +15,7 @@ do { \
 }while(0)
 
 
-@interface TVUCameraManager ()<AVCaptureVideoDataOutputSampleBufferDelegate>
+@interface TVUVideoManager ()<AVCaptureVideoDataOutputSampleBufferDelegate>
 {
     AVCaptureSession         * m_session;
     AVCaptureDeviceInput     * m_video_input;
@@ -29,14 +29,14 @@ static NSString * const resolution_default = @"1280x720";
 static NSString * const frameRate_default  = @"30P";
 
 
-@implementation TVUCameraManager
+@implementation TVUVideoManager
 #pragma mark - public methods
-+ (TVUCameraManager *)manager
++ (TVUVideoManager *)manager
 {
-    static TVUCameraManager *instance = nil;
+    static TVUVideoManager *instance = nil;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        instance = [[TVUCameraManager alloc] init];
+        instance = [[TVUVideoManager alloc] init];
     });
     return instance;
 }

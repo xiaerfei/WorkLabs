@@ -19,11 +19,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 @end
 
-@interface TVUCameraManager : NSObject
+@interface TVUVideoManager : NSObject
 
 @property (nonatomic, weak) id<TVUCameraManagerDelegate> delegate;
 
-+ (TVUCameraManager *)manager;
++ (TVUVideoManager *)manager;
 
 - (void)startCaptureSessionWithDevice:(NSDictionary *)deviceDict;
 

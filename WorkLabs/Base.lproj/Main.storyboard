@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<document type="com.apple.InterfaceBuilder3.Cocoa.Storyboard.XIB" version="3.0" toolsVersion="23727" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES" initialViewController="B8D-0N-5wS">
+<document type="com.apple.InterfaceBuilder3.Cocoa.Storyboard.XIB" version="3.0" toolsVersion="24506" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES" initialViewController="B8D-0N-5wS">
     <dependencies>
-        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="23727"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="24506"/>
         <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
     </dependencies>
     <scenes>
@@ -727,9 +727,21 @@
                                             <segue destination="pFn-mm-jqD" kind="show" id="dXl-KF-dqm"/>
                                         </connections>
                                     </button>
+                                    <button verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="Exe-SW-Jxl">
+                                        <rect key="frame" x="15" y="18" width="54" height="24"/>
+                                        <buttonCell key="cell" type="push" title="Start" bezelStyle="rounded" alignment="center" borderStyle="border" imageScaling="proportionallyDown" inset="2" id="pZL-ha-fLJ">
+                                            <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                                            <font key="font" metaFont="system"/>
+                                        </buttonCell>
+                                        <connections>
+                                            <action selector="startButtonAction:" target="XfG-lQ-9wD" id="Afu-fL-e3b"/>
+                                        </connections>
+                                    </button>
                                 </subviews>
                                 <constraints>
                                     <constraint firstItem="dAh-Ux-MSh" firstAttribute="centerY" secondItem="xEC-kV-BYz" secondAttribute="centerY" id="5az-kY-ebq"/>
+                                    <constraint firstItem="Exe-SW-Jxl" firstAttribute="centerY" secondItem="xEC-kV-BYz" secondAttribute="centerY" id="6PK-lO-tqV"/>
+                                    <constraint firstItem="Exe-SW-Jxl" firstAttribute="leading" secondItem="xEC-kV-BYz" secondAttribute="leading" constant="15" id="KhP-15-ptq"/>
                                     <constraint firstAttribute="height" constant="60" id="aN9-hW-jys"/>
                                     <constraint firstAttribute="trailing" secondItem="dAh-Ux-MSh" secondAttribute="trailing" constant="20" symbolic="YES" id="l6I-AT-1Gq"/>
                                 </constraints>

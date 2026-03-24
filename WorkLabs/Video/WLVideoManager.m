@@ -1,7 +1,7 @@
-#import "WLCameraManager.h"
+#import "WLVideoManager.h"
 #import <CoreMedia/CoreMedia.h>
 
-@interface WLCameraManager () <AVCaptureVideoDataOutputSampleBufferDelegate>
+@interface WLVideoManager () <AVCaptureVideoDataOutputSampleBufferDelegate>
 {
     dispatch_queue_t _videoQueue;
     NSHashTable<id<WLCameraCaptureSubscriber>> *_subscribers;
@@ -15,13 +15,13 @@
 
 @end
 
-@implementation WLCameraManager
+@implementation WLVideoManager
 
 + (instancetype)manager {
-    static WLCameraManager *m;
+    static WLVideoManager *m;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        m = [[WLCameraManager alloc] init];
+        m = [[WLVideoManager alloc] init];
     });
     return m;
 }
