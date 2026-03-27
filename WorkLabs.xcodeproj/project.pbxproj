@@ -34,10 +34,14 @@
 		9CB742C72EF42E4D00E773A3 /* WLEventObserveItem.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CB742C62EF42E4D00E773A3 /* WLEventObserveItem.m */; };
 		9CBEC7F72F75F09400FEB37E /* WLStreams.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CBEC7F62F75F09400FEB37E /* WLStreams.m */; };
 		9CC059982F0D4915004FEB9C /* TVUAudioManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CC059972F0D4915004FEB9C /* TVUAudioManager.m */; };
+		B21031CC8BE85DE811EBA5DA /* WLAudioBuffer.m in Sources */ = {isa = PBXBuildFile; fileRef = E56B38CC75CEA8C2FB6FA029 /* WLAudioBuffer.m */; };
+		B466D4AA49B28AF0EBF8BDB2 /* WLMediaSource+AudioPlayer.m in Sources */ = {isa = PBXBuildFile; fileRef = 147920BD250CFB3E3A6A541F /* WLMediaSource+AudioPlayer.m */; };
 		D3427D0A4434AAD9602A7B97 /* Pods_WorkLabs.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 82F01650BE4715EDB1B95D8C /* Pods_WorkLabs.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		147920BD250CFB3E3A6A541F /* WLMediaSource+AudioPlayer.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = "WLMediaSource+AudioPlayer.m"; sourceTree = "<group>"; };
+		1BB7035508A3AA761DC56575 /* WLAudioBuffer.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = WLAudioBuffer.h; sourceTree = "<group>"; };
 		2C80D4AA2EF2A99A00AB8D7F /* WLEventConst.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLEventConst.h; sourceTree = "<group>"; };
 		2C80D4AE2EF2AAFA00AB8D7F /* WLEventDisposeBag.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLEventDisposeBag.h; sourceTree = "<group>"; };
 		2C80D4AF2EF2AAFA00AB8D7F /* WLEventDisposeBag.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLEventDisposeBag.m; sourceTree = "<group>"; };
@@ -96,6 +100,8 @@
 		9CC059962F0D4915004FEB9C /* TVUAudioManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = TVUAudioManager.h; sourceTree = "<group>"; };
 		9CC059972F0D4915004FEB9C /* TVUAudioManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = TVUAudioManager.m; sourceTree = "<group>"; };
 		AC89CF9A75BA89BDAEBA99CD /* Pods-WorkLabs.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-WorkLabs.debug.xcconfig"; path = "Target Support Files/Pods-WorkLabs/Pods-WorkLabs.debug.xcconfig"; sourceTree = "<group>"; };
+		E56B38CC75CEA8C2FB6FA029 /* WLAudioBuffer.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = WLAudioBuffer.m; sourceTree = "<group>"; };
+		F2CD6DC01709085AA81409AE /* WLMediaSource+AudioPlayer.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = "WLMediaSource+AudioPlayer.h"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -139,6 +145,10 @@
 				9C012D142F6E4DE900FB5170 /* WLResample.m */,
 				9CB196752F72C2EC007C6FB1 /* WLAudioPlayer.h */,
 				9CB196762F72C2EC007C6FB1 /* WLAudioPlayer.m */,
+				1BB7035508A3AA761DC56575 /* WLAudioBuffer.h */,
+				E56B38CC75CEA8C2FB6FA029 /* WLAudioBuffer.m */,
+				F2CD6DC01709085AA81409AE /* WLMediaSource+AudioPlayer.h */,
+				147920BD250CFB3E3A6A541F /* WLMediaSource+AudioPlayer.m */,
 			);
 			path = MediaSource;
 			sourceTree = "<group>";
@@ -453,6 +463,8 @@
 				2C80D4B32EF2AB5100AB8D7F /* WLEventSendItem.m in Sources */,
 				9C012D182F6E670800FB5170 /* WLDecodeNode.m in Sources */,
 				9CB18F392EF035CD00C248B0 /* WLMainWindowController.m in Sources */,
+				B21031CC8BE85DE811EBA5DA /* WLAudioBuffer.m in Sources */,
+				B466D4AA49B28AF0EBF8BDB2 /* WLMediaSource+AudioPlayer.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

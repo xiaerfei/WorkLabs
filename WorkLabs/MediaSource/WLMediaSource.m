@@ -6,6 +6,8 @@
 //
 
 #import "WLMediaSource.h"
+#import "WLMediaSource+AudioPlayer.h"
+#import "WLAudioPlayer.h"
 #import "WLNodeQueue.h"
 #import "WLStreams.h"
 
@@ -65,6 +67,8 @@
 }
 
 - (void)stop {
+    self.running = NO;
+    [self doExit];
 }
 
 #pragma mark - Parse Thread
@@ -243,16 +247,36 @@
 }
 
 - (void)audioRenderThread {
-    /// 开始渲染音频
+    [NSThread currentThread].name = @"com.wl-render-audio.thread";
+    BOOL audioPlayerConfigured = NO;
+
     while (self.isAudioRendering) {
         WLDecodeNode *node = [self.audioFrameQueue deQueueWithBlock:YES];
-        if (node) {
-            if ([self.delegate respondsToSelector:@selector(mediaSource:didOutputAudioFrame:pts:)]) {
-                [self.delegate mediaSource:self didOutputAudioFrame:node.frame pts:node.pts];
+        if (!node) continue;
+
+        // 首次收到音频帧时，配置播放器的输入格式
+        WLAudioPlayer *player = self.audioPlayer;
+        if (player && !audioPlayerConfigured && node.frame) {
+            [player configureInputFormat:node.frame->sample_rate
+                            sampleFormat:(enum AVSampleFormat)node.frame->format
+                                channels:node.frame->channels];
+            if (!player.isPlaying) {
+                [player start];
             }
-            [node flush];
+            audioPlayerConfigured = YES;
         }
-        [NSThread sleepForTimeInterval:0.05];
+
+        // 将帧传递给播放器
+        if (player && node.frame) {
+            [player didReceiveAudioFrame:node.frame pts:node.pts];
+        }
+
+        // 同时通知代理（如果有外部监听者）
+        if ([self.delegate respondsToSelector:@selector(mediaSource:didOutputAudioFrame:pts:)]) {
+            [self.delegate mediaSource:self didOutputAudioFrame:node.frame pts:node.pts];
+        }
+
+        [node flush];
     }
 }
 #pragma mark - initial FFmpeg
@@ -431,8 +455,24 @@ fail:
 }
 #pragma mark - 资源释放
 - (void)doExit {
-    // 按照从内到外的顺序释放，虽然 FFmpeg 内部有处理，但外层逻辑要清晰
-    
+    // 0. 停止渲染线程和播放器
+    self.videoRendering = NO;
+    self.audioRendering = NO;
+    self.videoDecoding = NO;
+    self.audioDecoding = NO;
+
+    // 中止所有队列，唤醒阻塞线程
+    [self.videoPacketQueue abort];
+    [self.audioPacketQueue abort];
+    [self.videoFrameQueue abort];
+    [self.audioFrameQueue abort];
+
+    // 停止音频播放器
+    WLAudioPlayer *player = self.audioPlayer;
+    if (player) {
+        [player stop];
+    }
+
     // 1. 释放视频解码器
     if (_videoCodecContext) {
         // 注意：avcodec_free_context 会自动处理内部的 hw_device_ctx unref

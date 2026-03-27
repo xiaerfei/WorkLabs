@@ -532,15 +532,67 @@
                   outputCapacity:(UInt32)capacity
                            error:(NSError **)error {
 
-    // 此方法需要临时缓冲区，这里简化为单次处理
-    // 实际实现应该分多次处理大帧，但需要更复杂的逻辑
-    // 目前先使用安全截断策略
-    NSLog(@"WLResample: Multi-pass resampling not fully implemented, using safe truncation");
-    return [self safeResampleFrame:inputFrame
-                        outputData:outputData
-                     outputSamples:outputSamples
-                    outputCapacity:capacity
-                             error:error];
+    // 估计总输出大小
+    int64_t delay = swr_get_delay(_swrContext, _inputSampleRate);
+    int64_t totalEstimated = av_rescale_rnd(delay + inputFrame->nb_samples,
+                                            _outputSampleRate, _inputSampleRate,
+                                            AV_ROUND_UP);
+    UInt32 totalRequiredBytes = (UInt32)totalEstimated * _bytesPerOutputFrame;
+
+    // 如果临时缓冲区不够大，重新分配
+    if (totalRequiredBytes > _scratchBufferSize) {
+        if (_scratchBuffer) {
+            free(_scratchBuffer);
+        }
+        _scratchBufferSize = totalRequiredBytes;
+        _scratchBuffer = (UInt8 *)malloc(_scratchBufferSize);
+        if (!_scratchBuffer) {
+            _scratchBufferSize = 0;
+            if (error) *error = [self errorWithCode:WLResampleErrorNoMemory
+                                             message:@"Failed to allocate scratch buffer"];
+            return 0;
+        }
+    }
+
+    // 先重采样到临时缓冲区（无容量限制）
+    uint8_t *outData[AV_NUM_DATA_POINTERS] = {0};
+    outData[0] = _scratchBuffer;
+
+    uint8_t **inData = inputFrame->extended_data ? inputFrame->extended_data : inputFrame->data;
+
+    int samplesConverted = swr_convert(_swrContext,
+                                      outData,
+                                      (int)totalEstimated,
+                                      (const uint8_t **)inData,
+                                      inputFrame->nb_samples);
+
+    if (samplesConverted < 0) {
+        if (error) *error = [self errorWithCode:WLResampleErrorInternal
+                                         message:[NSString stringWithFormat:@"Multi-pass resampling failed: %s", av_err2str(samplesConverted)]];
+        return 0;
+    }
+
+    UInt32 totalBytes = samplesConverted * _bytesPerOutputFrame;
+
+    // 只复制能放入输出缓冲区的部分
+    UInt32 bytesToCopy = MIN(totalBytes, capacity);
+    memcpy(*outputData, _scratchBuffer, bytesToCopy);
+
+    UInt32 copiedSamples = bytesToCopy / _bytesPerOutputFrame;
+    *outputSamples = copiedSamples;
+
+    if (totalBytes > capacity) {
+        _truncationCount++;
+        NSLog(@"WLResample: Multi-pass truncated %u -> %u bytes", totalBytes, bytesToCopy);
+    }
+
+    // 更新统计
+    _totalInputSamples += inputFrame->nb_samples;
+    _totalOutputSamples += copiedSamples;
+    _processedInputSamples += inputFrame->nb_samples;
+    _processedOutputSamples += copiedSamples;
+
+    return bytesToCopy;
 }
 
 - (UInt32)internalResampleFrame:(AVFrame *)inputFrame
@@ -687,6 +739,25 @@
 }
 
 #pragma mark - 辅助方法
+
+- (NSString *)timeSyncModeString {
+    switch (_timeSyncMode) {
+        case MXTimeSyncOutputStrict:    return @"OutputStrict";
+        case MXTimeSyncInputReference:  return @"InputReference";
+        case MXTimeSyncHybrid:          return @"Hybrid";
+        default:                        return @"Unknown";
+    }
+}
+
+- (NSString *)resizePolicyString {
+    switch (_resizePolicy) {
+        case WLResampleResizePolicyError:        return @"Error";
+        case WLResampleResizePolicyTruncate:     return @"Truncate";
+        case WLResampleResizePolicyMultiplePass: return @"MultiplePass";
+        case WLResampleResizePolicyAutoExpand:   return @"AutoExpand";
+        default:                                 return @"Unknown";
+    }
+}
 
 - (NSError *)errorWithCode:(WLResampleError)code message:(NSString *)message {
     NSDictionary *userInfo = @{NSLocalizedDescriptionKey: message ?: @""};

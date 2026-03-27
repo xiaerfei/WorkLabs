@@ -8,6 +8,7 @@
 #import "WLAudioBuffer.h"
 #import <pthread.h>
 #import <mach/mach_time.h>
+#include <sys/time.h>
 
 // 时间戳条目
 @interface WLAudioBufferPTSItem : NSObject
@@ -39,9 +40,6 @@
     UInt32 _overflowCount;
     UInt32 _underflowCount;
 }
-
-@property (nonatomic, assign) UInt32 watermarkLow;
-@property (nonatomic, assign) UInt32 watermarkHigh;
 
 @end
 
