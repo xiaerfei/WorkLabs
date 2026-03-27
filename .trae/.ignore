@@ -1,0 +1,20 @@
+# Xcode
+DerivedData/
+build/
+*.xcodeproj/
+*.xcworkspace/
+Pods/
+!Podfile
+!Podfile.lock
+
+# macOS
+.DS_Store
+
+# Xcode state files
+*.pbxuser
+*.perspectivev3
+*.mode1v3
+*.mode2v3
+
+# Local frameworks
+*.framework

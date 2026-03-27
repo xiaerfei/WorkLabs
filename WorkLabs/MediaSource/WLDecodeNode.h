@@ -23,6 +23,8 @@ typedef NS_ENUM(NSInteger, WLDecodeType) {
 @property (nonatomic, assign) AVPacket *packet; // 内部管理
 @property (nonatomic, assign) AVFrame *frame;   // 内部管理
 @property (nonatomic, assign) Float64 pts;
+///< 解码后视频数据(CVPixelBufferRef)
+@property (nonatomic, strong) id data;
 @property (nonatomic, strong, nullable) WLDecodeNode *next;
 
 - (void)flush;

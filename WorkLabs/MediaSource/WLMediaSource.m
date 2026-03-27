@@ -7,6 +7,7 @@
 
 #import "WLMediaSource.h"
 #import "WLNodeQueue.h"
+#import "WLStreams.h"
 
 #include "libavformat/avformat.h"
 #include "libavcodec/avcodec.h"
