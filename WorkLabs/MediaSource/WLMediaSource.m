@@ -9,7 +9,8 @@
 #import "WLMediaSource+AudioPlayer.h"
 #import "WLAudioPlayer.h"
 #import "WLNodeQueue.h"
-#import "WLStreams.h"
+#import "WLVideoConcatStreams.h"
+#import "WLAudioMixStreams.h"
 
 #include "libavformat/avformat.h"
 #include "libavcodec/avcodec.h"
@@ -50,6 +51,13 @@
 
 @property (nonatomic, assign) AVRational video_time_base;
 
+@property (nonatomic, assign) Float64 baseTime;
+@property (nonatomic, assign) Float64 videoPtsOffset;
+@property (nonatomic, assign) Float64 audioPtsOffset;
+
+@property (nonatomic, strong) WLVideoConcatStreams *streams;
+@property (nonatomic, strong) WLAudioMixStreams *audioMixStreams;
+
 @end
 
 @implementation WLMediaSource
@@ -58,6 +66,11 @@
     self = [super init];
     if (self) {
         self.path = path;
+        self.videoPtsOffset = 30.0;
+        self.audioPtsOffset = 30.0;
+        self.baseTime = 0.0;
+        self.streams = [[WLVideoConcatStreams alloc] init];
+        self.audioMixStreams = [[WLAudioMixStreams alloc] init];
     }
     return self;
 }
@@ -230,19 +243,31 @@
 }
 #pragma mark - Render Thread
 - (void)videoRenderThread {
-    /// 开始渲染视频
+    [NSThread currentThread].name = @"com.wl-render-video.thread";
+    
     while (self.isVideoRendering) {
-        WLDecodeNode *node = [self.videoFrameQueue deQueueWithBlock:NO];
-        if (node) {
-            if (node.frame->format == AV_PIX_FMT_VIDEOTOOLBOX) {
-                CVPixelBufferRef pixelBuffer = (CVPixelBufferRef)node.frame->data[3];
-                if (pixelBuffer && [self.delegate respondsToSelector:@selector(mediaSource:didOutputVideoPixelBuffer:pts:)]) {
-                    [self.delegate mediaSource:self didOutputVideoPixelBuffer:pixelBuffer pts:node.pts];
-                }
-            }
-            [node flush];
+        Float64 current_time = CFAbsoluteTimeGetCurrent() * 1000;
+        
+        if (self.baseTime == 0) {
+            self.baseTime = current_time;
+            NSLog(@"[Video] BaseTime set: %.3f", self.baseTime);
         }
-        [NSThread sleepForTimeInterval:0.05];
+        
+        WLDecodeNode *node = [self.videoFrameQueue peek];
+        if (!node) {
+            usleep(5 * 1000);
+            continue;
+        }
+        
+        Float64 abs_pts = node.pts * 1000 + self.baseTime;
+        
+        if (abs_pts + self.videoPtsOffset < current_time) {
+            node = [self.videoFrameQueue deQueueWithBlock:NO];
+            [self.streams addDecodeNode:node];
+            [node flush];
+        } else {
+            usleep(5 * 1000);
+        }
     }
 }
 
@@ -251,32 +276,28 @@
     BOOL audioPlayerConfigured = NO;
 
     while (self.isAudioRendering) {
-        WLDecodeNode *node = [self.audioFrameQueue deQueueWithBlock:YES];
-        if (!node) continue;
-
-        // 首次收到音频帧时，配置播放器的输入格式
-        WLAudioPlayer *player = self.audioPlayer;
-        if (player && !audioPlayerConfigured && node.frame) {
-            [player configureInputFormat:node.frame->sample_rate
-                            sampleFormat:(enum AVSampleFormat)node.frame->format
-                                channels:node.frame->channels];
-            if (!player.isPlaying) {
-                [player start];
-            }
-            audioPlayerConfigured = YES;
+        Float64 current_time = CFAbsoluteTimeGetCurrent() * 1000;
+        
+        if (self.baseTime == 0) {
+            usleep(10 * 1000);
+            continue;
         }
-
-        // 将帧传递给播放器
-        if (player && node.frame) {
-            [player didReceiveAudioFrame:node.frame pts:node.pts];
+        
+        WLDecodeNode *node = [self.audioFrameQueue peek];
+        if (!node) {
+            usleep(10 * 1000);
+            continue;
         }
-
-        // 同时通知代理（如果有外部监听者）
-        if ([self.delegate respondsToSelector:@selector(mediaSource:didOutputAudioFrame:pts:)]) {
-            [self.delegate mediaSource:self didOutputAudioFrame:node.frame pts:node.pts];
+        
+        Float64 abs_pts = node.pts * 1000 + self.baseTime;
+        
+        if (abs_pts + self.audioPtsOffset < current_time) {
+            node = [self.audioFrameQueue deQueueWithBlock:NO];
+            [self.audioMixStreams addDecodeNode:node];
+            [node flush];
+        } else {
+            usleep(10 * 1000);
         }
-
-        [node flush];
     }
 }
 #pragma mark - initial FFmpeg

@@ -1,5 +1,5 @@
 //
-//  WLStreams.h
+//  WLAudioMixStreams.h
 //  WorkLabs
 //
 //  Created by erfeixia on 2026/3/27.
@@ -10,8 +10,10 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface WLStreams : NSObject
+@interface WLAudioMixStreams : NSObject
+
 - (void)addDecodeNode:(WLDecodeNode *)node;
+
 @end
 
 NS_ASSUME_NONNULL_END

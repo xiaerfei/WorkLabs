@@ -1,13 +1,13 @@
 //
-//  WLStreams.m
+//  WLVideoConcatStreams.m
 //  WorkLabs
 //
 //  Created by erfeixia on 2026/3/27.
 //
 
-#import "WLStreams.h"
+#import "WLVideoConcatStreams.h"
 
-@implementation WLStreams
+@implementation WLVideoConcatStreams
 
 - (void)addDecodeNode:(WLDecodeNode *)node {
 
