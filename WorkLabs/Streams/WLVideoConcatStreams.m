@@ -9,7 +9,7 @@
 
 @implementation WLVideoConcatStreams
 
-- (void)addDecodeNode:(WLDecodeNode *)node {
+- (void)addNode:(WLDecodeNode *)node {
 
 }
 

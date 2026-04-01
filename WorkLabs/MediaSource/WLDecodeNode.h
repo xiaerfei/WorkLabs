@@ -18,8 +18,14 @@ typedef NS_ENUM(NSInteger, WLDecodeType) {
     WLDecodeTypeAudio
 };
 
+typedef NS_ENUM(NSInteger, WLFromType) {
+    WLFromTypeMedia,
+    WLFromTypeCamera,
+};
+
 @interface WLDecodeNode : NSObject
 @property (nonatomic, assign) WLDecodeType type;
+@property (nonatomic, assign) WLFromType fromType;
 @property (nonatomic, assign) AVPacket *packet; // 内部管理
 @property (nonatomic, assign) AVFrame *frame;   // 内部管理
 @property (nonatomic, assign) Float64 pts;

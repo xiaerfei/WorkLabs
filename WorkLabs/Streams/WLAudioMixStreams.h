@@ -12,7 +12,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface WLAudioMixStreams : NSObject
 
-- (void)addDecodeNode:(WLDecodeNode *)node;
+- (void)addNode:(WLDecodeNode *)node;
 
 @end
 

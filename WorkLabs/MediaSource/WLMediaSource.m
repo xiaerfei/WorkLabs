@@ -11,6 +11,7 @@
 #import "WLNodeQueue.h"
 #import "WLVideoConcatStreams.h"
 #import "WLAudioMixStreams.h"
+#import "WLStreamsManager.h"
 
 #include "libavformat/avformat.h"
 #include "libavcodec/avcodec.h"
@@ -20,7 +21,6 @@
 #include "libswresample/swresample.h"
 #include "libavutil/opt.h"
 #include "libavutil/intreadwrite.h"
-
 
 @interface WLMediaSource ()
 @property (nonatomic,   copy, readwrite) NSString *path;
@@ -142,7 +142,7 @@
     self.audioPacketQueue = [[WLNodeQueue alloc] initWithType:WLDecodeTypeAudio size:20];
     self.audioPacketQueue.queueName = @"audio packet queue";
     
-    self.videoFrameQueue = [[WLNodeQueue alloc] initWithType:WLDecodeTypeVideo size:5];
+    self.videoFrameQueue = [[WLNodeQueue alloc] initWithType:WLDecodeTypeVideo size:4];
     self.videoFrameQueue.queueName = @"video frame queue";
     
     self.audioFrameQueue = [[WLNodeQueue alloc] initWithType:WLDecodeTypeAudio size:20];
@@ -173,6 +173,7 @@
             // 封装 Node 并入队 FrameQueue
             WLDecodeNode *node = [[WLDecodeNode alloc] init];
             node.frame = av_frame_clone(frame); // 引用计数+1
+            node.fromType = WLFromTypeMedia;
             node.type = WLDecodeTypeVideo;
             node.pts = frame->pts * av_q2d(self.formatContext->streams[self.videoStreamIndex]->time_base);
             [self.videoFrameQueue enQueue:node];
@@ -195,6 +196,7 @@
             // 封装 Node 并入队 FrameQueue
             WLDecodeNode *node = [[WLDecodeNode alloc] init];
             node.frame = av_frame_clone(frame); // 引用计数+1
+            node.fromType = WLFromTypeMedia;
             node.type = WLDecodeTypeAudio;
             node.pts = frame->pts * av_q2d(self.formatContext->streams[self.audioStreamIndex]->time_base);
             [self.audioFrameQueue enQueue:node];
@@ -261,10 +263,10 @@
         
         Float64 abs_pts = node.pts * 1000 + self.baseTime;
         
-        if (abs_pts + self.videoPtsOffset < current_time) {
+        if ((abs_pts + self.videoPtsOffset < current_time) &&
+            [self.videoFrameQueue count] >= 4) {
             node = [self.videoFrameQueue deQueueWithBlock:NO];
-            [self.streams addDecodeNode:node];
-            [node flush];
+            [[WLStreamsManager manager] addVideoNode:node];
         } else {
             usleep(5 * 1000);
         }
@@ -273,7 +275,6 @@
 
 - (void)audioRenderThread {
     [NSThread currentThread].name = @"com.wl-render-audio.thread";
-    BOOL audioPlayerConfigured = NO;
 
     while (self.isAudioRendering) {
         Float64 current_time = CFAbsoluteTimeGetCurrent() * 1000;
@@ -293,8 +294,7 @@
         
         if (abs_pts + self.audioPtsOffset < current_time) {
             node = [self.audioFrameQueue deQueueWithBlock:NO];
-            [self.audioMixStreams addDecodeNode:node];
-            [node flush];
+            [[WLStreamsManager manager] addAudioNode:node];
         } else {
             usleep(10 * 1000);
         }
