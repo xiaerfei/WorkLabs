@@ -39,11 +39,11 @@
 
 
 - (void)addVideoNode:(WLDecodeNode *)node {
-    
+    [self.videoStream addNode:node];
 }
 
 - (void)addAudioNode:(WLDecodeNode *)node {
-    
+    [self.audioStream addNode:node];
 }
 
 @end
