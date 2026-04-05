@@ -1,13 +1,13 @@
 //
-//  WLDecodeNode.m
+//  WLNode.m
 //  WorkLabs
 //
 //  Created by erfeixia on 2026/3/21.
 //
 
-#import "WLDecodeNode.h"
+#import "WLNode.h"
 
-@implementation WLDecodeNode
+@implementation WLNode
 
 - (void)dealloc {
     [self flush]; // 彻底释放 FFmpeg 引用计数

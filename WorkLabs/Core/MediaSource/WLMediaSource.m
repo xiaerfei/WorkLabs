@@ -6,7 +6,6 @@
 //
 
 #import "WLMediaSource.h"
-#import "WLMediaSource+AudioPlayer.h"
 #import "WLAudioPlayer.h"
 #import "WLNodeQueue.h"
 #import "WLVideoConcatStreams.h"
@@ -110,9 +109,9 @@
             break;
         }
         if (packet->stream_index == self.videoStreamIndex) {
-            [self addPacket:packet type:WLDecodeTypeVideo];
+            [self addPacket:packet type:WLNodeTypeVideo];
         } else if (packet->stream_index == self.audioStreamIndex) {
-            [self addPacket:packet type:WLDecodeTypeAudio];
+            [self addPacket:packet type:WLNodeTypeAudio];
         }
         av_packet_unref(packet);
     }
@@ -120,32 +119,32 @@
     [self doExit];
 }
 
-- (void)addPacket:(AVPacket *)packet type:(WLDecodeType)type {
+- (void)addPacket:(AVPacket *)packet type:(WLNodeType)type {
     AVPacket *nodeP = av_packet_alloc();
     av_packet_ref(nodeP, packet);
     
-    WLDecodeNode *node = [WLDecodeNode new];
+    WLNode *node = [WLNode new];
     node.type = type;
     node.packet = nodeP;
-    if (type == WLDecodeTypeVideo) {
+    if (type == WLNodeTypeVideo) {
         [self.videoPacketQueue enQueue:node];
-    } else if (type == WLDecodeTypeAudio) {
+    } else if (type == WLNodeTypeAudio) {
         [self.audioPacketQueue enQueue:node];
     }
 }
 
 #pragma mark - Configure Queue
 - (void)configureQueue {
-    self.videoPacketQueue = [[WLNodeQueue alloc] initWithType:WLDecodeTypeVideo size:15];
+    self.videoPacketQueue = [[WLNodeQueue alloc] initWithType:WLNodeTypeVideo size:15];
     self.videoPacketQueue.queueName = @"video packet queue";
     
-    self.audioPacketQueue = [[WLNodeQueue alloc] initWithType:WLDecodeTypeAudio size:20];
+    self.audioPacketQueue = [[WLNodeQueue alloc] initWithType:WLNodeTypeAudio size:20];
     self.audioPacketQueue.queueName = @"audio packet queue";
     
-    self.videoFrameQueue = [[WLNodeQueue alloc] initWithType:WLDecodeTypeVideo size:4];
+    self.videoFrameQueue = [[WLNodeQueue alloc] initWithType:WLNodeTypeVideo size:4];
     self.videoFrameQueue.queueName = @"video frame queue";
     
-    self.audioFrameQueue = [[WLNodeQueue alloc] initWithType:WLDecodeTypeAudio size:20];
+    self.audioFrameQueue = [[WLNodeQueue alloc] initWithType:WLNodeTypeAudio size:20];
     self.audioFrameQueue.queueName = @"audio frame queue";
 }
 
@@ -171,11 +170,11 @@
                                  queue:self.videoPacketQueue];
         if (result == 0) {
             // 封装 Node 并入队 FrameQueue
-            WLDecodeNode *node = [[WLDecodeNode alloc] init];
+            WLNode *node = [[WLNode alloc] init];
             node.frame = av_frame_clone(frame); // 引用计数+1
             node.fromType = WLFromTypeMedia;
-            node.type = WLDecodeTypeVideo;
-            node.pts = frame->pts * av_q2d(self.formatContext->streams[self.videoStreamIndex]->time_base);
+            node.type = WLNodeTypeVideo;
+            node.pts = frame->pts * self.videoTimeBase;
             [self.videoFrameQueue enQueue:node];
         } else if (result == AVERROR_EOF) {
             break;
@@ -194,11 +193,11 @@
                                  queue:self.audioPacketQueue];
         if (result == 0) {
             // 封装 Node 并入队 FrameQueue
-            WLDecodeNode *node = [[WLDecodeNode alloc] init];
+            WLNode *node = [[WLNode alloc] init];
             node.frame = av_frame_clone(frame); // 引用计数+1
             node.fromType = WLFromTypeMedia;
-            node.type = WLDecodeTypeAudio;
-            node.pts = frame->pts * av_q2d(self.formatContext->streams[self.audioStreamIndex]->time_base);
+            node.type = WLNodeTypeAudio;
+            node.pts = frame->pts * self.audioTimeBase;
             [self.audioFrameQueue enQueue:node];
         } else if (result == AVERROR_EOF) {
             break;
@@ -226,7 +225,7 @@
         
         if (ret == AVERROR(EAGAIN)) {
             // 2. 解码器需要更多数据，从队列取出一个 Packet
-            WLDecodeNode *node = [queue deQueueWithBlock:YES];
+            WLNode *node = [queue deQueueWithBlock:YES];
             if (!node) return AVERROR_EOF; // 队列已中止
             
             // 3. 送入解码器
@@ -255,7 +254,7 @@
             NSLog(@"[Video] BaseTime set: %.3f", self.baseTime);
         }
         
-        WLDecodeNode *node = [self.videoFrameQueue peek];
+        WLNode *node = [self.videoFrameQueue peek];
         if (!node) {
             usleep(5 * 1000);
             continue;
@@ -266,7 +265,11 @@
         if ((abs_pts + self.videoPtsOffset < current_time) &&
             [self.videoFrameQueue count] >= 4) {
             node = [self.videoFrameQueue deQueueWithBlock:NO];
-            [[WLStreamsManager manager] addVideoNode:node];
+            if (node && node.frame->format == AV_PIX_FMT_VIDEOTOOLBOX) {
+                [[WLStreamsManager manager] addVideoNode:node];
+            } else {
+                [node flush];                
+            }
         } else {
             usleep(5 * 1000);
         }
@@ -284,7 +287,7 @@
             continue;
         }
         
-        WLDecodeNode *node = [self.audioFrameQueue peek];
+        WLNode *node = [self.audioFrameQueue peek];
         if (!node) {
             usleep(10 * 1000);
             continue;
@@ -487,12 +490,6 @@ fail:
     [self.audioPacketQueue abort];
     [self.videoFrameQueue abort];
     [self.audioFrameQueue abort];
-
-    // 停止音频播放器
-    WLAudioPlayer *player = self.audioPlayer;
-    if (player) {
-        [player stop];
-    }
 
     // 1. 释放视频解码器
     if (_videoCodecContext) {

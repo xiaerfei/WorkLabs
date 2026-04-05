@@ -6,13 +6,19 @@
 //
 
 #import <Foundation/Foundation.h>
-#import "WLDecodeNode.h"
+#import "WLNode.h"
+#import "WLCoreUtils.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
 @interface WLAudioMixStreams : NSObject
 
-- (void)addNode:(WLDecodeNode *)node;
+@property (nonatomic, assign) WLAudioRenderType audioRenderType;
+
+- (void)addNode:(WLNode *)node;
+
+- (void)startMix;
+- (void)stopMix;
 
 @end
 

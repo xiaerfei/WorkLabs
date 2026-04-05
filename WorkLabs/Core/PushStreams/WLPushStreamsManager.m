@@ -8,5 +8,10 @@
 #import "WLPushStreamsManager.h"
 
 @implementation WLPushStreamsManager
+- (void)pixelBuffer:(CVPixelBufferRef)pixelBuffer pts:(Float64)pts {
+    
+    
+    
+}
 
 @end

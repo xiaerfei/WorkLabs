@@ -6,12 +6,20 @@
 //
 
 #import <Foundation/Foundation.h>
-#import "WLDecodeNode.h"
+#import "WLNode.h"
+#import "WLCoreUtils.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
 @interface WLVideoConcatStreams : NSObject
-- (void)addNode:(WLDecodeNode *)node;
+
+@property (nonatomic, assign) WLVideoRenderType videoRenderType;
+
+- (void)addNode:(WLNode *)node;
+
+- (void)startConcat;
+- (void)stopConcat;
+
 @end
 
 NS_ASSUME_NONNULL_END

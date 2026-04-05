@@ -13,7 +13,7 @@
     pthread_cond_t _cond;
 }
 
-- (instancetype)initWithType:(WLDecodeType)type size:(int)size {
+- (instancetype)initWithType:(WLNodeType)type size:(int)size {
     self = [super init];
     if (self) {
         _type = type;
@@ -44,7 +44,7 @@
 
 #pragma mark - 生产与消费
 
-- (void)enQueue:(WLDecodeNode *)node {
+- (void)enQueue:(WLNode *)node {
     if (!node) return;
     pthread_mutex_lock(&_mutex);
     
@@ -72,7 +72,7 @@
     pthread_mutex_unlock(&_mutex);
 }
 
-- (WLDecodeNode *)deQueueWithBlock:(BOOL)block {
+- (WLNode *)deQueueWithBlock:(BOOL)block {
     pthread_mutex_lock(&_mutex);
     
     while (!_head && !_abortRequest) {
@@ -88,7 +88,7 @@
         return nil;
     }
     
-    WLDecodeNode *node = _head;
+    WLNode *node = _head;
     _head = node.next;
     if (!_head) _tail = nil; // 修复 tail 悬挂指针问题
     
@@ -102,9 +102,9 @@
 
 - (void)flush {
     pthread_mutex_lock(&_mutex);
-    WLDecodeNode *node = _head;
+    WLNode *node = _head;
     while (node) {
-        WLDecodeNode *next = node.next;
+        WLNode *next = node.next;
         [node flush];
         node = next;
     }
@@ -115,10 +115,10 @@
     pthread_mutex_unlock(&_mutex);
 }
 
-- (WLDecodeNode *)peek {
+- (WLNode *)peek {
     pthread_mutex_lock(&_mutex);
     // 仅仅查看，不改变 nodeSize 和指针偏移
-    WLDecodeNode *node = _head;
+    WLNode *node = _head;
     pthread_mutex_unlock(&_mutex);
     return node;
 }

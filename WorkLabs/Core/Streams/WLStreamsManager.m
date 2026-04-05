@@ -38,12 +38,21 @@
 }
 
 
-- (void)addVideoNode:(WLDecodeNode *)node {
+- (void)addVideoNode:(WLNode *)node {
     [self.videoStream addNode:node];
 }
 
-- (void)addAudioNode:(WLDecodeNode *)node {
+- (void)addAudioNode:(WLNode *)node {
     [self.audioStream addNode:node];
 }
 
+- (void)start {
+    [self.videoStream startConcat];
+    [self.audioStream startMix];
+}
+
+- (void)stop {
+    [self.videoStream stopConcat];
+    [self.audioStream stopMix];
+}
 @end

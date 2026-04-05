@@ -18,6 +18,7 @@
 #import "WLEvent.h"
 
 #import "WLMediaSource.h"
+#import "WLRenderingManager.h"
 
 @interface WLMainViewController () <WLCameraCaptureSubscriber, TVUCameraManagerDelegate, WLMediaSourceDelegate>
 @property (weak) IBOutlet NSView *bottomBarView;
@@ -41,7 +42,7 @@
     self.view.backgroundColor = [NSColor blackColor];
     [self.bottomBarView backgroundColorWithHexString:@"#434343"];
     
-    self.videoPreview = [[WLViedoPreview alloc] init];
+    self.videoPreview = [WLRenderingManager manager].videoPreview;
     [self.view addSubview:self.videoPreview];
     [self.videoPreview mas_makeConstraints:^(MASConstraintMaker *make) {
         make.top.left.right.equalTo(self.view);

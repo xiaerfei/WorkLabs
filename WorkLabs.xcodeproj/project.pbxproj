@@ -13,7 +13,7 @@
 		2CC1ECFD2EF2448D003A35ED /* WLVideoSelectView.m in Sources */ = {isa = PBXBuildFile; fileRef = 2CC1ECFC2EF2448D003A35ED /* WLVideoSelectView.m */; };
 		2CC1ED002EF24FAB003A35ED /* WLEvent.m in Sources */ = {isa = PBXBuildFile; fileRef = 2CC1ECFF2EF24FAB003A35ED /* WLEvent.m */; };
 		9C012D152F6E4DE900FB5170 /* WLResample.m in Sources */ = {isa = PBXBuildFile; fileRef = 9C012D142F6E4DE900FB5170 /* WLResample.m */; };
-		9C012D182F6E670800FB5170 /* WLDecodeNode.m in Sources */ = {isa = PBXBuildFile; fileRef = 9C012D172F6E670800FB5170 /* WLDecodeNode.m */; };
+		9C012D182F6E670800FB5170 /* WLNode.m in Sources */ = {isa = PBXBuildFile; fileRef = 9C012D172F6E670800FB5170 /* WLNode.m */; };
 		9C012D1B2F6E674200FB5170 /* WLNodeQueue.m in Sources */ = {isa = PBXBuildFile; fileRef = 9C012D1A2F6E674200FB5170 /* WLNodeQueue.m */; };
 		9C10ABC22F6E3E4B0022A777 /* WLMediaSource.m in Sources */ = {isa = PBXBuildFile; fileRef = 9C10ABC12F6E3E4B0022A777 /* WLMediaSource.m */; };
 		9CB18F2E2EF035CD00C248B0 /* NSView+BackgroundColor.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CB18F0E2EF035CD00C248B0 /* NSView+BackgroundColor.m */; };
@@ -40,13 +40,12 @@
 		9CBEC7F72F75F09400FEB37E /* WLVideoConcatStreams.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CBEC7F62F75F09400FEB37E /* WLVideoConcatStreams.m */; };
 		9CC059982F0D4915004FEB9C /* TVUAudioManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CC059972F0D4915004FEB9C /* TVUAudioManager.m */; };
 		9CC2AD502F76C46A000E39D4 /* WLAudioMixStreams.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CC2AD4F2F76C46A000E39D4 /* WLAudioMixStreams.m */; };
+		9CE433C32F81FB670025C582 /* WLCoreUtils.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CE433C22F81FB670025C582 /* WLCoreUtils.m */; };
 		B21031CC8BE85DE811EBA5DA /* WLAudioBuffer.m in Sources */ = {isa = PBXBuildFile; fileRef = E56B38CC75CEA8C2FB6FA029 /* WLAudioBuffer.m */; };
-		B466D4AA49B28AF0EBF8BDB2 /* WLMediaSource+AudioPlayer.m in Sources */ = {isa = PBXBuildFile; fileRef = 147920BD250CFB3E3A6A541F /* WLMediaSource+AudioPlayer.m */; };
 		D3427D0A4434AAD9602A7B97 /* Pods_WorkLabs.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 82F01650BE4715EDB1B95D8C /* Pods_WorkLabs.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		147920BD250CFB3E3A6A541F /* WLMediaSource+AudioPlayer.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = "WLMediaSource+AudioPlayer.m"; sourceTree = "<group>"; };
 		1BB7035508A3AA761DC56575 /* WLAudioBuffer.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = WLAudioBuffer.h; sourceTree = "<group>"; };
 		2C80D4AA2EF2A99A00AB8D7F /* WLEventConst.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLEventConst.h; sourceTree = "<group>"; };
 		2C80D4AE2EF2AAFA00AB8D7F /* WLEventDisposeBag.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLEventDisposeBag.h; sourceTree = "<group>"; };
@@ -63,8 +62,8 @@
 		82F01650BE4715EDB1B95D8C /* Pods_WorkLabs.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_WorkLabs.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		9C012D132F6E4DE000FB5170 /* WLResample.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLResample.h; sourceTree = "<group>"; };
 		9C012D142F6E4DE900FB5170 /* WLResample.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLResample.m; sourceTree = "<group>"; };
-		9C012D162F6E670800FB5170 /* WLDecodeNode.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLDecodeNode.h; sourceTree = "<group>"; };
-		9C012D172F6E670800FB5170 /* WLDecodeNode.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLDecodeNode.m; sourceTree = "<group>"; };
+		9C012D162F6E670800FB5170 /* WLNode.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLNode.h; sourceTree = "<group>"; };
+		9C012D172F6E670800FB5170 /* WLNode.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLNode.m; sourceTree = "<group>"; };
 		9C012D192F6E674200FB5170 /* WLNodeQueue.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLNodeQueue.h; sourceTree = "<group>"; };
 		9C012D1A2F6E674200FB5170 /* WLNodeQueue.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLNodeQueue.m; sourceTree = "<group>"; };
 		9C10ABC02F6E3E4B0022A777 /* WLMediaSource.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLMediaSource.h; sourceTree = "<group>"; };
@@ -117,9 +116,10 @@
 		9CC059972F0D4915004FEB9C /* TVUAudioManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = TVUAudioManager.m; sourceTree = "<group>"; };
 		9CC2AD4E2F76C46A000E39D4 /* WLAudioMixStreams.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLAudioMixStreams.h; sourceTree = "<group>"; };
 		9CC2AD4F2F76C46A000E39D4 /* WLAudioMixStreams.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLAudioMixStreams.m; sourceTree = "<group>"; };
+		9CE433C12F81FB670025C582 /* WLCoreUtils.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLCoreUtils.h; sourceTree = "<group>"; };
+		9CE433C22F81FB670025C582 /* WLCoreUtils.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLCoreUtils.m; sourceTree = "<group>"; };
 		AC89CF9A75BA89BDAEBA99CD /* Pods-WorkLabs.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-WorkLabs.debug.xcconfig"; path = "Target Support Files/Pods-WorkLabs/Pods-WorkLabs.debug.xcconfig"; sourceTree = "<group>"; };
 		E56B38CC75CEA8C2FB6FA029 /* WLAudioBuffer.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = WLAudioBuffer.m; sourceTree = "<group>"; };
-		F2CD6DC01709085AA81409AE /* WLMediaSource+AudioPlayer.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = "WLMediaSource+AudioPlayer.h"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -155,18 +155,6 @@
 			children = (
 				9C10ABC02F6E3E4B0022A777 /* WLMediaSource.h */,
 				9C10ABC12F6E3E4B0022A777 /* WLMediaSource.m */,
-				9C012D162F6E670800FB5170 /* WLDecodeNode.h */,
-				9C012D172F6E670800FB5170 /* WLDecodeNode.m */,
-				9C012D192F6E674200FB5170 /* WLNodeQueue.h */,
-				9C012D1A2F6E674200FB5170 /* WLNodeQueue.m */,
-				9C012D132F6E4DE000FB5170 /* WLResample.h */,
-				9C012D142F6E4DE900FB5170 /* WLResample.m */,
-				9CB196752F72C2EC007C6FB1 /* WLAudioPlayer.h */,
-				9CB196762F72C2EC007C6FB1 /* WLAudioPlayer.m */,
-				1BB7035508A3AA761DC56575 /* WLAudioBuffer.h */,
-				E56B38CC75CEA8C2FB6FA029 /* WLAudioBuffer.m */,
-				F2CD6DC01709085AA81409AE /* WLMediaSource+AudioPlayer.h */,
-				147920BD250CFB3E3A6A541F /* WLMediaSource+AudioPlayer.m */,
 			);
 			path = MediaSource;
 			sourceTree = "<group>";
@@ -276,12 +264,6 @@
 		9CB18F2D2EF035CD00C248B0 /* WorkLabs */ = {
 			isa = PBXGroup;
 			children = (
-				9CB4744D2F78CC4C00C8138F /* Rendering */,
-				9CB4743E2F78C9C100C8138F /* PushStreams */,
-				9CB4743D2F78C98100C8138F /* Encodes */,
-				9CBEC7F42F75F06B00FEB37E /* Streams */,
-				9C10ABBF2F6E3E280022A777 /* MediaSource */,
-				9CC059952F0D4900004FEB9C /* Audio */,
 				9CC059942F0D485C004FEB9C /* Core */,
 				9C7D404C2F0BFDD500756788 /* Video */,
 				9C7D40492F0BFD5B00756788 /* UI */,
@@ -376,6 +358,14 @@
 		9CC059942F0D485C004FEB9C /* Core */ = {
 			isa = PBXGroup;
 			children = (
+				9CE433C42F82850E0025C582 /* Queue */,
+				9CE433C02F81FB330025C582 /* Utils */,
+				9CB4744D2F78CC4C00C8138F /* Rendering */,
+				9CB4743E2F78C9C100C8138F /* PushStreams */,
+				9CB4743D2F78C98100C8138F /* Encodes */,
+				9CBEC7F42F75F06B00FEB37E /* Streams */,
+				9C10ABBF2F6E3E280022A777 /* MediaSource */,
+				9CC059952F0D4900004FEB9C /* Audio */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -385,8 +375,34 @@
 			children = (
 				9CC059962F0D4915004FEB9C /* TVUAudioManager.h */,
 				9CC059972F0D4915004FEB9C /* TVUAudioManager.m */,
+				9C012D132F6E4DE000FB5170 /* WLResample.h */,
+				9C012D142F6E4DE900FB5170 /* WLResample.m */,
+				9CB196752F72C2EC007C6FB1 /* WLAudioPlayer.h */,
+				9CB196762F72C2EC007C6FB1 /* WLAudioPlayer.m */,
+				1BB7035508A3AA761DC56575 /* WLAudioBuffer.h */,
+				E56B38CC75CEA8C2FB6FA029 /* WLAudioBuffer.m */,
 			);
 			path = Audio;
+			sourceTree = "<group>";
+		};
+		9CE433C02F81FB330025C582 /* Utils */ = {
+			isa = PBXGroup;
+			children = (
+				9CE433C12F81FB670025C582 /* WLCoreUtils.h */,
+				9CE433C22F81FB670025C582 /* WLCoreUtils.m */,
+			);
+			path = Utils;
+			sourceTree = "<group>";
+		};
+		9CE433C42F82850E0025C582 /* Queue */ = {
+			isa = PBXGroup;
+			children = (
+				9C012D162F6E670800FB5170 /* WLNode.h */,
+				9C012D172F6E670800FB5170 /* WLNode.m */,
+				9C012D192F6E674200FB5170 /* WLNodeQueue.h */,
+				9C012D1A2F6E674200FB5170 /* WLNodeQueue.m */,
+			);
+			path = Queue;
 			sourceTree = "<group>";
 		};
 		D8B068687708BF0CFB038443 /* Frameworks */ = {
@@ -543,6 +559,7 @@
 				9CBEC7F72F75F09400FEB37E /* WLVideoConcatStreams.m in Sources */,
 				9CB18F342EF035CD00C248B0 /* main.m in Sources */,
 				9CB18F352EF035CD00C248B0 /* TVUVideoManager.mm in Sources */,
+				9CE433C32F81FB670025C582 /* WLCoreUtils.m in Sources */,
 				2C80D4B02EF2AAFA00AB8D7F /* WLEventDisposeBag.m in Sources */,
 				9CC059982F0D4915004FEB9C /* TVUAudioManager.m in Sources */,
 				9CB18F362EF035CD00C248B0 /* WLVideoManager.m in Sources */,
@@ -553,10 +570,9 @@
 				9CB742C72EF42E4D00E773A3 /* WLEventObserveItem.m in Sources */,
 				9CB18F382EF035CD00C248B0 /* WLMainViewController.m in Sources */,
 				2C80D4B32EF2AB5100AB8D7F /* WLEventSendItem.m in Sources */,
-				9C012D182F6E670800FB5170 /* WLDecodeNode.m in Sources */,
+				9C012D182F6E670800FB5170 /* WLNode.m in Sources */,
 				9CB18F392EF035CD00C248B0 /* WLMainWindowController.m in Sources */,
 				B21031CC8BE85DE811EBA5DA /* WLAudioBuffer.m in Sources */,
-				B466D4AA49B28AF0EBF8BDB2 /* WLMediaSource+AudioPlayer.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

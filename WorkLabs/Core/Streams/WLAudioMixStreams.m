@@ -8,7 +8,16 @@
 #import "WLAudioMixStreams.h"
 
 @implementation WLAudioMixStreams
-- (void)addNode:(WLDecodeNode *)node {
-
+- (void)addNode:(WLNode *)node {
+    [node flush];
 }
+
+- (void)startMix {
+    
+}
+
+- (void)stopMix {
+    
+}
+
 @end
