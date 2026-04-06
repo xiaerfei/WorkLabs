@@ -41,6 +41,8 @@
 		9CC059982F0D4915004FEB9C /* TVUAudioManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CC059972F0D4915004FEB9C /* TVUAudioManager.m */; };
 		9CC2AD502F76C46A000E39D4 /* WLAudioMixStreams.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CC2AD4F2F76C46A000E39D4 /* WLAudioMixStreams.m */; };
 		9CE433C32F81FB670025C582 /* WLCoreUtils.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CE433C22F81FB670025C582 /* WLCoreUtils.m */; };
+		9CE433C72F83A73D0025C582 /* WLAudioResample.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CE433C62F83A73D0025C582 /* WLAudioResample.m */; };
+		9CE433CC2F83B1A60025C582 /* WLAudioQueuePlayer.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CE433CB2F83B1A60025C582 /* WLAudioQueuePlayer.m */; };
 		B21031CC8BE85DE811EBA5DA /* WLAudioBuffer.m in Sources */ = {isa = PBXBuildFile; fileRef = E56B38CC75CEA8C2FB6FA029 /* WLAudioBuffer.m */; };
 		D3427D0A4434AAD9602A7B97 /* Pods_WorkLabs.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 82F01650BE4715EDB1B95D8C /* Pods_WorkLabs.framework */; };
 /* End PBXBuildFile section */
@@ -118,6 +120,10 @@
 		9CC2AD4F2F76C46A000E39D4 /* WLAudioMixStreams.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLAudioMixStreams.m; sourceTree = "<group>"; };
 		9CE433C12F81FB670025C582 /* WLCoreUtils.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLCoreUtils.h; sourceTree = "<group>"; };
 		9CE433C22F81FB670025C582 /* WLCoreUtils.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLCoreUtils.m; sourceTree = "<group>"; };
+		9CE433C52F83A73D0025C582 /* WLAudioResample.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLAudioResample.h; sourceTree = "<group>"; };
+		9CE433C62F83A73D0025C582 /* WLAudioResample.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLAudioResample.m; sourceTree = "<group>"; };
+		9CE433CA2F83B1A60025C582 /* WLAudioQueuePlayer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLAudioQueuePlayer.h; sourceTree = "<group>"; };
+		9CE433CB2F83B1A60025C582 /* WLAudioQueuePlayer.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLAudioQueuePlayer.m; sourceTree = "<group>"; };
 		AC89CF9A75BA89BDAEBA99CD /* Pods-WorkLabs.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-WorkLabs.debug.xcconfig"; path = "Target Support Files/Pods-WorkLabs/Pods-WorkLabs.debug.xcconfig"; sourceTree = "<group>"; };
 		E56B38CC75CEA8C2FB6FA029 /* WLAudioBuffer.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = WLAudioBuffer.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -373,6 +379,8 @@
 		9CC059952F0D4900004FEB9C /* Audio */ = {
 			isa = PBXGroup;
 			children = (
+				9CE433C92F83B18D0025C582 /* AudioPlayer */,
+				9CE433C82F83A9670025C582 /* Resample */,
 				9CC059962F0D4915004FEB9C /* TVUAudioManager.h */,
 				9CC059972F0D4915004FEB9C /* TVUAudioManager.m */,
 				9C012D132F6E4DE000FB5170 /* WLResample.h */,
@@ -403,6 +411,24 @@
 				9C012D1A2F6E674200FB5170 /* WLNodeQueue.m */,
 			);
 			path = Queue;
+			sourceTree = "<group>";
+		};
+		9CE433C82F83A9670025C582 /* Resample */ = {
+			isa = PBXGroup;
+			children = (
+				9CE433C52F83A73D0025C582 /* WLAudioResample.h */,
+				9CE433C62F83A73D0025C582 /* WLAudioResample.m */,
+			);
+			path = Resample;
+			sourceTree = "<group>";
+		};
+		9CE433C92F83B18D0025C582 /* AudioPlayer */ = {
+			isa = PBXGroup;
+			children = (
+				9CE433CA2F83B1A60025C582 /* WLAudioQueuePlayer.h */,
+				9CE433CB2F83B1A60025C582 /* WLAudioQueuePlayer.m */,
+			);
+			path = AudioPlayer;
 			sourceTree = "<group>";
 		};
 		D8B068687708BF0CFB038443 /* Frameworks */ = {
@@ -520,13 +546,9 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-WorkLabs/Pods-WorkLabs-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
-			inputPaths = (
-			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-WorkLabs/Pods-WorkLabs-frameworks-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -541,11 +563,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				2CC1ED002EF24FAB003A35ED /* WLEvent.m in Sources */,
+				9CE433CC2F83B1A60025C582 /* WLAudioQueuePlayer.m in Sources */,
 				9CB18F2E2EF035CD00C248B0 /* NSView+BackgroundColor.m in Sources */,
 				9C10ABC22F6E3E4B0022A777 /* WLMediaSource.m in Sources */,
 				9CB18F2F2EF035CD00C248B0 /* NSWindow+WLExtend.m in Sources */,
 				9CB196772F72C2EC007C6FB1 /* WLAudioPlayer.m in Sources */,
 				9CB18F302EF035CD00C248B0 /* WLViedoPreview.m in Sources */,
+				9CE433C72F83A73D0025C582 /* WLAudioResample.m in Sources */,
 				9CB18F312EF035CD00C248B0 /* NSArray+Function.m in Sources */,
 				2CC1ECBB2EF0F3EE003A35ED /* WLSettingViewController.m in Sources */,
 				9CC2AD502F76C46A000E39D4 /* WLAudioMixStreams.m in Sources */,

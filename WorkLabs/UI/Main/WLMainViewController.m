@@ -49,7 +49,7 @@
         make.bottom.equalTo(self.bottomBarView.mas_top);
     }];
     NSString *path = @"/Users/erfeixia/Downloads/Test-4K.mp4";
-    path = @"/Users/erfeixia/Downloads/hdr_video.MOV";
+    path =@"/Users/erfeixia/Downloads/[GM-Team][国漫][沧元图 第2季]-29.mp4";
     self.mediaSource = [[WLMediaSource alloc] initWithPath:path];
     self.mediaSource.delegate = self;
 }

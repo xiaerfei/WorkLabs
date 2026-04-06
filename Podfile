@@ -10,4 +10,5 @@ target 'WorkLabs' do
   pod 'ffmpeg-kit-local', :path => './LocalPodspecs/ffmpeg-kit-macos-full/'
   pod 'TVURSignal',       :path => './LocalPodspecs/TVURSignal/'
   pod 'Masonry'
+  pod 'TPCircularBuffer'
 end

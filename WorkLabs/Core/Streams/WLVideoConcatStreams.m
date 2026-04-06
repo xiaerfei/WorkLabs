@@ -8,7 +8,9 @@
 #import "WLVideoConcatStreams.h"
 #import "WLPushStreamsManager.h"
 #import "WLRenderingManager.h"
+#import "WLStreamsManager.h"
 #import "WLNodeQueue.h"
+
 
 @interface WLVideoConcatStreams ()
 @property (nonatomic, strong) NSDictionary <NSNumber * ,WLNodeQueue *> *queueDict;
@@ -43,9 +45,12 @@
 }
 #pragma mark - Thread
 - (void)encoderThread {
+    static Float64 base_time = 0;
     WLRenderingManager *manager = [WLRenderingManager manager];
     while (self.isRendering) {
-        switch (self.videoRenderType) {
+        WLVideoRenderType videoRenderType = [WLStreamsManager manager].videoRenderType;
+        
+        switch (videoRenderType) {
             case WLVideoRenderTypeCamera:
             {
                 WLNodeQueue *queue = self.queueDict[@(WLFromTypeCamera)];
@@ -59,6 +64,13 @@
                 WLNode *node = [queue deQueueWithBlock:NO];
                 if (node == nil) { break; }
                 CVPixelBufferRef pixelBuffer = (CVPixelBufferRef)node.frame->data[3];
+                Float64 current_time = CFAbsoluteTimeGetCurrent();
+                if (base_time == 0) {
+                    base_time = current_time;
+                }
+                Float64 offset = current_time - base_time;
+                printf("[Encoder Video] pts=%f now=%f diff=%f\n",
+                       node.pts, offset, fabs(offset - node.pts));
                 [manager pixelBuffer:pixelBuffer pts:node.pts];
                 [node flush];
                 break;

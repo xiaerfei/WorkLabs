@@ -2,18 +2,21 @@ PODS:
   - ffmpeg-kit-local (1.0.0)
   - Masonry (1.1.0)
   - ReactiveObjC (3.1.1)
+  - TPCircularBuffer (1.6.1)
   - TVURSignal (1.0.0)
 
 DEPENDENCIES:
   - ffmpeg-kit-local (from `./LocalPodspecs/ffmpeg-kit-macos-full/`)
   - Masonry
   - ReactiveObjC
+  - TPCircularBuffer
   - TVURSignal (from `./LocalPodspecs/TVURSignal/`)
 
 SPEC REPOS:
   trunk:
     - Masonry
     - ReactiveObjC
+    - TPCircularBuffer
 
 EXTERNAL SOURCES:
   ffmpeg-kit-local:
@@ -25,8 +28,9 @@ SPEC CHECKSUMS:
   ffmpeg-kit-local: 77e54a4fcc45dab294fc3f024483fd2030660f45
   Masonry: 678fab65091a9290e40e2832a55e7ab731aad201
   ReactiveObjC: 011caa393aa0383245f2dcf9bf02e86b80b36040
+  TPCircularBuffer: c13243556527551c4d320709c7b14a6d20cdc30a
   TVURSignal: 942c53ce3eb4d4fa6ac68161ca9aae5d42878a28
 
-PODFILE CHECKSUM: e3ee9d2de00ad68d37cadb981385be3cb33fe396
+PODFILE CHECKSUM: 5dcea125b3d3a93414844615f0c0ec10dfae9e42
 
 COCOAPODS: 1.16.2

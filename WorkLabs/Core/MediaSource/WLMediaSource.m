@@ -6,7 +6,6 @@
 //
 
 #import "WLMediaSource.h"
-#import "WLAudioPlayer.h"
 #import "WLNodeQueue.h"
 #import "WLVideoConcatStreams.h"
 #import "WLAudioMixStreams.h"
@@ -20,6 +19,7 @@
 #include "libswresample/swresample.h"
 #include "libavutil/opt.h"
 #include "libavutil/intreadwrite.h"
+#include <stdatomic.h>
 
 @interface WLMediaSource ()
 @property (nonatomic,   copy, readwrite) NSString *path;
@@ -59,11 +59,22 @@
 
 @end
 
-@implementation WLMediaSource
+@implementation WLMediaSource {
+    // 声明一个原子类型的整数
+    _Atomic int _activeRenderThreads;
+}
+
+- (void)dealloc {
+    [self stop];
+}
+
 #pragma mark - Public Methods
 - (instancetype)initWithPath:(NSString *)path {
     self = [super init];
     if (self) {
+        // 初始化原子变量
+        atomic_init(&_activeRenderThreads, 0);
+        
         self.path = path;
         self.videoPtsOffset = 30.0;
         self.audioPtsOffset = 30.0;
@@ -79,8 +90,8 @@
 }
 
 - (void)stop {
+    if (!self.running) return;
     self.running = NO;
-    [self doExit];
 }
 
 #pragma mark - Parse Thread
@@ -99,6 +110,12 @@
     self.videoTimeBase = av_q2d(self.formatContext->streams[self.videoStreamIndex]->time_base);
     self.audioTimeBase = av_q2d(self.formatContext->streams[self.audioStreamIndex]->time_base);
     
+    atomic_store_explicit(&_activeRenderThreads, 2, memory_order_relaxed);
+    
+    [WLStreamsManager manager].videoRenderType = WLVideoRenderTypeMedia;
+    [WLStreamsManager manager].audioRenderType = WLAudioRenderTypeMeida;
+    [[WLStreamsManager manager] start];
+
     AVPacket *packet = av_packet_alloc();
     
     while (self.isRunning) {
@@ -116,7 +133,12 @@
         av_packet_unref(packet);
     }
     
-    [self doExit];
+    av_packet_free(&packet);
+    
+    self.videoDecoding = NO;
+    self.audioDecoding = NO;
+    [self.videoPacketQueue abort];
+    [self.audioPacketQueue abort];
 }
 
 - (void)addPacket:(AVPacket *)packet type:(WLNodeType)type {
@@ -149,10 +171,11 @@
 }
 
 - (void)configureDecode {
-    self.videoDecoding = YES;
-    self.audioDecoding = YES;
+    self.videoDecoding  = YES;
+    self.audioDecoding  = YES;
     self.videoRendering = YES;
     self.audioRendering = YES;
+    
     [NSThread detachNewThreadSelector:@selector(videoDecodeThread) toTarget:self withObject:nil];
     [NSThread detachNewThreadSelector:@selector(audioDecodeThread) toTarget:self withObject:nil];
     
@@ -182,6 +205,10 @@
         av_frame_unref(frame); // 重置 frame 状态
     }
     av_frame_free(&frame);
+    
+    [self.videoPacketQueue flush];
+    self.videoRendering = NO;
+    [self.videoFrameQueue abort];
 }
 
 - (void)audioDecodeThread {
@@ -192,9 +219,8 @@
                                  frame:frame
                                  queue:self.audioPacketQueue];
         if (result == 0) {
-            // 封装 Node 并入队 FrameQueue
             WLNode *node = [[WLNode alloc] init];
-            node.frame = av_frame_clone(frame); // 引用计数+1
+            node.frame = av_frame_clone(frame);
             node.fromType = WLFromTypeMedia;
             node.type = WLNodeTypeAudio;
             node.pts = frame->pts * self.audioTimeBase;
@@ -205,7 +231,10 @@
         av_frame_unref(frame);
     }
     av_frame_free(&frame);
-    avcodec_flush_buffers(self.audioCodecContext);
+    
+    [self.audioPacketQueue flush];
+    self.audioRendering = NO;
+    [self.audioFrameQueue abort];
 }
 
 - (int)decodeFrame:(AVCodecContext *)avctx
@@ -214,9 +243,8 @@
     int ret = AVERROR(EAGAIN);
     
     while (1) {
-        // 1. 尝试从解码器接收帧
         ret = avcodec_receive_frame(avctx, frame);
-        if (ret >= 0) return 0; // 成功获得一帧
+        if (ret >= 0) return 0;
         
         if (ret == AVERROR_EOF) {
             avcodec_flush_buffers(avctx);
@@ -224,20 +252,18 @@
         }
         
         if (ret == AVERROR(EAGAIN)) {
-            // 2. 解码器需要更多数据，从队列取出一个 Packet
             WLNode *node = [queue deQueueWithBlock:YES];
-            if (!node) return AVERROR_EOF; // 队列已中止
+            if (!node) return AVERROR_EOF;
             
-            // 3. 送入解码器
             ret = avcodec_send_packet(avctx, node.packet);
             
-            // 释放 node (内部会自动 free packet)
+            [node flush]; // 无论成功失败都释放
             node = nil;
             
             if (ret < 0 && ret != AVERROR(EAGAIN) && ret != AVERROR_EOF) {
-                return ret; // 真正的解码错误
+                return ret;
             }
-            continue; // 继续循环去 receive_frame
+            continue;
         }
         return ret;
     }
@@ -245,7 +271,7 @@
 #pragma mark - Render Thread
 - (void)videoRenderThread {
     [NSThread currentThread].name = @"com.wl-render-video.thread";
-    
+    WLStreamsManager *streams = [WLStreamsManager manager];
     while (self.isVideoRendering) {
         Float64 current_time = CFAbsoluteTimeGetCurrent() * 1000;
         
@@ -266,7 +292,7 @@
             [self.videoFrameQueue count] >= 4) {
             node = [self.videoFrameQueue deQueueWithBlock:NO];
             if (node && node.frame->format == AV_PIX_FMT_VIDEOTOOLBOX) {
-                [[WLStreamsManager manager] addVideoNode:node];
+                [streams addVideoNode:node];
             } else {
                 [node flush];                
             }
@@ -274,6 +300,8 @@
             usleep(5 * 1000);
         }
     }
+    [self.videoFrameQueue flush];
+    [self releaseFFmpegResources];
 }
 
 - (void)audioRenderThread {
@@ -302,6 +330,9 @@
             usleep(10 * 1000);
         }
     }
+
+    [self.audioFrameQueue flush];
+    [self releaseFFmpegResources];
 }
 #pragma mark - initial FFmpeg
 - (NSString *)configureFFmpeg {
@@ -318,14 +349,14 @@
     // 2. 打开视频流
     err = [self openVideoStreamWithError:&errorMsg];
     if (err != 0) {
-        [self doExit]; // 一步失败，全盘清理
+        [self releaseFFmpegResources];
         return errorMsg;
     }
     
     // 3. 打开音频流
     err = [self openAudioStreamWithError:&errorMsg];
     if (err != 0) {
-        [self doExit]; // 确保视频流等资源也被释放
+        [self releaseFFmpegResources];
         return errorMsg;
     }
     
@@ -478,41 +509,25 @@ fail:
     return 0;
 }
 #pragma mark - 资源释放
-- (void)doExit {
-    // 0. 停止渲染线程和播放器
-    self.videoRendering = NO;
-    self.audioRendering = NO;
-    self.videoDecoding = NO;
-    self.audioDecoding = NO;
-
-    // 中止所有队列，唤醒阻塞线程
-    [self.videoPacketQueue abort];
-    [self.audioPacketQueue abort];
-    [self.videoFrameQueue abort];
-    [self.audioFrameQueue abort];
-
-    // 1. 释放视频解码器
+- (void)releaseFFmpegResources {
+    NSInteger remaining = atomic_fetch_sub_explicit(&_activeRenderThreads, 1, memory_order_acq_rel) - 1;
+    if (remaining > 0) return;
+    
     if (_videoCodecContext) {
-        // 注意：avcodec_free_context 会自动处理内部的 hw_device_ctx unref
-        // 不需要手动去 unref videoCodecContext->hw_device_ctx
         avcodec_free_context(&_videoCodecContext);
         _videoCodecContext = NULL;
     }
     
-    // 2. 释放音频解码器
     if (_audioCodecContext) {
         avcodec_free_context(&_audioCodecContext);
         _audioCodecContext = NULL;
     }
     
-    // 3. 关闭输入上下文
     if (_formatContext) {
-        // avformat_close_input 会释放 formatContext 本身并置为 NULL
         avformat_close_input(&_formatContext);
         _formatContext = NULL;
     }
     
-    // 4. 重置索引
     self.videoStreamIndex = -1;
     self.audioStreamIndex = -1;
     

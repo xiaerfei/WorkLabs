@@ -42,6 +42,7 @@ typedef NS_ENUM(NSUInteger, WLMediaSourceState) {
 - (instancetype)initWithPath:(NSString *)path;
 
 - (void)start;
+- (void)stop;
 @end
 
 NS_ASSUME_NONNULL_END

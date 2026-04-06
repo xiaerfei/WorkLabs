@@ -6,9 +6,11 @@
 //
 
 #import "WLRenderingManager.h"
+#import "WLAudioQueuePlayer.h"
 
 @interface WLRenderingManager ()
 @property (nonatomic, strong, readwrite) WLViedoPreview *videoPreview;
+@property (nonatomic, strong, readwrite) WLAudioQueuePlayer *audioQueuePlayer;
 @end
 
 @implementation WLRenderingManager
@@ -16,7 +18,7 @@
 - (instancetype)init {
     self = [super init];
     if (self) {
-        self.videoPreview = [[WLViedoPreview alloc] init];
+        [self configure];
     }
     return self;
 }
@@ -37,6 +39,22 @@
         [self.videoPreview.displayLayer.sampleBufferRenderer enqueueSampleBuffer:sampleBuffer];
         CFRelease(sampleBuffer);
     }
+}
+#pragma mark - Audio
+- (void)startPlay {
+    [self.audioQueuePlayer play];
+}
+- (void)stopPlay {
+    [self.audioQueuePlayer stop];
+}
+
+- (void)frame:(AVFrame *)frame pts:(Float64)pts {
+    [self.audioQueuePlayer putAVFrame:frame];
+}
+#pragma mark - Private Methods
+- (void)configure {
+    self.videoPreview = [[WLViedoPreview alloc] init];
+    self.audioQueuePlayer = [[WLAudioQueuePlayer alloc] initWithSampleRate:44100 channels:2];
 }
 
 - (CMSampleBufferRef)sampleBufferFromPixelBuffer:(CVPixelBufferRef)pixelBuffer pts:(Float64)pts {
