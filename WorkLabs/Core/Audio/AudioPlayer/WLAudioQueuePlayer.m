@@ -87,15 +87,17 @@ static void WLPlayerAudioQueueCallback(void *inUserData, AudioQueueRef inAQ, Aud
 }
 
 - (void)putAVFrame:(AVFrame *)frame {
-    NSData *pcmData = [self.resampler resampleFrame:frame];
-    if (!pcmData) return;
-    
-    int32_t availableSpace;
-    void *head = TPCircularBufferHead(&_circleBuffer, &availableSpace);
-    
-    if (availableSpace >= pcmData.length) {
-        memcpy(head, pcmData.bytes, pcmData.length);
-        TPCircularBufferProduce(&_circleBuffer, (int32_t)pcmData.length);
+    @autoreleasepool {
+        NSData *pcmData = [self.resampler resampleFrame:frame];
+        if (!pcmData) return;
+        
+        int32_t availableSpace;
+        void *head = TPCircularBufferHead(&_circleBuffer, &availableSpace);
+        
+        if (availableSpace >= pcmData.length) {
+            memcpy(head, pcmData.bytes, pcmData.length);
+            TPCircularBufferProduce(&_circleBuffer, (int32_t)pcmData.length);
+        }
     }
     // 注意：如果空间不足，这里直接丢弃。实际开发中可加入信号量等待。
 }
