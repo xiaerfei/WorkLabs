@@ -115,6 +115,10 @@ static void WLPlayerAudioQueueCallback(void *inUserData, AudioQueueRef inAQ, Aud
 }
 
 - (void)stop {
+    /*
+     AudioQueueStop(audioQueue, true)：立即停止（可能会有爆音，因为截断了）。
+     AudioQueueStop(audioQueue, false)：播完队列里剩下的数据再停。
+     */
     AudioQueueStop(_audioQueue, YES);
     TPCircularBufferClear(&_circleBuffer);
     _isPlaying = NO;
