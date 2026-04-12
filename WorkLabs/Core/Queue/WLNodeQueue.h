@@ -48,6 +48,13 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)enQueue:(WLNode *)node;
 
 /**
+ 非阻塞入队：如果队列满则丢弃最旧的帧，然后添加新帧
+ @param node 待入队节点
+ @return 是否成功入队（队列满时丢弃旧帧也算成功）
+ */
+- (BOOL)enQueueNonBlocking:(WLNode *)node;
+
+/**
  出队（消费）：从队头获取节点。
  @param block 是否阻塞。若为 YES 且队列为空，则挂起线程直到有数据或被中止。
  @return 成功返回节点，中止或非阻塞且为空时返回 nil。

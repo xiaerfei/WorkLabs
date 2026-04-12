@@ -10,6 +10,8 @@
 		2C80D4B02EF2AAFA00AB8D7F /* WLEventDisposeBag.m in Sources */ = {isa = PBXBuildFile; fileRef = 2C80D4AF2EF2AAFA00AB8D7F /* WLEventDisposeBag.m */; };
 		2C80D4B32EF2AB5100AB8D7F /* WLEventSendItem.m in Sources */ = {isa = PBXBuildFile; fileRef = 2C80D4B22EF2AB5100AB8D7F /* WLEventSendItem.m */; };
 		2CC1ECBB2EF0F3EE003A35ED /* WLSettingViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 2CC1ECBA2EF0F3EE003A35ED /* WLSettingViewController.m */; };
+		9C7D40502F0BFDA700756788 /* WLVideoDeviceSettingView.m in Sources */ = {isa = PBXBuildFile; fileRef = 9C7D404F2F0BFDA600756788 /* WLVideoDeviceSettingView.m */; };
+		9C7D40512F0BFDA700756788 /* WLVideoDeviceSettingWindowController.m in Sources */ = {isa = PBXBuildFile; fileRef = 9C7D404D2F0BFDA600756788 /* WLVideoDeviceSettingWindowController.m */; };
 		2CC1ECFD2EF2448D003A35ED /* WLVideoSelectView.m in Sources */ = {isa = PBXBuildFile; fileRef = 2CC1ECFC2EF2448D003A35ED /* WLVideoSelectView.m */; };
 		2CC1ED002EF24FAB003A35ED /* WLEvent.m in Sources */ = {isa = PBXBuildFile; fileRef = 2CC1ECFF2EF24FAB003A35ED /* WLEvent.m */; };
 		9C012D152F6E4DE900FB5170 /* WLResample.m in Sources */ = {isa = PBXBuildFile; fileRef = 9C012D142F6E4DE900FB5170 /* WLResample.m */; };
@@ -56,6 +58,10 @@
 		2C80D4B22EF2AB5100AB8D7F /* WLEventSendItem.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLEventSendItem.m; sourceTree = "<group>"; };
 		2CC1ECB92EF0F3EE003A35ED /* WLSettingViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLSettingViewController.h; sourceTree = "<group>"; };
 		2CC1ECBA2EF0F3EE003A35ED /* WLSettingViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLSettingViewController.m; sourceTree = "<group>"; };
+		9C7D404C2F0BFDA600756788 /* WLVideoDeviceSettingWindowController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLVideoDeviceSettingWindowController.h; sourceTree = "<group>"; };
+		9C7D404D2F0BFDA600756788 /* WLVideoDeviceSettingWindowController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLVideoDeviceSettingWindowController.m; sourceTree = "<group>"; };
+		9C7D404E2F0BFDA600756788 /* WLVideoDeviceSettingView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLVideoDeviceSettingView.h; sourceTree = "<group>"; };
+		9C7D404F2F0BFDA600756788 /* WLVideoDeviceSettingView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLVideoDeviceSettingView.m; sourceTree = "<group>"; };
 		2CC1ECFB2EF2448D003A35ED /* WLVideoSelectView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLVideoSelectView.h; sourceTree = "<group>"; };
 		2CC1ECFC2EF2448D003A35ED /* WLVideoSelectView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLVideoSelectView.m; sourceTree = "<group>"; };
 		2CC1ECFE2EF24FAB003A35ED /* WLEvent.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLEvent.h; sourceTree = "<group>"; };
@@ -190,6 +196,10 @@
 			children = (
 				2CC1ECB92EF0F3EE003A35ED /* WLSettingViewController.h */,
 				2CC1ECBA2EF0F3EE003A35ED /* WLSettingViewController.m */,
+				9C7D404C2F0BFDA600756788 /* WLVideoDeviceSettingWindowController.h */,
+				9C7D404D2F0BFDA600756788 /* WLVideoDeviceSettingWindowController.m */,
+				9C7D404E2F0BFDA600756788 /* WLVideoDeviceSettingView.h */,
+				9C7D404F2F0BFDA600756788 /* WLVideoDeviceSettingView.m */,
 			);
 			path = Setting;
 			sourceTree = "<group>";
@@ -572,6 +582,8 @@
 				9CE433C72F83A73D0025C582 /* WLAudioResample.m in Sources */,
 				9CB18F312EF035CD00C248B0 /* NSArray+Function.m in Sources */,
 				2CC1ECBB2EF0F3EE003A35ED /* WLSettingViewController.m in Sources */,
+				9C7D40502F0BFDA700756788 /* WLVideoDeviceSettingView.m in Sources */,
+				9C7D40512F0BFDA700756788 /* WLVideoDeviceSettingWindowController.m in Sources */,
 				9CC2AD502F76C46A000E39D4 /* WLAudioMixStreams.m in Sources */,
 				9CB474492F78CA3B00C8138F /* WLPushStreamsManager.m in Sources */,
 				9CB4744C2F78CC1F00C8138F /* WLStreamsManager.m in Sources */,

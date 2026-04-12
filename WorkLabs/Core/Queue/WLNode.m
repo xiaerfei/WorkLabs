@@ -22,5 +22,9 @@
         av_frame_free(&_frame); // 严谨释放
         _frame = NULL;
     }
+    if (_data) {
+        CVPixelBufferRelease(_data);
+        _data = NULL;
+    }
 }
 @end

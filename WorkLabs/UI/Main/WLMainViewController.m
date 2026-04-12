@@ -19,12 +19,18 @@
 
 #import "WLMediaSource.h"
 #import "WLRenderingManager.h"
+#import "WLStreamsManager.h"
+#import "WLNode.h"
 
-@interface WLMainViewController () <WLCameraCaptureSubscriber, TVUCameraManagerDelegate, WLMediaSourceDelegate>
+#import "WLVideoDeviceSettingWindowController.h"
+
+@interface WLMainViewController () <WLCameraCaptureSubscriber, TVUCameraManagerDelegate, WLMediaSourceDelegate, WLVideoDeviceSettingWindowControllerDelegate>
 @property (weak) IBOutlet NSView *bottomBarView;
 @property (nonatomic, strong) WLViedoPreview *videoPreview;
 @property (nonatomic, strong) WLEventDisposeBag *bag;
 @property (nonatomic, strong) WLMediaSource *mediaSource;
+@property (nonatomic, strong) WLVideoDeviceSettingWindowController *settingWindowController;
+@property (nonatomic, strong) NSString *currentVideoDeviceID;
 @end
 
 @implementation WLMainViewController
@@ -49,29 +55,64 @@
         make.bottom.equalTo(self.bottomBarView.mas_top);
     }];
     NSString *path = @"/Users/erfeixia/Downloads/Test-4K.mp4";
-    path =@"/Users/erfeixia/Downloads/[GM-Team][国漫][沧元图 第2季]-29.mp4";
+    path = @"/Users/erfeixia/Downloads/[GM-Team][国漫][沧元图 第2季]-29.mp4";
+    path = @"/Users/erfeixia/Downloads/盗墓笔记先导集（上）.mkv";
     self.mediaSource = [[WLMediaSource alloc] initWithPath:path];
     self.mediaSource.delegate = self;
+    
+    [WLStreamsManager manager].videoRenderType = WLVideoRenderTypeCamera;
+    [WLStreamsManager manager].audioRenderType = WLAudioRenderTypeMic;
+    [[WLStreamsManager manager] start];
 }
 #pragma mark - Action Methods
 - (IBAction)settingButtonAction:(NSButton *)sender {
-    
+    if (!self.settingWindowController) {
+        self.settingWindowController = [WLVideoDeviceSettingWindowController sharedController];
+        self.settingWindowController.delegate = self;
+    }
+    [self.settingWindowController showWindowWithCurrentDevice:self.currentVideoDeviceID];
 }
 
 - (IBAction)startButtonAction:(NSButton *)sender {
     [self.mediaSource start];
 }
+
+- (IBAction)startCamera:(id)sender {
+    [self startWLCamera];
+}
 #pragma mark - Private Methods
 - (void)startWLCamera {
     WLVideoManager *manager = [WLVideoManager manager];
     [manager subscriber:self];
+    AVCaptureDevice *device = [AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeVideo];
+    [manager switchWithDevice:device];
     // 启动采集
     [manager startCapture];
 }
 #pragma mark - WLCameraCaptureSubscriber
 - (void)cameraCaptureManager:(WLVideoManager *)manager
        didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer {
-    [self.videoPreview.displayLayer.sampleBufferRenderer enqueueSampleBuffer:sampleBuffer];
+    // 获取视频的流信息
+    CVImageBufferRef pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
+    if (!pixelBuffer) {
+        return;
+    }
+    
+    // 由于 sampleBuffer 会被系统回收，需要手动 retain pixelBuffer
+    CVPixelBufferRetain(pixelBuffer);
+    
+    CMTime presentationTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer);
+    Float64 pts = CMTimeGetSeconds(presentationTime);
+    
+    // 创建视频节点并添加到流管理器
+    WLNode *videoNode = [[WLNode alloc] init];
+    videoNode.type = WLNodeTypeVideo;
+    videoNode.fromType = WLFromTypeCamera;
+    videoNode.data = pixelBuffer;
+    videoNode.pts = pts;
+    
+    WLStreamsManager *streams = [WLStreamsManager manager];
+    [streams addVideoNode:videoNode];
 }
 
 - (void)tvuCaptureOutput:(AVCaptureOutput *)output
@@ -111,4 +152,27 @@
     CFRelease(formatDescription);
     return (status == noErr) ? sampleBuffer : NULL;
 }
+
+#pragma mark - WLVideoDeviceSettingWindowControllerDelegate
+
+- (void)videoDeviceSettingController:(WLVideoDeviceSettingWindowController *)controller
+              didConfirmWithDevice:(NSString *)deviceID
+                           preset:(NSString *)preset
+                       useBuffer:(BOOL)useBuffer {
+    NSLog(@"确认设置 - 设备：%@, 预设：%@, 使用缓冲：%@", deviceID, preset, @(useBuffer));
+    
+    self.currentVideoDeviceID = deviceID;
+    
+    if (deviceID && deviceID.length > 0) {
+        NSArray *devices = [[WLDevicesManager manager] currentVideoDevices];
+        for (WLDeviceItem *item in devices) {
+            if ([item.uniqueID isEqualToString:deviceID]) {
+                WLVideoManager *manager = [WLVideoManager manager];
+                [manager switchWithDevice:item.device];
+                break;
+            }
+        }
+    }
+}
+
 @end

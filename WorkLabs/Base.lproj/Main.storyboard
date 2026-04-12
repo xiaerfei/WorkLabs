@@ -724,12 +724,11 @@
                                         </constraints>
                                         <connections>
                                             <action selector="settingButtonAction:" target="XfG-lQ-9wD" id="CMs-05-fHq"/>
-                                            <segue destination="pFn-mm-jqD" kind="show" id="dXl-KF-dqm"/>
                                         </connections>
                                     </button>
                                     <button verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="Exe-SW-Jxl">
-                                        <rect key="frame" x="15" y="18" width="54" height="24"/>
-                                        <buttonCell key="cell" type="push" title="Start" bezelStyle="rounded" alignment="center" borderStyle="border" imageScaling="proportionallyDown" inset="2" id="pZL-ha-fLJ">
+                                        <rect key="frame" x="15" y="18" width="104" height="24"/>
+                                        <buttonCell key="cell" type="push" title="MediaSource" bezelStyle="rounded" alignment="center" borderStyle="border" imageScaling="proportionallyDown" inset="2" id="pZL-ha-fLJ">
                                             <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
                                             <font key="font" metaFont="system"/>
                                         </buttonCell>
@@ -737,13 +736,25 @@
                                             <action selector="startButtonAction:" target="XfG-lQ-9wD" id="Afu-fL-e3b"/>
                                         </connections>
                                     </button>
+                                    <button verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="phd-nG-uuK">
+                                        <rect key="frame" x="144" y="18" width="71" height="24"/>
+                                        <buttonCell key="cell" type="push" title="Camera" bezelStyle="rounded" alignment="center" borderStyle="border" imageScaling="proportionallyDown" inset="2" id="MZw-ub-0h1">
+                                            <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                                            <font key="font" metaFont="system"/>
+                                        </buttonCell>
+                                        <connections>
+                                            <action selector="startCamera:" target="XfG-lQ-9wD" id="kSX-0X-rcs"/>
+                                        </connections>
+                                    </button>
                                 </subviews>
                                 <constraints>
                                     <constraint firstItem="dAh-Ux-MSh" firstAttribute="centerY" secondItem="xEC-kV-BYz" secondAttribute="centerY" id="5az-kY-ebq"/>
                                     <constraint firstItem="Exe-SW-Jxl" firstAttribute="centerY" secondItem="xEC-kV-BYz" secondAttribute="centerY" id="6PK-lO-tqV"/>
+                                    <constraint firstItem="phd-nG-uuK" firstAttribute="centerY" secondItem="Exe-SW-Jxl" secondAttribute="centerY" id="KPL-i6-2QV"/>
                                     <constraint firstItem="Exe-SW-Jxl" firstAttribute="leading" secondItem="xEC-kV-BYz" secondAttribute="leading" constant="15" id="KhP-15-ptq"/>
                                     <constraint firstAttribute="height" constant="60" id="aN9-hW-jys"/>
                                     <constraint firstAttribute="trailing" secondItem="dAh-Ux-MSh" secondAttribute="trailing" constant="20" symbolic="YES" id="l6I-AT-1Gq"/>
+                                    <constraint firstItem="phd-nG-uuK" firstAttribute="leading" secondItem="Exe-SW-Jxl" secondAttribute="trailing" constant="25" id="vai-gv-dfl"/>
                                 </constraints>
                             </customView>
                         </subviews>

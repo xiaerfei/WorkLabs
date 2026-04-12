@@ -106,13 +106,13 @@
 
     self.currentDevice = device;
 
-    // 🔥 选择 FaceTime 风格最佳格式
-    AVCaptureDeviceFormat *bestFormat = [self bestFormatForDevice:device];
-    [device lockForConfiguration:nil];
-    device.activeFormat = bestFormat;
-    device.activeVideoMinFrameDuration = CMTimeMake(1, 30);
-    device.activeVideoMaxFrameDuration = CMTimeMake(1, 30);
-    [device unlockForConfiguration];
+//    // 🔥 选择 FaceTime 风格最佳格式
+//    AVCaptureDeviceFormat *bestFormat = [self bestFormatForDevice:device];
+//    [device lockForConfiguration:nil];
+//    device.activeFormat = bestFormat;
+//    device.activeVideoMinFrameDuration = CMTimeMake(1, 30);
+//    device.activeVideoMaxFrameDuration = CMTimeMake(1, 30);
+//    [device unlockForConfiguration];
 
     [self setupOutput];
 
@@ -132,7 +132,7 @@
     // 🔥 FaceTime 风格：输出 BGRA（方便 Metal）
     self.videoOutput.videoSettings =
     @{ (NSString *)kCVPixelBufferPixelFormatTypeKey :
-           @(kCVPixelFormatType_32BGRA) };
+           @(kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange) };
 
     [self.videoOutput setSampleBufferDelegate:self queue:_videoQueue];
 

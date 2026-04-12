@@ -112,10 +112,6 @@
     
     atomic_store_explicit(&_activeRenderThreads, 2, memory_order_relaxed);
     
-    [WLStreamsManager manager].videoRenderType = WLVideoRenderTypeMedia;
-    [WLStreamsManager manager].audioRenderType = WLAudioRenderTypeMeida;
-    [[WLStreamsManager manager] start];
-
     AVPacket *packet = av_packet_alloc();
     
     while (self.isRunning) {

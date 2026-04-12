@@ -72,6 +72,42 @@
     pthread_mutex_unlock(&_mutex);
 }
 
+- (BOOL)enQueueNonBlocking:(WLNode *)node {
+    if (!node) return NO;
+    pthread_mutex_lock(&_mutex);
+    
+    // 检查是否中止
+    if (_abortRequest) {
+        [node flush]; // 释放掉无法入队的数据
+        pthread_mutex_unlock(&_mutex);
+        return NO;
+    }
+    
+    // 队列满时丢弃最旧的帧
+    if (_nodeSize >= _allSize) {
+        WLNode *oldNode = _head;
+        if (oldNode) {
+            _head = oldNode.next;
+            if (!_head) _tail = nil;
+            _nodeSize--;
+            [oldNode flush]; // 释放丢弃的帧
+        }
+    }
+    
+    // 添加新帧
+    if (!_head) {
+        _head = node;
+    } else {
+        _tail.next = node;
+    }
+    _tail = node;
+    _nodeSize++;
+    
+    pthread_cond_signal(&_cond);
+    pthread_mutex_unlock(&_mutex);
+    return YES;
+}
+
 - (WLNode *)deQueueWithBlock:(BOOL)block {
     pthread_mutex_lock(&_mutex);
     
