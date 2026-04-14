@@ -1,0 +1,65 @@
+<mxfile host="embed.diagrams.net">
+  <diagram id="SM7RWlqOk516MpARz2mf" name="第 1 页">
+    <mxGraphModel dx="1542" dy="815" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=16;fontStyle=1" value="OBS 架构图" vertex="1">
+          <mxGeometry height="40" width="160" x="280" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366" value="视频源" vertex="1">
+          <mxGeometry height="50" width="100" x="40" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656" value="音频源" vertex="1">
+          <mxGeometry height="50" width="100" x="180" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450" value="场景" vertex="1">
+          <mxGeometry height="50" width="100" x="320" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6" value="混音器" vertex="1">
+          <mxGeometry height="50" width="100" x="460" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="7" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf" value="视频编码器" vertex="1">
+          <mxGeometry height="50" width="100" x="200" y="260" as="geometry" />
+        </mxCell>
+        <mxCell id="8" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf" value="音频编码器" vertex="1">
+          <mxGeometry height="50" width="100" x="340" y="270" as="geometry" />
+        </mxCell>
+        <mxCell id="9" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1" value="输出" vertex="1">
+          <mxGeometry height="50" width="100" x="270" y="420" as="geometry" />
+        </mxCell>
+        <mxCell id="10" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666" value="预览" vertex="1">
+          <mxGeometry height="40" width="80" x="540" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="11" edge="1" parent="1" source="3" style="edgeStyle=orthogonalEdgeStyle;endArrow=classic;strokeColor=#666666" target="5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="12" edge="1" parent="1" source="4" style="edgeStyle=orthogonalEdgeStyle;endArrow=classic;strokeColor=#666666" target="6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="13" edge="1" parent="1" source="5" style="edgeStyle=orthogonalEdgeStyle;endArrow=classic;strokeColor=#666666" target="6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="14" edge="1" parent="1" source="6" style="edgeStyle=orthogonalEdgeStyle;endArrow=classic;strokeColor=#666666" target="7">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="290" y="145" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="15" edge="1" parent="1" source="6" style="edgeStyle=orthogonalEdgeStyle;endArrow=classic;strokeColor=#666666" target="8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="16" edge="1" parent="1" source="7" style="edgeStyle=orthogonalEdgeStyle;endArrow=classic;strokeColor=#666666" target="9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="17" edge="1" parent="1" source="8" style="edgeStyle=orthogonalEdgeStyle;endArrow=classic;strokeColor=#666666" target="9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="18" edge="1" parent="1" source="5" style="edgeStyle=orthogonalEdgeStyle;endArrow=classic;strokeColor=#666666;dashed=1" target="10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

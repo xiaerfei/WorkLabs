@@ -24,7 +24,7 @@
 
 #import "WLVideoDeviceSettingWindowController.h"
 
-@interface WLMainViewController () <WLCameraCaptureSubscriber, TVUCameraManagerDelegate, WLMediaSourceDelegate, WLVideoDeviceSettingWindowControllerDelegate>
+@interface WLMainViewController () <WLCameraCaptureSubscriber, TVUCameraManagerDelegate, WLVideoDeviceSettingWindowControllerDelegate>
 @property (weak) IBOutlet NSView *bottomBarView;
 @property (nonatomic, strong) WLViedoPreview *videoPreview;
 @property (nonatomic, strong) WLEventDisposeBag *bag;
@@ -58,7 +58,6 @@
     path = @"/Users/erfeixia/Downloads/[GM-Team][国漫][沧元图 第2季]-29.mp4";
     path = @"/Users/erfeixia/Downloads/盗墓笔记先导集（上）.mkv";
     self.mediaSource = [[WLMediaSource alloc] initWithPath:path];
-    self.mediaSource.delegate = self;
     
     [WLStreamsManager manager].videoRenderType = WLVideoRenderTypeCamera;
     [WLStreamsManager manager].audioRenderType = WLAudioRenderTypeMic;
