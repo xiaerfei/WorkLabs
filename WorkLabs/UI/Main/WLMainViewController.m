@@ -24,6 +24,7 @@
 
 #import "WLVideoDeviceSettingWindowController.h"
 #import "WLVideoDeviceSettingView.h"
+#import "WLControlPanelContainerView.h"
 
 @interface WLTopNavigationBar : NSView
 @property (nonatomic, strong) NSButton *sceneButton;
@@ -208,6 +209,7 @@
 @property (nonatomic, strong) WLLeftSceneEditArea *leftSceneEditArea;
 @property (nonatomic, strong) WLRightDeviceControlPanel *rightDeviceControlPanel;
 @property (nonatomic, strong) WLBottomStatusBar *bottomStatusBar;
+@property (nonatomic, strong) WLControlPanelContainerView *controlPanelContainer;
 @property (nonatomic, strong) WLViedoPreview *videoPreview;
 @property (nonatomic, strong) WLEventDisposeBag *bag;
 @property (nonatomic, strong) WLMediaSource *mediaSource;
@@ -228,23 +230,15 @@
     printf("libavformat version: %d.%d.%d\n", major, minor, micro);
     
     self.view.backgroundColor = [NSColor blackColor];
-    
-    // 创建顶部导航栏
-    self.topNavigationBar = [[WLTopNavigationBar alloc] initWithFrame:NSMakeRect(0, 0, self.view.frame.size.width, 40)];
-    [self.view addSubview:self.topNavigationBar];
-    
-    // 创建左侧场景编辑区
-    self.leftSceneEditArea = [[WLLeftSceneEditArea alloc] initWithFrame:NSMakeRect(0, 40, 400, self.view.frame.size.height - 70)];
-    [self.view addSubview:self.leftSceneEditArea];
-    
-    // 创建右侧设备控制面板
-    self.rightDeviceControlPanel = [[WLRightDeviceControlPanel alloc] initWithFrame:NSMakeRect(400, 40, self.view.frame.size.width - 400, self.view.frame.size.height - 70)];
-    [self.view addSubview:self.rightDeviceControlPanel];
-    
-    // 创建底部状态栏
-    self.bottomStatusBar = [[WLBottomStatusBar alloc] initWithFrame:NSMakeRect(0, self.view.frame.size.height - 30, self.view.frame.size.width, 30)];
-    [self.view addSubview:self.bottomStatusBar];
-    
+
+    // 控制面板容器，固定在窗口底部
+    self.controlPanelContainer = [[WLControlPanelContainerView alloc] init];
+    [self.view addSubview:self.controlPanelContainer];
+    [self.controlPanelContainer mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.left.right.bottom.equalTo(self.view);
+        make.height.mas_equalTo(220);
+    }];
+
     // 初始化媒体源
     NSString *path = @"/Users/erfeixia/Downloads/Test-4K.mp4";
     self.mediaSource = [[WLMediaSource alloc] initWithPath:path];

@@ -15,6 +15,13 @@
 
 typedef NS_ENUM(NSUInteger, WLObserve) {
     WLObserveVideoDeviceChange,
+    WLObserveStartStreaming,
+    WLObserveStopStreaming,
+    WLObserveStartRecording,
+    WLObserveStopRecording,
+    WLObserveSceneChange,
+    WLObserveSourceChange,
+    WLObserveTransitionChange,
 };
 
 #endif /* WLEventConst_h */
