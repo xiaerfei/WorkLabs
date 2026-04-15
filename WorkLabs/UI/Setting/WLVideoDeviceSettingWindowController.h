@@ -1,13 +1,5 @@
-//
-//  WLVideoDeviceSettingWindowController.h
-//  WorkLabs
-//
-//  Created by erfeixia on 2026/04/12.
-//
 
 #import <Cocoa/Cocoa.h>
-
-NS_ASSUME_NONNULL_BEGIN
 
 @class WLVideoDeviceSettingWindowController;
 
@@ -17,6 +9,9 @@ NS_ASSUME_NONNULL_BEGIN
               didConfirmWithDevice:(NSString *)deviceID
                            preset:(NSString *)preset
                        useBuffer:(BOOL)useBuffer;
+
+- (void)videoDeviceSettingController:(WLVideoDeviceSettingWindowController *)controller
+          didConfirmWithMediaPath:(NSString *)mediaPath;
 @end
 
 @interface WLVideoDeviceSettingWindowController : NSWindowController
@@ -24,8 +19,6 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, weak) id<WLVideoDeviceSettingWindowControllerDelegate> delegate;
 
 + (instancetype)sharedController;
-- (void)showWindowWithCurrentDevice:(NSString *)currentDeviceID;
+- (void)showWindowWithSourceType:(NSUInteger)sourceType;
 
 @end
-
-NS_ASSUME_NONNULL_END

@@ -1,9 +1,3 @@
-//
-//  WLVideoDeviceSettingWindowController.m
-//  WorkLabs
-//
-//  Created by erfeixia on 2026/04/12.
-//
 
 #import "WLVideoDeviceSettingWindowController.h"
 #import "WLVideoDeviceSettingView.h"
@@ -13,7 +7,6 @@
 @interface WLVideoDeviceSettingWindowController () <WLVideoDeviceSettingViewDelegate>
 
 @property (nonatomic, strong) WLVideoDeviceSettingView *settingView;
-@property (nonatomic, strong) NSString *currentDeviceID;
 
 @end
 
@@ -44,11 +37,10 @@
                                                              NSWindowStyleMaskMiniaturizable)
                                                      backing:NSBackingStoreBuffered
                                                        defer:NO];
-    window.title = @"设置 \"视频采集设备\"";
     window.minSize = NSMakeSize(600, 500);
     window.level = NSNormalWindowLevel;
     window.collectionBehavior = NSWindowCollectionBehaviorManaged;
-    
+
     self.window = window;
 }
 
@@ -58,25 +50,35 @@
 
 - (void)windowDidLoad {
     [super windowDidLoad];
-    
+
     self.settingView = [[WLVideoDeviceSettingView alloc] initWithFrame:self.window.contentView.bounds];
     self.settingView.delegate = self;
-    
+
     [self.window.contentView addSubview:self.settingView];
     [self.settingView mas_makeConstraints:^(MASConstraintMaker *make) {
         make.edges.equalTo(self.window.contentView);
     }];
 }
 
-- (void)showWindowWithCurrentDevice:(NSString *)currentDeviceID {
-    _currentDeviceID = currentDeviceID;
-
+- (void)showWindowWithSourceType:(NSUInteger)sourceType {
     if (!self.settingView) {
         [self windowDidLoad];
     }
 
-    NSArray *devices = [[WLDevicesManager manager] currentVideoDevices];
-    [self.settingView updateWithDevices:devices currentDeviceID:currentDeviceID];
+    WLVideoSourceType type = (WLVideoSourceType)sourceType;
+
+    self.window.title = (type == WLVideoSourceTypeCamera)
+        ? @"设置 \"视频采集设备\""
+        : @"设置 \"媒体源\"";
+
+    [self.settingView switchToSourceType:type];
+
+    if (type == WLVideoSourceTypeCamera) {
+        NSArray *devices = [[WLDevicesManager manager] currentVideoDevices];
+        [self.settingView updateCameraDevices:devices currentDeviceID:nil];
+    } else {
+        [self.settingView updateMediaFilePath:nil];
+    }
 
     [self.window center];
     [self.window makeKeyAndOrderFront:nil];
@@ -89,22 +91,26 @@
     [self.window close];
 }
 
-- (void)videoDeviceSettingViewDidClickDefault:(WLVideoDeviceSettingView *)view {
-    // Do nothing for default action
-}
-
 - (void)videoDeviceSettingView:(WLVideoDeviceSettingView *)view
-      didClickConfirmWithDevice:(NSString *)deviceID
-                         preset:(NSString *)preset
-                      useBuffer:(BOOL)useBuffer {
-    
+  didConfirmCameraWithDevice:(NSString *)deviceID
+                       preset:(NSString *)preset
+                    useBuffer:(BOOL)useBuffer {
     if (self.delegate && [self.delegate respondsToSelector:@selector(videoDeviceSettingController:didConfirmWithDevice:preset:useBuffer:)]) {
         [self.delegate videoDeviceSettingController:self
                              didConfirmWithDevice:deviceID
                                            preset:preset
                                         useBuffer:useBuffer];
     }
-    
+
+    [self.window close];
+}
+
+- (void)videoDeviceSettingView:(WLVideoDeviceSettingView *)view
+  didConfirmMediaWithFilePath:(NSString *)filePath {
+    if (self.delegate && [self.delegate respondsToSelector:@selector(videoDeviceSettingController:didConfirmWithMediaPath:)]) {
+        [self.delegate videoDeviceSettingController:self didConfirmWithMediaPath:filePath];
+    }
+
     [self.window close];
 }
 
