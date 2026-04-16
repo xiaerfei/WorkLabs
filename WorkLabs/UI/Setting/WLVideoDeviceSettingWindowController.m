@@ -84,34 +84,4 @@
     [self.window makeKeyAndOrderFront:nil];
     [NSApp activateIgnoringOtherApps:YES];
 }
-
-#pragma mark - WLVideoDeviceSettingViewDelegate
-
-- (void)videoDeviceSettingViewDidClickCancel:(WLVideoDeviceSettingView *)view {
-    [self.window close];
-}
-
-- (void)videoDeviceSettingView:(WLVideoDeviceSettingView *)view
-  didConfirmCameraWithDevice:(NSString *)deviceID
-                       preset:(NSString *)preset
-                    useBuffer:(BOOL)useBuffer {
-    if (self.delegate && [self.delegate respondsToSelector:@selector(videoDeviceSettingController:didConfirmWithDevice:preset:useBuffer:)]) {
-        [self.delegate videoDeviceSettingController:self
-                             didConfirmWithDevice:deviceID
-                                           preset:preset
-                                        useBuffer:useBuffer];
-    }
-
-    [self.window close];
-}
-
-- (void)videoDeviceSettingView:(WLVideoDeviceSettingView *)view
-  didConfirmMediaWithFilePath:(NSString *)filePath {
-    if (self.delegate && [self.delegate respondsToSelector:@selector(videoDeviceSettingController:didConfirmWithMediaPath:)]) {
-        [self.delegate videoDeviceSettingController:self didConfirmWithMediaPath:filePath];
-    }
-
-    [self.window close];
-}
-
 @end

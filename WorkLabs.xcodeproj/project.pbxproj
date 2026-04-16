@@ -26,6 +26,7 @@
 		9C7D40512F0BFDA700756788 /* WLVideoDeviceSettingWindowController.m in Sources */ = {isa = PBXBuildFile; fileRef = 9C7D404D2F0BFDA600756788 /* WLVideoDeviceSettingWindowController.m */; };
 		9CA926472F8D1CCE009068C8 /* WLCameraSource.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CA926462F8D1CCE009068C8 /* WLCameraSource.m */; };
 		9CA9264A2F8DAAAD009068C8 /* WLCameraSourceConfig.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CA926492F8DAAAD009068C8 /* WLCameraSourceConfig.m */; };
+		9CA9CB6E2F8FD89900FDEA07 /* WLToolbarButton.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CA9CB6D2F8FD89900FDEA07 /* WLToolbarButton.m */; };
 		9CB18F2E2EF035CD00C248B0 /* NSView+BackgroundColor.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CB18F0E2EF035CD00C248B0 /* NSView+BackgroundColor.m */; };
 		9CB18F2F2EF035CD00C248B0 /* NSWindow+WLExtend.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CB18F102EF035CD00C248B0 /* NSWindow+WLExtend.m */; };
 		9CB18F302EF035CD00C248B0 /* WLViedoPreview.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CB18F132EF035CD00C248B0 /* WLViedoPreview.m */; };
@@ -102,6 +103,8 @@
 		9CA926462F8D1CCE009068C8 /* WLCameraSource.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLCameraSource.m; sourceTree = "<group>"; };
 		9CA926482F8DAAAB009068C8 /* WLCameraSourceConfig.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLCameraSourceConfig.h; sourceTree = "<group>"; };
 		9CA926492F8DAAAD009068C8 /* WLCameraSourceConfig.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLCameraSourceConfig.m; sourceTree = "<group>"; };
+		9CA9CB6C2F8FD89000FDEA07 /* WLToolbarButton.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLToolbarButton.h; sourceTree = "<group>"; };
+		9CA9CB6D2F8FD89900FDEA07 /* WLToolbarButton.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLToolbarButton.m; sourceTree = "<group>"; };
 		9CB18F0D2EF035CD00C248B0 /* NSView+BackgroundColor.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "NSView+BackgroundColor.h"; sourceTree = "<group>"; };
 		9CB18F0E2EF035CD00C248B0 /* NSView+BackgroundColor.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "NSView+BackgroundColor.m"; sourceTree = "<group>"; };
 		9CB18F0F2EF035CD00C248B0 /* NSWindow+WLExtend.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "NSWindow+WLExtend.h"; sourceTree = "<group>"; };
@@ -196,8 +199,9 @@
 				AB41A235C313FEAFECAE214D /* WLControlsPanel.m */,
 				857C13881AB44FAFEE0A460D /* WLControlPanelContainerView.h */,
 				5BE989D556E418EB17B19381 /* WLControlPanelContainerView.m */,
+				9CA9CB6C2F8FD89000FDEA07 /* WLToolbarButton.h */,
+				9CA9CB6D2F8FD89900FDEA07 /* WLToolbarButton.m */,
 			);
-			name = ControlPanel;
 			path = ControlPanel;
 			sourceTree = "<group>";
 		};
@@ -693,6 +697,7 @@
 				2C80D4B32EF2AB5100AB8D7F /* WLEventSendItem.m in Sources */,
 				9C012D182F6E670800FB5170 /* WLNode.m in Sources */,
 				9CB18F392EF035CD00C248B0 /* WLMainWindowController.m in Sources */,
+				9CA9CB6E2F8FD89900FDEA07 /* WLToolbarButton.m in Sources */,
 				B21031CC8BE85DE811EBA5DA /* WLAudioBuffer.m in Sources */,
 				61AA691E5834E71747D8DAB7 /* WLScenePanel.m in Sources */,
 				120F6EFF90128F84EBE05E4D /* WLSourcePanel.m in Sources */,

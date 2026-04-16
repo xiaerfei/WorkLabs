@@ -7,6 +7,7 @@
 #import <Masonry.h>
 #import "NSView+BackgroundColor.h"
 #import "WLEvent.h"
+#import "WLToolbarButton.h"
 
 @interface WLScenePanel () <NSTableViewDataSource, NSTableViewDelegate>
 
@@ -141,17 +142,17 @@
 
 - (void)setupToolbar {
     NSArray *configs = @[
-        @[@"+",  NSStringFromSelector(@selector(addScene))],
-        @[@"−",  NSStringFromSelector(@selector(deleteScene))],
-        @[@"❐",  NSStringFromSelector(@selector(duplicateScene))],
-        @[@"∧",  NSStringFromSelector(@selector(moveSceneUp))],
-        @[@"∨",  NSStringFromSelector(@selector(moveSceneDown))],
+        @[@"plus",          NSStringFromSelector(@selector(addScene))],
+        @[@"minus",         NSStringFromSelector(@selector(deleteScene))],
+        @[@"doc.on.doc",    NSStringFromSelector(@selector(duplicateScene))],
+        @[@"chevron.up",    NSStringFromSelector(@selector(moveSceneUp))],
+        @[@"chevron.down",  NSStringFromSelector(@selector(moveSceneDown))],
     ];
 
     NSView *prev = nil;
     for (NSArray *cfg in configs) {
-        NSButton *btn = [self makeToolbarButtonWithTitle:cfg[0]
-                                                 action:NSSelectorFromString(cfg[1])];
+        NSButton *btn = [self makeToolbarButtonWithSymbolName:cfg[0]
+                                                      action:NSSelectorFromString(cfg[1])];
         [self.toolbarView addSubview:btn];
         [btn mas_makeConstraints:^(MASConstraintMaker *make) {
             make.centerY.equalTo(self.toolbarView);
@@ -175,6 +176,25 @@
     btn.target = self;
     btn.action = action;
     [btn setContentTintColor:[NSColor colorWithWhite:0.65 alpha:1.0]];
+    return btn;
+}
+
+- (NSButton *)makeToolbarButtonWithSymbolName:(NSString *)symbolName action:(SEL)action {
+    WLToolbarButton *btn = [[WLToolbarButton alloc] init];
+    btn.bezelStyle = NSBezelStyleSmallSquare;
+    btn.bordered = NO;
+    btn.image = [NSImage imageWithSystemSymbolName:symbolName accessibilityDescription:nil];
+    btn.imagePosition = NSImageOnly;
+    btn.target = self;
+    btn.action = action;
+    [btn setContentTintColor:[NSColor whiteColor]];
+    
+    NSTrackingArea *trackingArea = [[NSTrackingArea alloc] initWithRect:NSZeroRect
+                                                                options:(NSTrackingMouseEnteredAndExited | NSTrackingActiveAlways | NSTrackingInVisibleRect | NSViewWidthSizable | NSViewHeightSizable)
+                                                                  owner:btn
+                                                               userInfo:nil];
+    [btn addTrackingArea:trackingArea];
+    
     return btn;
 }
 
