@@ -55,6 +55,14 @@
 		9CCBFD352F8EFA5F00D040F5 /* WLMediaSourceSettingView.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CCBFD342F8EFA5F00D040F5 /* WLMediaSourceSettingView.m */; };
 		9CCBFD382F8F002D00D040F5 /* WLMetalPreview.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CCBFD372F8F002D00D040F5 /* WLMetalPreview.m */; };
 		9CCBFD3A2F8F004300D040F5 /* WLMetalPreviewShaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = 9CCBFD392F8F004300D040F5 /* WLMetalPreviewShaders.metal */; };
+		9CD046EE2F91B080008EAC25 /* WLSourceView.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CD046EB2F91B080008EAC25 /* WLSourceView.m */; };
+		9CD046EF2F91B080008EAC25 /* WLMediaSource.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CD046DD2F91B080008EAC25 /* WLMediaSource.m */; };
+		9CD046F02F91B080008EAC25 /* WLTransitionEngine.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CD046E42F91B080008EAC25 /* WLTransitionEngine.m */; };
+		9CD046F12F91B080008EAC25 /* WLSceneView.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CD046E92F91B080008EAC25 /* WLSceneView.m */; };
+		9CD046F22F91B080008EAC25 /* WLScene.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CD046DF2F91B080008EAC25 /* WLScene.m */; };
+		9CD046F32F91B080008EAC25 /* WLMediaMixer.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CD046DA2F91B080008EAC25 /* WLMediaMixer.m */; };
+		9CD046F42F91B080008EAC25 /* WLSceneManagerView.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CD046E72F91B080008EAC25 /* WLSceneManagerView.m */; };
+		9CD046F52F91B080008EAC25 /* WLSceneManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CD046E12F91B080008EAC25 /* WLSceneManager.m */; };
 		9CE433C32F81FB670025C582 /* WLCoreUtils.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CE433C22F81FB670025C582 /* WLCoreUtils.m */; };
 		9CE433C72F83A73D0025C582 /* WLAudioResample.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CE433C62F83A73D0025C582 /* WLAudioResample.m */; };
 		9CE433CC2F83B1A60025C582 /* WLAudioQueuePlayer.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CE433CB2F83B1A60025C582 /* WLAudioQueuePlayer.m */; };
@@ -159,6 +167,22 @@
 		9CCBFD362F8EFFE700D040F5 /* WLMetalPreview.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLMetalPreview.h; sourceTree = "<group>"; };
 		9CCBFD372F8F002D00D040F5 /* WLMetalPreview.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLMetalPreview.m; sourceTree = "<group>"; };
 		9CCBFD392F8F004300D040F5 /* WLMetalPreviewShaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = WLMetalPreviewShaders.metal; sourceTree = "<group>"; };
+		9CD046D92F91B080008EAC25 /* WLMediaMixer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLMediaMixer.h; sourceTree = "<group>"; };
+		9CD046DA2F91B080008EAC25 /* WLMediaMixer.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLMediaMixer.m; sourceTree = "<group>"; };
+		9CD046DC2F91B080008EAC25 /* WLMediaSource.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLMediaSource.h; sourceTree = "<group>"; };
+		9CD046DD2F91B080008EAC25 /* WLMediaSource.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLMediaSource.m; sourceTree = "<group>"; };
+		9CD046DE2F91B080008EAC25 /* WLScene.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLScene.h; sourceTree = "<group>"; };
+		9CD046DF2F91B080008EAC25 /* WLScene.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLScene.m; sourceTree = "<group>"; };
+		9CD046E02F91B080008EAC25 /* WLSceneManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLSceneManager.h; sourceTree = "<group>"; };
+		9CD046E12F91B080008EAC25 /* WLSceneManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLSceneManager.m; sourceTree = "<group>"; };
+		9CD046E32F91B080008EAC25 /* WLTransitionEngine.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLTransitionEngine.h; sourceTree = "<group>"; };
+		9CD046E42F91B080008EAC25 /* WLTransitionEngine.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLTransitionEngine.m; sourceTree = "<group>"; };
+		9CD046E62F91B080008EAC25 /* WLSceneManagerView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLSceneManagerView.h; sourceTree = "<group>"; };
+		9CD046E72F91B080008EAC25 /* WLSceneManagerView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLSceneManagerView.m; sourceTree = "<group>"; };
+		9CD046E82F91B080008EAC25 /* WLSceneView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLSceneView.h; sourceTree = "<group>"; };
+		9CD046E92F91B080008EAC25 /* WLSceneView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLSceneView.m; sourceTree = "<group>"; };
+		9CD046EA2F91B080008EAC25 /* WLSourceView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLSourceView.h; sourceTree = "<group>"; };
+		9CD046EB2F91B080008EAC25 /* WLSourceView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLSourceView.m; sourceTree = "<group>"; };
 		9CE433C12F81FB670025C582 /* WLCoreUtils.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLCoreUtils.h; sourceTree = "<group>"; };
 		9CE433C22F81FB670025C582 /* WLCoreUtils.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLCoreUtils.m; sourceTree = "<group>"; };
 		9CE433C52F83A73D0025C582 /* WLAudioResample.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLAudioResample.h; sourceTree = "<group>"; };
@@ -355,7 +379,7 @@
 		9CB18F2D2EF035CD00C248B0 /* WorkLabs */ = {
 			isa = PBXGroup;
 			children = (
-				9CD046BE2F91A28A008EAC25 /* Scene */,
+				9CD046ED2F91B080008EAC25 /* Scene */,
 				9CC059942F0D485C004FEB9C /* Core */,
 				9C7D404C2F0BFDD500756788 /* Video */,
 				9C7D40492F0BFD5B00756788 /* UI */,
@@ -369,6 +393,7 @@
 				2CC1ECFB2EF2448D003A35ED /* WLVideoSelectView.h */,
 				2CC1ECFC2EF2448D003A35ED /* WLVideoSelectView.m */,
 				9CB18F2C2EF035CD00C248B0 /* WorkLabs.entitlements */,
+				9CD046D82F91AF19008EAC25 /* Scene 2 */,
 			);
 			path = WorkLabs;
 			sourceTree = "<group>";
@@ -483,9 +508,64 @@
 			path = Audio;
 			sourceTree = "<group>";
 		};
-		9CD046BE2F91A28A008EAC25 /* Scene */ = {
+		9CD046D82F91AF19008EAC25 /* Scene 2 */ = {
 			isa = PBXGroup;
 			children = (
+			);
+			path = "Scene 2";
+			sourceTree = "<group>";
+		};
+		9CD046DB2F91B080008EAC25 /* Audio */ = {
+			isa = PBXGroup;
+			children = (
+				9CD046D92F91B080008EAC25 /* WLMediaMixer.h */,
+				9CD046DA2F91B080008EAC25 /* WLMediaMixer.m */,
+			);
+			path = Audio;
+			sourceTree = "<group>";
+		};
+		9CD046E22F91B080008EAC25 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				9CD046DC2F91B080008EAC25 /* WLMediaSource.h */,
+				9CD046DD2F91B080008EAC25 /* WLMediaSource.m */,
+				9CD046DE2F91B080008EAC25 /* WLScene.h */,
+				9CD046DF2F91B080008EAC25 /* WLScene.m */,
+				9CD046E02F91B080008EAC25 /* WLSceneManager.h */,
+				9CD046E12F91B080008EAC25 /* WLSceneManager.m */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		9CD046E52F91B080008EAC25 /* Transition */ = {
+			isa = PBXGroup;
+			children = (
+				9CD046E32F91B080008EAC25 /* WLTransitionEngine.h */,
+				9CD046E42F91B080008EAC25 /* WLTransitionEngine.m */,
+			);
+			path = Transition;
+			sourceTree = "<group>";
+		};
+		9CD046EC2F91B080008EAC25 /* View */ = {
+			isa = PBXGroup;
+			children = (
+				9CD046E62F91B080008EAC25 /* WLSceneManagerView.h */,
+				9CD046E72F91B080008EAC25 /* WLSceneManagerView.m */,
+				9CD046E82F91B080008EAC25 /* WLSceneView.h */,
+				9CD046E92F91B080008EAC25 /* WLSceneView.m */,
+				9CD046EA2F91B080008EAC25 /* WLSourceView.h */,
+				9CD046EB2F91B080008EAC25 /* WLSourceView.m */,
+			);
+			path = View;
+			sourceTree = "<group>";
+		};
+		9CD046ED2F91B080008EAC25 /* Scene */ = {
+			isa = PBXGroup;
+			children = (
+				9CD046DB2F91B080008EAC25 /* Audio */,
+				9CD046E22F91B080008EAC25 /* Core */,
+				9CD046E52F91B080008EAC25 /* Transition */,
+				9CD046EC2F91B080008EAC25 /* View */,
 			);
 			path = Scene;
 			sourceTree = "<group>";
@@ -686,6 +766,14 @@
 				9CCBFD352F8EFA5F00D040F5 /* WLMediaSourceSettingView.m in Sources */,
 				9CB18F332EF035CD00C248B0 /* AppDelegate.m in Sources */,
 				2CC1ECFD2EF2448D003A35ED /* WLVideoSelectView.m in Sources */,
+				9CD046EE2F91B080008EAC25 /* WLSourceView.m in Sources */,
+				9CD046EF2F91B080008EAC25 /* WLMediaSource.m in Sources */,
+				9CD046F02F91B080008EAC25 /* WLTransitionEngine.m in Sources */,
+				9CD046F12F91B080008EAC25 /* WLSceneView.m in Sources */,
+				9CD046F22F91B080008EAC25 /* WLScene.m in Sources */,
+				9CD046F32F91B080008EAC25 /* WLMediaMixer.m in Sources */,
+				9CD046F42F91B080008EAC25 /* WLSceneManagerView.m in Sources */,
+				9CD046F52F91B080008EAC25 /* WLSceneManager.m in Sources */,
 				9C012D1B2F6E674200FB5170 /* WLNodeQueue.m in Sources */,
 				9CB474522F78CC7E00C8138F /* WLRenderingManager.m in Sources */,
 				9CBEC7F72F75F09400FEB37E /* WLVideoConcatStreams.m in Sources */,
