@@ -4,102 +4,50 @@
 
 WorkLabs 采用类似 OBS 的架构设计，支持多场景切换、多媒体源混合和转场动画。
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                     WorkLabs OBS-Style Architecture                      │
-└─────────────────────────────────────────────────────────────────────────┘
-                                    │
-                            ┌───────▼───────┐
-                            │ WLSceneManager │
-                            │  (场景管理器)   │
-                            └───────┬───────┘
-                                    │
-                            ┌───────▼───────┐
-                            │    WLScene    │
-                            │    (场景)      │
-                            └───────┬───────┘
-                                    │ (虚线: 包含关系)
-              ┌─────────────────────┴─────────────────────┐
-              │              Scene 内部                   │
-              │  ┌────┐ ┌────┐ ┌────┐ ┌────┐ ┌────┐ ┌────┐│
-              │  │FFmpeg│ │Camera│ │Screen│ │Image│ │Color││ ...│
-              │  │Source│ │Source│ │Source│ │Source│ │Source││    │
-              │  └────┘ └────┘ └────┘ └────┘ └────┘ └────┘│
-              │   ────────────┬────────────┬────────────  │  (音频)
-              │    视频 ──────┘            └──────────────│
-              │                                              │
-    ┌─────────▼─────────┐                      ┌──────────▼────────┐
-    │ WLSceneRenderer   │                      │   WLMediaMixer    │
-    │  (视频合成: Layer/Metal/GL)              │ (音频混音: 音量/淡入淡出/同步) │
-    └─────────┬─────────┘                      └──────────┬────────┘
-              │ 视频帧                                  │ 音频帧
-              └────────────────┬───────────────────────────┘
-                               │
-                    ┌──────────▼──────────┐
-                    │ WLTransitionEngine  │
-                    │ (转场: Fade/Slide/Cut/Zoom) │
-                    └──────────┬──────────┘
-                               │
-                    ┌──────────▼──────────┐
-                    │       Output        │
-                    │ (Preview/Record/Stream) │
-                    └─────────────────────┘
+```mermaid
+graph TD
+    SM["WLSceneManager<br/>(场景管理器)"] --> SC["WLScene<br/>(场景)"]
 
-        ┌──────┐  ┌──────┐  ┌──────┐  ┌──────┐
-        │Source│  │视频合成│  │音频混音│  │转场动画│
-        └──────┘  └──────┘  └──────┘  └──────┘
+    subgraph SOURCES["媒体源 (WLMediaSource 协议)"]
+        direction LR
+        F["FFmpegSource"] ~~~ C["CameraSource"] ~~~ S["ScreenSource"]
+        I["ImageSource"] ~~~ CO["ColorSource"] ~~~ ETC["..."]
+    end
+
+    SC --> SOURCES
+
+    SOURCES -->|视频帧| SR["WLSceneRenderer<br/>(视频合成: Layer/Metal/GL)"]
+    SOURCES -->|音频帧| MM["WLMediaMixer<br/>(音频混音: 音量/淡入淡出/同步)"]
+
+    SR -->|视频帧| TE["WLTransitionEngine<br/>(转场: Fade/Slide/Cut/Zoom)"]
+    MM -->|音频帧| TE
+
+    TE --> OUT["Output<br/>(Preview / Record / Stream)"]
 ```
 
 ## 视图层级架构
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        WLSceneManager                                    │
-│  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │ @property (nonatomic, strong) WLSceneManagerView *managerView;  │   │
-│  │ @property (nonatomic, strong) WLScene *currentScene;            │   │
-│  │ @property (nonatomic, strong) NSArray<WLScene *> *scenes;      │   │
-│  └─────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                     WLSceneManagerView                                   │
-│  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │ @property (nonatomic, strong) NSView *backgroundView;  (背景层)  │   │
-│  │ @property (nonatomic, strong) NSView *contentView;     (内容层)  │   │
-│  │ @property (nonatomic, strong) NSView *transitionView; (转场层)  │   │
-│  └─────────────────────────────────────────────────────────────────┘   │
-│                                                                          │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐                  │
-│  │backgroundView│  │ contentView  │  │transitionView│                  │
-│  │   (背景)      │  │(当前场景视图) │  │   (转场覆盖)  │                  │
-│  └──────────────┘  └──────────────┘  └──────────────┘                  │
-└─────────────────────────────────────────────────────────────────────────┘
+```mermaid
+graph TD
+    SM["WLSceneManager<br/>managerView / currentScene / scenes"]
+    SMV["WLSceneManagerView"]
+    SC["WLScene<br/>name / sources / audioMixer / sceneView / canvasSize"]
+    SCV["WLSceneView<br/>sourceViews"]
 
-┌─────────────────────────────────────────────────────────────────────────┐
-│                           WLScene                                         │
-│  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │ @property (nonatomic, copy) NSString *name;                    │   │
-│  │ @property (nonatomic, strong) NSMutableArray<id<WLMediaSource>> *sources;   │
-│  │ @property (nonatomic, strong) WLMediaMixer *audioMixer;        │   │
-│  │ @property (nonatomic, strong) WLSceneView *sceneView;         │   │
-│  │ @property (nonatomic, assign) CGSize canvasSize;              │   │
-│  └─────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                          WLSceneView                                      │
-│  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │ @property (nonatomic, strong) NSMutableArray<WLSourceView *> *sourceViews; │
-│  └─────────────────────────────────────────────────────────────────┘   │
-│                                                                          │
-│  ┌────────────┐ ┌────────────┐ ┌────────────┐                          │
-│  │SourceView1 │ │SourceView2 │ │SourceView3 │ ...                      │
-│  │ (媒体源视图) │ │ (媒体源视图) │ │ (媒体源视图) │                          │
-│  └────────────┘ └────────────┘ └────────────┘                          │
-└─────────────────────────────────────────────────────────────────────────┘
+    SM --> SMV
+    SM --> SC
+
+    SMV --> BG["backgroundView (背景层)"]
+    SMV --> CV["contentView (内容层)"]
+    SMV --> TV["transitionView (转场层)"]
+
+    CV -.->|"当前场景视图"| SCV
+    SC --> SCV
+
+    SCV --> S1["SourceView1 (媒体源视图)"]
+    SCV --> S2["SourceView2 (媒体源视图)"]
+    SCV --> S3["SourceView3 (媒体源视图)"]
+    SCV --> SN["... (更多)"]
 ```
 
 ## 核心组件
@@ -324,46 +272,37 @@ typedef NS_ENUM(NSInteger, WLOutputType) {
 
 ## 数据流
 
-```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                           逻辑层                                          │
-│  ┌─────────────┐     ┌─────────────┐     ┌────────────────────────────┐ │
-│  │ MediaSource │────▶│SceneRenderer│────▶│  WLTransitionEngine         │ │
-│  │  (视频帧)    │     │  (视频合成)  │     │   (转场动画)                 │ │
-│  └─────────────┘     └─────────────┘     └────────────────────────────┘ │
-│         │                                        │                       │
-│         │ 音频帧                                  │                       │
-│         ▼                                        │                       │
-│  ┌─────────────┐                                 │                       │
-│  │MediaMixer   │─────────────────────────────────┘                       │
-│  │  (音频混音)  │                                                         │
-│  └─────────────┘                                                         │
-└──────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌──────────────────────────────────────────────────────────────────────────┐
-│                           视图层                                          │
-│                                                                          │
-│  WLSceneManagerView                                                       │
-│  ┌───────────────────────────────────────────────────────────────────┐  │
-│  │ ┌──────────────┐  ┌────────────────────────────────────────────┐  │  │
-│  │ │backgroundView│  │  contentView (当前 WLSceneView)            │  │  │
-│  │ │   (背景)      │  │  ┌──────────┐ ┌──────────┐ ┌──────────┐   │  │  │
-│  │ │              │  │  │SourceView│ │SourceView│ │SourceView│   │  │  │
-│  │ └──────────────┘  │  │    1     │ │    2     │ │    3     │   │  │  │
-│  │                   │  └──────────┘ └──────────┘ └──────────┘   │  │  │
-│  │ ┌──────────────┐  │  └────────────────────────────────────────────┘  │  │
-│  │ │transitionView│  │                                                │  │
-│  │ │   (转场覆盖)  │  └────────────────────────────────────────────────┘  │
-│  │ └──────────────┘                                                     │
-│  └───────────────────────────────────────────────────────────────────────┘  │
-└──────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌──────────────────────────────────────────────────────────────────────────┐
-│                           输出层                                          │
-│                     Output (Preview / Record / Stream)                   │
-└──────────────────────────────────────────────────────────────────────────┘
+```mermaid
+graph TD
+    subgraph 逻辑层
+        MS["MediaSource (视频帧)"] -->|视频帧| ScR["SceneRenderer (视频合成)"]
+        ScR --> TE["WLTransitionEngine (转场动画)"]
+        MS -->|音频帧| MX["MediaMixer (音频混音)"]
+        MX --> TE
+    end
+
+    subgraph 视图层
+        SMV["WLSceneManagerView"]
+        BG["backgroundView (背景)"]
+        CV["contentView (当前 WLSceneView)"]
+        TV["transitionView (转场覆盖)"]
+        S1["SourceView 1"]
+        S2["SourceView 2"]
+        S3["SourceView 3"]
+        SMV --> BG
+        SMV --> CV
+        SMV --> TV
+        CV --> S1
+        CV --> S2
+        CV --> S3
+    end
+
+    subgraph 输出层
+        OUT["Output (Preview / Record / Stream)"]
+    end
+
+    逻辑层 --> 视图层
+    视图层 --> 输出层
 ```
 
 ## 颜色说明

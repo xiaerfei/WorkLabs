@@ -44,3 +44,4 @@ fastlane/screenshots/**/*.png
 fastlane/test_output
 .$streams.drawio.bkp
 *.bkp
+.DS_Store
