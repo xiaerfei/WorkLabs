@@ -26,6 +26,8 @@
 #import "WLVideoDeviceSettingView.h"
 #import "WLControlPanelContainerView.h"
 
+#import "WLMediaSourceProvider.h"
+
 @interface WLMainViewController ()
 @property (nonatomic, strong) WLControlPanelContainerView *controlPanelContainer;
 @property (nonatomic, strong) WLEventDisposeBag *bag;

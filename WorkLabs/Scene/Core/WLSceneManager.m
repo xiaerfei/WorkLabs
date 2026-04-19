@@ -2,76 +2,154 @@
 //  WLSceneManager.m
 //  WorkLabs
 //
+//  Created by erfeixia on 19/04/2026.
+//
 
 #import "WLSceneManager.h"
 
 @interface WLSceneManager ()
-@property (nonatomic, strong, readwrite) WLSceneManagerView *managerView;
-@property (nonatomic, strong, nullable, readwrite) WLScene *currentScene;
-@property (nonatomic, strong, readwrite) NSMutableArray<WLScene *> *scenes;
+
+@property (nonatomic, strong, readwrite) NSArray<WLScene *> *scenes;
+@property (nonatomic, strong, readwrite, nullable) WLScene *currentScene;
+
+@property (nonatomic, strong) NSMutableArray<WLScene *> *mutableScenes;
+@property (nonatomic, weak, nullable) NSView *containerView;
+
 @end
 
 @implementation WLSceneManager
 
-- (instancetype)initWithContainerView:(NSView *)containerView canvasSize:(CGSize)size {
+static WLSceneManager *_sharedInstance = nil;
+
+#pragma mark - 单例
+
++ (instancetype)shared {
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        _sharedInstance = [[self alloc] init];
+    });
+    return _sharedInstance;
+}
+
+#pragma mark - 初始化
+
+- (instancetype)initWithContainerView:(NSView *)containerView {
     self = [super init];
     if (self) {
-        _scenes = [NSMutableArray array];
-        _defaultCanvasSize = size;
-        _managerView = [[WLSceneManagerView alloc] initWithFrame:containerView.bounds];
-        _managerView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-        [containerView addSubview:_managerView];
+        _containerView = containerView;
+        _mutableScenes = [NSMutableArray array];
+        _scenes = @[];
+        _defaultCanvasSize = CGSizeMake(1920, 1080);
+        
+        NSLog(@"[WLSceneManager] 初始化完成，默认画布: %.0fx%.0f",
+              _defaultCanvasSize.width, _defaultCanvasSize.height);
     }
     return self;
 }
 
-- (instancetype)initWithContainerView:(NSView *)containerView { return [self initWithContainerView:containerView canvasSize:CGSizeMake(1920, 1080)]; }
+#pragma mark - 标识符生成
 
-- (WLScene *)createSceneWithName:(NSString *)name { return [self createSceneWithName:name canvasSize:self.defaultCanvasSize]; }
+- (NSString *)generateIdentifier {
+    @synchronized (self) {
+        int64_t timestamp = (int64_t)([[NSDate date] timeIntervalSince1970] * 1000);
+        return [NSString stringWithFormat:@"%lld", timestamp];
+    }
+}
+
+#pragma mark - 场景管理
+
+- (WLScene *)createSceneWithName:(NSString *)name {
+    return [self createSceneWithName:name canvasSize:self.defaultCanvasSize];
+}
 
 - (WLScene *)createSceneWithName:(NSString *)name canvasSize:(CGSize)size {
-    static NSInteger sceneCount = 0;
-    NSString *sceneName = name ?: [NSString stringWithFormat:@"Scene %ld", ++sceneCount];
-    NSMutableSet *existingNames = [NSMutableSet setWithArray:[self sceneNames]];
-    if ([existingNames containsObject:sceneName]) {
-        NSInteger suffix = 1;
-        while ([existingNames containsObject:[NSString stringWithFormat:@"%@ %ld", sceneName, suffix]]) { suffix++; }
-        sceneName = [NSString stringWithFormat:@"%@ %ld", sceneName, suffix];
+    NSParameterAssert(name.length > 0);
+    
+    // 检查重名
+    for (WLScene *scene in self.mutableScenes) {
+        if ([scene.name isEqualToString:name]) {
+            NSLog(@"[WLSceneManager] 已存在同名场景 \"%@\"，跳过创建", name);
+            return scene;
+        }
     }
-    WLScene *scene = [[WLScene alloc] initWithName:sceneName canvasSize:size];
-    [self.scenes addObject:scene];
-    if (!self.currentScene) { [self switchToScene:scene]; }
+    
+    WLScene *scene = [[WLScene alloc] initWithName:name canvasSize:size];
+    [self.mutableScenes addObject:scene];
+    self.scenes = [self.mutableScenes copy];
+    
+    // 第一个场景自动设为当前场景
+    if (!self.currentScene) {
+        [self switchToScene:scene];
+    }
+    
+    NSLog(@"[WLSceneManager] 创建场景: \"%@\" (%.0fx%.0f)，当前共 %lu 个场景",
+          name, size.width, size.height, (unsigned long)self.scenes.count);
+    
     return scene;
 }
 
 - (void)removeScene:(WLScene *)scene {
-    if (!scene || ![self.scenes containsObject:scene]) return;
-    [scene stop];
-    [self.scenes removeObject:scene];
-    if (self.currentScene == scene) {
-        self.currentScene = self.scenes.firstObject;
-        if (self.currentScene) { [self.managerView setContentView:self.currentScene.sceneView]; }
-        else { [self.managerView clearContentView]; }
+    NSParameterAssert(scene);
+    
+    if (![self.mutableScenes containsObject:scene]) {
+        NSLog(@"[WLSceneManager] 场景 \"%@\" 不在管理列表中，跳过移除", scene.name);
+        return;
     }
+    
+    NSString *removedName = scene.name;
+    
+    // 如果是当前场景，需要先切换
+    BOOL wasCurrent = (scene == self.currentScene);
+    
+    [self.mutableScenes removeObject:scene];
+    self.scenes = [self.mutableScenes copy];
+    
+    if (wasCurrent) {
+        // 自动切换到第一个可用场景
+        self.currentScene = self.scenes.firstObject;
+        NSLog(@"[WLSceneManager] 当前场景已移除，切换到: %@",
+              self.currentScene ? self.currentScene.name : @"(无)");
+    }
+    
+    NSLog(@"[WLSceneManager] 已移除场景: \"%@\"，剩余 %lu 个场景",
+          removedName, (unsigned long)self.scenes.count);
 }
 
-- (void)switchToScene:(WLScene *)scene { [self switchToScene:scene withTransition:nil]; }
+- (void)switchToScene:(WLScene *)scene {
+    [self switchToScene:scene withTransition:nil];
+}
 
 - (void)switchToScene:(WLScene *)scene withTransition:(nullable WLTransition *)transition {
-    if (!scene || ![self.scenes containsObject:scene]) return;
+    NSParameterAssert(scene);
+    
+    if (![self.mutableScenes containsObject:scene]) {
+        NSLog(@"[WLSceneManager] 场景 \"%@\" 不在管理列表中，无法切换", scene.name);
+        return;
+    }
+    
+    if (scene == self.currentScene) {
+        NSLog(@"[WLSceneManager] 场景 \"%@\" 已经是当前活跃场景，跳过切换", scene.name);
+        return;
+    }
+    
     WLScene *previousScene = self.currentScene;
-    if (previousScene && previousScene != scene) { [previousScene stop]; }
     self.currentScene = scene;
-    [scene start];
-    if (transition && previousScene && previousScene != scene) {
-        [self.managerView transitionFromView:previousScene.sceneView toView:scene.sceneView transition:transition];
-    } else { [self.managerView setContentView:scene.sceneView]; }
+    
+    // TODO: 稍后实现转场动画
+    if (transition) {
+        NSLog(@"[WLSceneManager] 切转场动画将在后续实现");
+    }
+    
+    NSLog(@"[WLSceneManager] 场景切换: \"%@\" → \"%@\"",
+          previousScene ? previousScene.name : @"(无)", scene.name);
 }
 
-- (NSArray<NSString *> *)sceneNames {
-    NSMutableArray *names = [NSMutableArray arrayWithCapacity:self.scenes.count];
-    for (WLScene *scene in self.scenes) { [names addObject:scene.name]; }
-    return [names copy];
+#pragma mark - Description
+
+- (NSString *)description {
+    return [NSString stringWithFormat:@"<WLSceneManager | current=%@ | scenes=%lu>",
+            self.currentScene ? self.currentScene.name : @"(无)",
+            (unsigned long)self.scenes.count];
 }
 
 @end

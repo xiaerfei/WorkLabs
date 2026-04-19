@@ -8,7 +8,7 @@ WorkLabs 采用类似 OBS 的架构设计，支持多场景切换、多媒体源
 graph TD
     SM["WLSceneManager<br/>(场景管理器)"] --> SC["WLScene<br/>(场景)"]
 
-    subgraph SOURCES["媒体源 (WLMediaSource 协议)"]
+    subgraph SOURCES["媒体源 (WLMediaSourceProvider 协议)"]
         direction LR
         F["FFmpegSource"] ~~~ C["CameraSource"] ~~~ S["ScreenSource"]
         I["ImageSource"] ~~~ CO["ColorSource"] ~~~ ETC["..."]
@@ -94,14 +94,14 @@ graph TD
 @interface WLScene : NSObject
 
 @property (nonatomic, copy) NSString *name;
-@property (nonatomic, strong) NSMutableArray<id<WLMediaSource>> *sources;
+@property (nonatomic, strong) NSMutableArray<id<WLMediaSourceProvider>> *sources;
 @property (nonatomic, strong) WLMediaMixer *audioMixer;
 @property (nonatomic, strong, readonly) WLSceneView *sceneView;
 @property (nonatomic, assign) CGSize canvasSize;
 
 - (instancetype)initWithName:(NSString *)name canvasSize:(CGSize)size;
-- (void)addSource:(id<WLMediaSource>)source atRect:(CGRect)rect;
-- (void)removeSource:(id<WLMediaSource>)source;
+- (void)addSource:(id<WLMediaSourceProvider>)source atRect:(CGRect)rect;
+- (void)removeSource:(id<WLMediaSourceProvider>)source;
 - (CMSampleBufferRef)renderFrame;
 @end
 ```
@@ -122,20 +122,65 @@ graph TD
 @end
 ```
 
-### 3. WLMediaSource 协议 (媒体源)
+### 3. WLNodeFrame (通用帧容器)
+
+视频和音频的通用帧容器。
+
+```objc
+typedef NS_ENUM(NSInteger, WLFrameType) {
+    WLFrameTypeVideo,
+    WLFrameTypeAudio
+};
+
+@interface WLNodeFrame : NSObject
+
+@property (nonatomic, assign) WLFrameType type;
+
+@property (nonatomic, assign) CVPixelBufferRef pixelBuffer;
+
+@property (nonatomic, assign) CMTime pts;
+@property (nonatomic, assign) CMTime dts;
+@property (nonatomic, assign) CMTime duration;
+
+@property (nonatomic, assign) CGSize videoSize;
+@property (nonatomic, assign) UInt32 sampleRate;
+@property (nonatomic, assign) UInt32 channelCount;
+
+@end
+```
+
+### 3.1 WLMediaSourceProvider 协议 (媒体源)
 
 抽象所有媒体源，实现此协议即可接入系统。
 
 ```objc
-@protocol WLMediaSource <NSObject>
+typedef NS_ENUM(NSInteger, WLMediaSourceType) {
+    WLMediaSourceTypeFFmpeg,
+    WLMediaSourceTypeCamera,
+    WLMediaSourceTypeScreen,
+    WLMediaSourceTypeImage,
+    WLMediaSourceTypeColor,
+    WLMediaSourceTypeText
+};
+
+@protocol WLMediaSourceProvider <NSObject>
+
+@required
+@property (nonatomic, assign) WLMediaSourceType sourceType;
+@property (nonatomic, copy) NSString *sourceName;
+
 - (void)start;
 - (void)stop;
-- (CMSampleBufferRef)nextVideoFrame;   // 获取下一视频帧
-- (CMSampleBufferRef)nextAudioFrame;   // 获取下一音频帧
-- (CGSize)intrinsicSize;                // 原始分辨率
+- (WLNodeFrame *)nextVideoFrame;
+- (WLNodeFrame *)nextAudioFrame;
+- (CGSize)intrinsicSize;
 - (float)volume;
 - (void)setVolume:(float)volume;
 - (BOOL)isActive;
+
+@optional
+@property (nonatomic, assign) float frameRate;
+
 @end
 ```
 
@@ -157,7 +202,7 @@ graph TD
 ```objc
 @interface WLSourceView : NSView
 
-@property (nonatomic, weak) id<WLMediaSource> source;
+@property (nonatomic, weak) id<WLMediaSourceProvider> source;
 @property (nonatomic, assign) CGRect frame;
 @property (nonatomic, assign) CGFloat cropTop;
 @property (nonatomic, assign) CGFloat cropBottom;
@@ -167,7 +212,7 @@ graph TD
 @property (nonatomic, assign) BOOL visible;
 @property (nonatomic, assign) NSInteger zIndex;
 
-- (void)renderWithSampleBuffer:(CMSampleBufferRef)sampleBuffer;
+- (void)renderWithFrame:(WLNodeFrame *)frame;
 @end
 ```
 
@@ -180,8 +225,8 @@ graph TD
 @property (nonatomic, assign) CGSize canvasSize;
 @property (nonatomic, strong) NSMutableArray<WLSourceLayout *> *layouts;
 
-- (void)addSource:(id<WLMediaSource>)source withLayout:(WLSourceLayout *)layout;
-- (void)removeSource:(id<WLMediaSource>)source;
+- (void)addSource:(id<WLMediaSourceProvider>)source withLayout:(WLSourceLayout *)layout;
+- (void)removeSource:(id<WLMediaSourceProvider>)source;
 - (CMSampleBufferRef)render;
 @end
 
@@ -203,12 +248,12 @@ graph TD
 
 ```objc
 @interface WLMediaMixer : NSObject
-@property (nonatomic, strong) NSMutableArray<id<WLMediaSource>> *audioSources;
+@property (nonatomic, strong) NSMutableArray<id<WLMediaSourceProvider>> *audioSources;
 
-- (void)setVolume:(float)volume forSource:(id<WLMediaSource>)source;
-- (float)volumeForSource:(id<WLMediaSource>)source;
-- (void)fadeInSource:(id<WLMediaSource>)source duration:(NSTimeInterval)duration;
-- (void)fadeOutSource:(id<WLMediaSource>)source duration:(NSTimeInterval)duration;
+- (void)setVolume:(float)volume forSource:(id<WLMediaSourceProvider>)source;
+- (float)volumeForSource:(id<WLMediaSourceProvider>)source;
+- (void)fadeInSource:(id<WLMediaSourceProvider>)source duration:(NSTimeInterval)duration;
+- (void)fadeOutSource:(id<WLMediaSourceProvider>)source duration:(NSTimeInterval)duration;
 - (CMSampleBufferRef)mixAudio;
 @end
 ```
@@ -321,8 +366,8 @@ graph TD
 
 | 现有组件 | 整合方式 |
 |----------|----------|
-| `WLMediaSource` | 重构为 `WLFFmpegMediaSource`，实现 `WLMediaSource` 协议 |
-| `WLVideoManager` | 包装为 `WLCameraMediaSource`，实现 `WLMediaSource` 协议 |
+| `WLMediaSource` | 重构为 `WLFFmpegMediaSource`，实现 `WLMediaSourceProvider` 协议 |
+| `WLVideoManager` | 包装为 `WLCameraMediaSource`，实现 `WLMediaSourceProvider` 协议 |
 | `WLNodeQueue` | 复用为媒体源的消息队列 |
 | `WLViedoPreview` | 作为 Preview 输出目标 |
 
@@ -332,7 +377,7 @@ graph TD
 - [ ] WLSceneManagerView 视图容器
 - [ ] WLScene 场景类
 - [ ] WLSceneView 场景视图
-- [ ] WLMediaSource 协议及各实现类
+- [ ] WLMediaSourceProvider 协议及各实现类
 - [ ] WLSourceView 媒体源视图
 - [ ] WLSceneRenderer 视频合成
 - [ ] WLMediaMixer 音频混音
