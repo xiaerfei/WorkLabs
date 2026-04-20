@@ -6,11 +6,13 @@
 //
 
 #import "WLSceneManager.h"
+#import "WLSceneManagerView.h"
 
 @interface WLSceneManager ()
 
 @property (nonatomic, strong, readwrite) NSArray<WLScene *> *scenes;
 @property (nonatomic, strong, readwrite, nullable) WLScene *currentScene;
+@property (nonatomic, strong, readwrite, nullable) WLSceneManagerView *managerView;
 
 @property (nonatomic, strong) NSMutableArray<WLScene *> *mutableScenes;
 @property (nonatomic, weak, nullable) NSView *containerView;
@@ -45,6 +47,18 @@ static WLSceneManager *_sharedInstance = nil;
               _defaultCanvasSize.width, _defaultCanvasSize.height);
     }
     return self;
+}
+
+- (WLSceneManagerView *)getManagerViewWithContainerView:(NSView *)containerView {
+    if (!self.managerView) {
+        self.managerView = [[WLSceneManagerView alloc] initWithSceneManager:self];
+        self.managerView.frame = containerView.bounds;
+        self.managerView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+        [containerView addSubview:self.managerView];
+        
+        NSLog(@"[WLSceneManager] 创建 WLSceneManagerView");
+    }
+    return self.managerView;
 }
 
 #pragma mark - 标识符生成
@@ -139,6 +153,10 @@ static WLSceneManager *_sharedInstance = nil;
     if (transition) {
         NSLog(@"[WLSceneManager] 切转场动画将在后续实现");
     }
+    
+    // 通知视图切换
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"WLSceneDidChangeNotification"
+                                                        object:scene];
     
     NSLog(@"[WLSceneManager] 场景切换: \"%@\" → \"%@\"",
           previousScene ? previousScene.name : @"(无)", scene.name);
