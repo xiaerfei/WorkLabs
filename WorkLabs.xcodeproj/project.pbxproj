@@ -502,7 +502,6 @@
 				2CC1ECFB2EF2448D003A35ED /* WLVideoSelectView.h */,
 				2CC1ECFC2EF2448D003A35ED /* WLVideoSelectView.m */,
 				9CB18F2C2EF035CD00C248B0 /* WorkLabs.entitlements */,
-				9CD046D82F91AF19008EAC25 /* Scene 2 */,
 			);
 			path = WorkLabs;
 			sourceTree = "<group>";
@@ -615,13 +614,6 @@
 				E56B38CC75CEA8C2FB6FA029 /* WLAudioBuffer.m */,
 			);
 			path = Audio;
-			sourceTree = "<group>";
-		};
-		9CD046D82F91AF19008EAC25 /* Scene 2 */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = "Scene 2";
 			sourceTree = "<group>";
 		};
 		9CD046DB2F91B080008EAC25 /* Audio */ = {
