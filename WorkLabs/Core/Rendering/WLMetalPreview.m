@@ -4,20 +4,6 @@
 #import <MetalKit/MetalKit.h>
 
 static const CGFloat kBorderWidth = 3.0;
-static const CGFloat kEdgeHitSize = 6.0;
-static const CGFloat kMinSize = 80.0;
-
-typedef NS_ENUM(NSUInteger, WLEdgeMode) {
-    WLEdgeModeNone,
-    WLEdgeModeTop,
-    WLEdgeModeBottom,
-    WLEdgeModeLeft,
-    WLEdgeModeRight,
-    WLEdgeModeTopLeft,
-    WLEdgeModeTopRight,
-    WLEdgeModeBottomLeft,
-    WLEdgeModeBottomRight,
-};
 
 @interface WLMetalPreview () <MTKViewDelegate>
 
@@ -26,10 +12,6 @@ typedef NS_ENUM(NSUInteger, WLEdgeMode) {
 @property (nonatomic, strong) id<MTLCommandQueue> commandQueue;
 @property (nonatomic, strong) id<MTLRenderPipelineState> pipelineState;
 @property (nonatomic, strong) id<MTLRenderPipelineState> borderPipelineState;
-
-@property (nonatomic, assign) WLEdgeMode edgeMode;
-@property (nonatomic, assign) NSPoint dragStartPoint;
-@property (nonatomic, assign) NSRect dragStartFrame;
 
 @property (nonatomic, assign) CVMetalTextureCacheRef textureCache;
 
@@ -47,7 +29,6 @@ typedef NS_ENUM(NSUInteger, WLEdgeMode) {
     self = [super initWithFrame:frameRect];
     if (self) {
         [self setupMetal];
-        [self setupGestures];
     }
     return self;
 }
@@ -56,7 +37,6 @@ typedef NS_ENUM(NSUInteger, WLEdgeMode) {
     self = [super initWithCoder:coder];
     if (self) {
         [self setupMetal];
-        [self setupGestures];
     }
     return self;
 }
@@ -90,11 +70,6 @@ typedef NS_ENUM(NSUInteger, WLEdgeMode) {
     self.commandQueue = [self.device newCommandQueue];
 
     CVMetalTextureCacheCreate(kCFAllocatorDefault, nil, self.device, nil, &_textureCache);
-
-    if (!_textureCache) {
-        NSLog(@"[WLMetalPreview] Failed to create texture cache");
-        return;
-    }
 
     if (!_textureCache) {
         NSLog(@"[WLMetalPreview] Failed to create texture cache");
@@ -159,18 +134,6 @@ typedef NS_ENUM(NSUInteger, WLEdgeMode) {
                                                       options:MTLResourceStorageModeShared];
 }
 
-- (void)setupGestures {
-    [self addTrackingArea:[[NSTrackingArea alloc] initWithRect:self.bounds
-                                                       options:(NSTrackingMouseEnteredAndExited |
-                                                                NSTrackingMouseMoved |
-                                                                NSTrackingActiveInActiveApp |
-                                                                NSTrackingInVisibleRect)
-                                                         owner:self
-                                                      userInfo:nil]];
-
-    NSPanGestureRecognizer *pan = [[NSPanGestureRecognizer alloc] initWithTarget:self action:@selector(handlePan:)];
-    [self addGestureRecognizer:pan];
-}
 
 #pragma mark - Public
 
@@ -326,170 +289,6 @@ typedef NS_ENUM(NSUInteger, WLEdgeMode) {
 }
 
 - (void)drawInMTKView:(MTKView *)view {
-}
-
-#pragma mark - Edge Detection & Cursor
-
-- (WLEdgeMode)edgeModeForPoint:(NSPoint)point {
-    CGFloat edgeSize = kEdgeHitSize;
-    NSRect bounds = self.bounds;
-
-    BOOL nearLeft = point.x < edgeSize;
-    BOOL nearRight = point.x > bounds.size.width - edgeSize;
-    BOOL nearTop = point.y > bounds.size.height - edgeSize;
-    BOOL nearBottom = point.y < edgeSize;
-
-    if (nearTop && nearLeft) return WLEdgeModeTopLeft;
-    if (nearTop && nearRight) return WLEdgeModeTopRight;
-    if (nearBottom && nearLeft) return WLEdgeModeBottomLeft;
-    if (nearBottom && nearRight) return WLEdgeModeBottomRight;
-    if (nearTop) return WLEdgeModeTop;
-    if (nearBottom) return WLEdgeModeBottom;
-    if (nearLeft) return WLEdgeModeLeft;
-    if (nearRight) return WLEdgeModeRight;
-
-    return WLEdgeModeNone;
-}
-
-- (void)mouseMoved:(NSEvent *)event {
-    NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
-    [self updateCursorForEdgeMode:[self edgeModeForPoint:point]];
-}
-
-- (void)mouseEntered:(NSEvent *)event {
-    [[NSCursor arrowCursor] set];
-}
-
-- (void)mouseExited:(NSEvent *)event {
-    [[NSCursor arrowCursor] set];
-}
-
-- (void)updateCursorForEdgeMode:(WLEdgeMode)mode {
-    switch (mode) {
-        case WLEdgeModeTop:
-        case WLEdgeModeBottom:
-            [[NSCursor resizeUpDownCursor] set];
-            break;
-        case WLEdgeModeLeft:
-        case WLEdgeModeRight:
-            [[NSCursor resizeLeftRightCursor] set];
-            break;
-        case WLEdgeModeTopLeft:
-        case WLEdgeModeBottomRight:
-            [[NSCursor arrowCursor] set];
-            break;
-        case WLEdgeModeTopRight:
-        case WLEdgeModeBottomLeft:
-            [[NSCursor arrowCursor] set];
-            break;
-        default:
-            [[NSCursor arrowCursor] set];
-            break;
-    }
-}
-
-#pragma mark - Pan Gesture (Drag + Resize)
-
-- (void)handlePan:(NSPanGestureRecognizer *)recognizer {
-    NSPoint location = [recognizer locationInView:self];
-    NSPoint translation = [recognizer translationInView:self.superview];
-
-    if (recognizer.state == NSGestureRecognizerStateBegan) {
-        self.edgeMode = [self edgeModeForPoint:location];
-        self.dragStartPoint = [recognizer locationInView:self.superview];
-        self.dragStartFrame = self.frame;
-    }
-
-    if (recognizer.state == NSGestureRecognizerStateChanged) {
-        if (self.edgeMode == WLEdgeModeNone) {
-            NSPoint origin = self.frame.origin;
-            origin.x = self.dragStartFrame.origin.x + translation.x;
-            origin.y = self.dragStartFrame.origin.y + translation.y;
-            [self setFrameOrigin:origin];
-        } else {
-            [self resizeWithTranslation:translation];
-        }
-    }
-
-    if (recognizer.state == NSGestureRecognizerStateEnded) {
-        self.edgeMode = WLEdgeModeNone;
-    }
-}
-
-- (void)resizeWithTranslation:(NSPoint)translation {
-    NSRect frame = self.dragStartFrame;
-    CGFloat deltaX = translation.x;
-    CGFloat deltaY = translation.y;
-
-    switch (self.edgeMode) {
-        case WLEdgeModeLeft:
-            frame.origin.x += deltaX;
-            frame.size.width -= deltaX;
-            break;
-        case WLEdgeModeRight:
-            frame.size.width += deltaX;
-            break;
-        case WLEdgeModeBottom:
-            frame.origin.y += deltaY;
-            frame.size.height -= deltaY;
-            break;
-        case WLEdgeModeTop:
-            frame.size.height += deltaY;
-            break;
-        case WLEdgeModeTopLeft:
-            frame.origin.x += deltaX;
-            frame.size.width -= deltaX;
-            frame.size.height += deltaY;
-            break;
-        case WLEdgeModeTopRight:
-            frame.size.width += deltaX;
-            frame.size.height += deltaY;
-            break;
-        case WLEdgeModeBottomLeft:
-            frame.origin.x += deltaX;
-            frame.origin.y += deltaY;
-            frame.size.width -= deltaX;
-            frame.size.height -= deltaY;
-            break;
-        case WLEdgeModeBottomRight:
-            frame.origin.y += deltaY;
-            frame.size.width += deltaX;
-            frame.size.height -= deltaY;
-            break;
-        default:
-            break;
-    }
-
-    if (frame.size.width < kMinSize) {
-        if (self.edgeMode == WLEdgeModeLeft ||
-            self.edgeMode == WLEdgeModeTopLeft ||
-            self.edgeMode == WLEdgeModeBottomLeft) {
-            frame.origin.x = self.dragStartFrame.origin.x + self.dragStartFrame.size.width - kMinSize;
-        }
-        frame.size.width = kMinSize;
-    }
-
-    if (frame.size.height < kMinSize) {
-        if (self.edgeMode == WLEdgeModeBottom ||
-            self.edgeMode == WLEdgeModeBottomLeft ||
-            self.edgeMode == WLEdgeModeBottomRight) {
-            frame.origin.y = self.dragStartFrame.origin.y + self.dragStartFrame.size.height - kMinSize;
-        }
-        frame.size.height = kMinSize;
-    }
-
-    [self setFrame:frame];
-}
-
-#pragma mark - NSView Override
-
-- (BOOL)isFlipped {
-    return NO;
-}
-
-- (void)setFrameSize:(NSSize)newSize {
-    [super setFrameSize:newSize];
-    self.metalView.frame = self.bounds;
 }
 
 @end
