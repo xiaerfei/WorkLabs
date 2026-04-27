@@ -339,6 +339,14 @@
             [self.videoFrameQueue count] >= 4) {
             node = [self.videoFrameQueue deQueueWithBlock:NO];
             if (node && node.frame->format == AV_PIX_FMT_VIDEOTOOLBOX) {
+                // 新架构: 通过 block 回调输出视频帧
+                CVPixelBufferRef pixelBuffer = (CVPixelBufferRef)node.frame->data[3];
+                if (pixelBuffer && self.videoFrameOutput) {
+                    CVPixelBufferRetain(pixelBuffer);
+                    self.videoFrameOutput(pixelBuffer, node.pts);
+                    CVPixelBufferRelease(pixelBuffer);
+                }
+                // 保留旧架构
                 [streams addVideoNode:node];
             } else {
                 [node flush];                
@@ -372,6 +380,11 @@
         
         if (abs_pts + self.audioPtsOffset < current_time) {
             node = [self.audioFrameQueue deQueueWithBlock:NO];
+            // 新架构: 通过 block 回调输出音频帧
+            if (self.audioFrameOutput && node.frame) {
+                self.audioFrameOutput(node.frame, node.pts);
+            }
+            // 保留旧架构
             [[WLStreamsManager manager] addAudioNode:node];
         } else {
             usleep(10 * 1000);

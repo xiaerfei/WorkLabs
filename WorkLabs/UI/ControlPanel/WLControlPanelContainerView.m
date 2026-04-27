@@ -41,6 +41,9 @@
     self.transitionPanel = [[WLTransitionPanel alloc] init];
     self.controlsPanel   = [[WLControlsPanel alloc] init];
 
+    
+    NSPopover.class;
+    
     // 所有面板使用深色主题
     NSAppearance *darkAppearance = [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
     for (NSView *panel in @[self.scenePanel, self.sourcePanel, self.audioMixerPanel,

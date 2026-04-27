@@ -17,6 +17,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, strong, readonly) WLCameraSourceConfig *config;
 @property (nonatomic, assign, readonly, getter=isRunning) BOOL running;
 
+/// 视频帧输出回调 (CVPixelBufferRef 由调用方负责释放)
+@property (nonatomic, copy, nullable) void (^frameOutput)(CVPixelBufferRef pixelBuffer, Float64 pts);
+
 - (instancetype)initWithConfig:(WLCameraSourceConfig *)config;
 - (void)start;
 - (void)stop;

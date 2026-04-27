@@ -148,6 +148,12 @@
     CMTime presentationTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer);
     Float64 pts = CMTimeGetSeconds(presentationTime);
 
+    // 新架构: 通过 block 回调输出帧
+    if (self.frameOutput) {
+        self.frameOutput(pixelBuffer, pts);
+    }
+
+    // 保留旧架构兼容
     WLNode *node = [[WLNode alloc] init];
     node.type = WLNodeTypeVideo;
     node.fromType = WLFromTypeCamera;

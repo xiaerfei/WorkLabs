@@ -8,6 +8,7 @@
 #import <Foundation/Foundation.h>
 #import <CoreMedia/CoreMedia.h>
 #import <CoreVideo/CoreVideo.h>
+#include "libavutil/frame.h"
 
 NS_ASSUME_NONNULL_BEGIN
 typedef NS_ENUM(NSUInteger, WLMediaSourceState) {
@@ -26,6 +27,12 @@ typedef NS_ENUM(NSUInteger, WLMediaSourceState) {
 @property (nonatomic, assign, readonly) WLMediaSourceState state;
 @property (nonatomic, assign, readonly, getter=isRunning) BOOL running;
 @property (nonatomic, assign, readonly) Float64 totalDuration;
+
+/// 视频帧输出回调 (CVPixelBufferRef，调用方负责释放)
+@property (nonatomic, copy, nullable) void (^videoFrameOutput)(CVPixelBufferRef pixelBuffer, Float64 pts);
+
+/// 音频帧输出回调 (AVFrame *，由调用方消费)
+@property (nonatomic, copy, nullable) void (^audioFrameOutput)(AVFrame *frame, Float64 pts);
 
 - (instancetype)initWithPath:(NSString *)path;
 

@@ -26,6 +26,9 @@
 #import "WLVideoDeviceSettingView.h"
 #import "WLControlPanelContainerView.h"
 
+#import "WLSceneViewController.h"
+#import "WLSceneManager.h"
+
 @interface WLMainViewController ()
 @property (nonatomic, strong) WLControlPanelContainerView *controlPanelContainer;
 @property (nonatomic, strong) WLEventDisposeBag *bag;
@@ -38,6 +41,7 @@
 @property (nonatomic, strong) NSTextField *currentTimeLabel;
 @property (nonatomic, strong) NSTextField *totalTimeLabel;
 @property (nonatomic, strong) NSTimer *seekUpdateTimer;
+@property (nonatomic, strong) WLSceneViewController *sceneViewController;
 @end
 
 @implementation WLMainViewController
@@ -54,6 +58,15 @@
     
     self.view.backgroundColor = [NSColor blackColor];
     
+    // 场景视图 — 填充主区域（控制面板 + seekContainer 上方）
+    self.sceneViewController = [[WLSceneViewController alloc] init];
+    self.sceneViewController.sceneManager = [WLSceneManager manager];
+    [self addChildViewController:self.sceneViewController];
+    [self.view addSubview:self.sceneViewController.view];
+    [self.sceneViewController.view mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.left.top.right.equalTo(self.view);
+    }];
+    
     // 控制面板容器，固定在窗口底部
     self.controlPanelContainer = [[WLControlPanelContainerView alloc] init];
     [self.view addSubview:self.controlPanelContainer];
@@ -62,16 +75,21 @@
         make.height.mas_equalTo(220);
     }];
 
-    // 初始化媒体源
-    NSString *path = @"/Users/erfeixia/Downloads/Test-4K.mp4";
-    self.mediaSource = [[WLMediaSource alloc] initWithPath:path];
-    [self.mediaSource start];
+    // 注释掉硬编码的媒体源初始化（已通过 WLSceneManager 动态添加）
+    // NSString *path = @"/Users/erfeixia/Downloads/Test-4K.mp4";
+    // self.mediaSource = [[WLMediaSource alloc] initWithPath:path];
+    // [self.mediaSource start];
     
     [WLStreamsManager manager].videoRenderType = WLVideoRenderTypeCamera;
     [WLStreamsManager manager].audioRenderType = WLAudioRenderTypeMic;
     [[WLStreamsManager manager] start];
     
     [self setupSeekControls];
+    
+    // sceneViewController.view 的 bottom 约束连接到 seekContainer.top
+    [self.sceneViewController.view mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.bottom.equalTo(self.seekContainer.mas_top);
+    }];
     
     __weak typeof(self) weakSelf = self;
     self.seekUpdateTimer = [NSTimer scheduledTimerWithTimeInterval:0.5 repeats:YES block:^(NSTimer *timer) {

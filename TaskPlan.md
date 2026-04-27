@@ -665,58 +665,83 @@ graph TB
 
 或者保持 WLScenePanel 仅展示场景列表（即使只有一个），让 `WLSourcePanel` 承担源列表的展示。
 
-## 八、实现顺序建议
+## 八、实现顺序与进度
 
-### Phase 1: 模型层
-1. 创建 `WLMediaSourceItem` 类
-2. 创建 `WLSceneManager` 单例
-3. 实现增删改查、选中逻辑
-4. 集成 WLEvent 事件通知
+> **更新时间：2026-04-25**
+> Preview 路线（Phase 1-6）已完成并构建通过，SceneRenderer/AudioMixer 为空桩，推流路线（Phase 7-8）待后续实现。
 
-### Phase 2: Preview 视图（拷贝 WLMetalPreview 代码）
-5. 创建 `WLMediaSourcePreview`（Metal 渲染 + 选中边框 + 拖拽 + 名称标签）
-6. 集成帧回调到 preview 显示
+### Phase 1: 模型层 ✅ 已完成
 
-### Phase 3: 场景合成器 + 音频混音器
-7. 创建 `WLSceneRenderer`（离屏 Metal 合成管线）
-8. 实现多源按 z-order 合成逻辑
-9. 创建 `WLAudioMixer`（多路 PCM 混音）
-10. 集成 WLResample 实现各源重采样到统一格式
+1. ✅ 创建 `WLMediaSourceItem` — `Core/Scene/WLMediaSourceItem.h/.m`
+2. ✅ 创建 `WLSceneManager` 单例 — `Core/Scene/WLSceneManager.h/.m`
+3. ✅ 实现增删改查、选中逻辑
+4. ✅ 集成 WLEvent 事件通知
+5. ✅ 新增 `WLOutputResolution` 分辨率枚举（360p / 540p / 720p / 1080p / 1440p / 4K，默认 1080p）
 
-### Phase 4: 修改现有引擎
-11. 修改 `WLCameraSource` 增加 frameOutput block
-12. 修改 `WLMediaSource` 增加 videoFrameOutput/audioFrameOutput blocks
-13. 测试相机源和视频源的预览显示
+### Phase 2: Preview 视图 ✅ 已完成
 
-### Phase 5: 场景视图
-14. 创建 `WLSceneViewController`
-15. 集成到 `WLMainViewController` 中
-16. 实现选中、拖拽、键盘事件
+6. ✅ 创建 `WLMediaSourcePreview` — `Core/Scene/WLMediaSourcePreview.h/.m`
+   - Metal 渲染管线（拷贝 WLMetalPreview 全部代码）
+   - 选中边框由 `selected` 属性控制开关
+   - 鼠标拖拽（mouseDown / mouseDragged / mouseUp）
+   - 名称标签（NSTextField）+ 类型图标（NSImageView）
+7. ✅ 集成帧回调到 preview 显示
 
-### Phase 6: UI 集成
-17. 修改 `WLSourcePanel` 实现添加/删除源
-18. 调通从控制面板添加源到场景的完整流程
-19. 移除硬编码的媒体源初始化
+### Phase 3: 场景合成器 + 音频混音器 🚧 空桩
 
-### Phase 7: 音频联调
-20. 调通 WLAudioMixer 多源混音链路
-21. 验证多源混音及 volume/muted 控制
+8. ✅ `WLSceneRenderer` 空桩 — `Core/Scene/WLSceneRenderer.h/.m`
+9. ⏳ 多源按 z-order 合成逻辑（待实现）
+10. ✅ `WLAudioMixer` 空桩 — `Core/Scene/WLAudioMixer.h/.m`
+11. ⏳ 集成 WLResample 重采样到统一格式（待实现）
 
-### Phase 8: 推流联调
-22. 实现 WLAudioEncode（FFmpeg AAC 编码）
-23. 实现 WLVideoEncode（VideoToolbox H.264 编码）
-24. 实现 WLPushStreamsManager（FFmpeg muxing + RTMP 推流）
-25. 调通 WLSceneRenderer → WLPushStreamsManager 全链路
+### Phase 4: 修改现有引擎 ✅ 已完成
+
+12. ✅ 修改 `WLCameraSource.h/.m` 增加 `frameOutput` block，captureOutput 回调中触发
+13. ✅ 修改 `WLMediaSource.h/.m` 增加 `videoFrameOutput` / `audioFrameOutput` blocks，render 线程中触发
+14. ⏳ 运行时验证 Camera / Video 源的预览显示（待手动测试）
+
+### Phase 5: 场景视图 ✅ 已完成
+
+15. ✅ 创建 `WLSceneViewController` — `UI/Scene/WLSceneViewController.h/.m`
+16. ✅ 集成到 `WLMainViewController` 中（Masonry 约束到 seekContainer 之上）
+17. ✅ 实现 WLObserveSourceChange 事件驱动的选中/拖拽/Delete 键删除
+
+### Phase 6: UI 集成 ✅ 已完成
+
+18. ✅ 修改 `WLSourcePanel.m` 实现添加/删除/上下移动源
+    - 弹出菜单：摄像头（含设备子菜单）/ 视频文件 / 音频文件
+    - NSOpenPanel 选择文件
+    - 源列表 NSTableView（事件驱动自动刷新、空状态切换）
+19. ✅ 调通从控制面板添加源到场景的完整流程
+20. ✅ 移除硬编码的 `self.mediaSource` 初始化（已注释）
+
+### Phase 7: 音频联调 ⏳ 待实现
+
+21. ⏳ 调通 WLAudioMixer 多源混音链路
+22. ⏳ 验证多源混音及 volume/muted 控制
+
+### Phase 8: 推流联调 ⏳ 待实现
+
+23. ⏳ 实现 WLAudioEncode（FFmpeg AAC 编码）
+24. ⏳ 实现 WLVideoEncode（VideoToolbox H.264 编码）
+25. ⏳ 实现 WLPushStreamsManager（FFmpeg muxing + RTMP 推流）
+26. ⏳ 调通 WLSceneRenderer → WLPushStreamsManager 全链路
+
+### 进度总览
+
+| Phase | 状态 | 新建文件 | 修改文件 |
+|-------|------|---------|---------|
+| Phase 1 模型层 | ✅ 已完成 | WLMediaSourceItem, WLSceneManager | — |
+| Phase 2 Preview | ✅ 已完成 | WLMediaSourcePreview | — |
+| Phase 3 合成/混音 | 🚧 空桩 | WLSceneRenderer, WLAudioMixer | — |
+| Phase 4 引擎修改 | ✅ 已完成 | — | WLCameraSource, WLMediaSource |
+| Phase 5 场景视图 | ✅ 已完成 | WLSceneViewController | WLMainViewController |
+| Phase 6 UI 集成 | ✅ 已完成 | — | WLSourcePanel |
+| Phase 7 音频联调 | ⏳ 待实现 | — | — |
+| Phase 8 推流联调 | ⏳ 待实现 | — | — |
 
 ## 九、需确认的问题
 
 1. **场景数量**：TaskPlan 中描述"全局只有一个场景"，是否需要保留后续扩展到多场景的接口？
 2. **音频来源**：是否需要有纯麦克风音频源？当前只列了 Camera（无音频）、Video（带音频）、Audio（纯音频文件），但"音频设备"（系统麦克风）也是常见需求
 3. **推流/录制输出**：场景最终的复合画面是否要用于推流？如果是，则需要单 Metal 渲染器全场景 compositing 的方案，而非独立 NSView 的方案
-
-
-
-
-
-
-
