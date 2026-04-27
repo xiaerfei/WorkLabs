@@ -50,7 +50,7 @@
 
 @property (nonatomic, assign) AVRational video_time_base;
 
-@property (nonatomic, assign) Float64 baseTime;
+@property (atomic, assign) Float64 baseTime;
 @property (nonatomic, assign) Float64 videoPtsOffset;
 @property (nonatomic, assign) Float64 audioPtsOffset;
 
@@ -63,8 +63,8 @@
     // 声明一个原子类型的整数
     _Atomic int _activeRenderThreads;
     _Atomic int32_t _seekGeneration;
-    volatile BOOL _seekRequested;
-    Float64 _seekTarget;
+    _Atomic bool _seekRequested;
+    _Atomic double _seekTarget;
 }
 
 - (void)dealloc {
@@ -196,6 +196,8 @@
         // 检测 seek 生成计数器是否变化
         int32_t currentGen = atomic_load(&_seekGeneration);
         if (currentGen != lastSeekGen) {
+            // 在本线程内 flush，避免跨线程并发访问 codec context
+            avcodec_flush_buffers(self.videoCodecContext);
             lastSeekGen = currentGen;
             continue;
         }
@@ -237,6 +239,7 @@
         // 检测 seek 生成计数器是否变化
         int32_t currentGen = atomic_load(&_seekGeneration);
         if (currentGen != lastSeekGen) {
+            avcodec_flush_buffers(self.audioCodecContext);
             lastSeekGen = currentGen;
             continue;
         }
@@ -287,16 +290,16 @@
             // 轮询模式，可被 seek 打断
             WLNode *node = nil;
             int pollCount = 0;
-            while (!node && !_seekRequested) {
+            while (!node && !atomic_load_explicit(&_seekRequested, memory_order_acquire)) {
                 node = [queue deQueueWithBlock:NO];
-                if (!node && !_seekRequested) {
+                if (!node && !atomic_load_explicit(&_seekRequested, memory_order_acquire)) {
                     usleep(1000); // 1ms 轮询间隔
                     pollCount++;
                     if (pollCount > 5000) break; // ~5 秒超时保护
                 }
             }
-            
-            if (_seekRequested) {
+
+            if (atomic_load_explicit(&_seekRequested, memory_order_acquire)) {
                 return AVERROR_EOF;
             }
             
@@ -616,49 +619,44 @@ fail:
     if (!self.running || !self.formatContext) return;
     if (self.videoStreamIndex < 0 && self.audioStreamIndex < 0) return;
     
-    _seekTarget = MAX(0, seconds);
-    _seekRequested = YES;
+    atomic_store_explicit(&_seekTarget, MAX(0, (double)seconds), memory_order_relaxed);
+    // release 确保 _seekTarget 写入对读取 _seekRequested 的线程可见
+    atomic_store_explicit(&_seekRequested, true, memory_order_release);
     atomic_fetch_add_explicit(&_seekGeneration, 1, memory_order_release);
 }
 
 - (void)performSeek {
-    Float64 targetSeconds = _seekTarget;
+    Float64 targetSeconds = (Float64)atomic_load_explicit(&_seekTarget, memory_order_acquire);
+
+    int streamIdx;
     int64_t seek_target;
-    
     if (self.videoStreamIndex >= 0) {
+        streamIdx = self.videoStreamIndex;
         seek_target = (int64_t)(targetSeconds / self.videoTimeBase);
-    } else if (self.audioStreamIndex >= 0) {
-        seek_target = (int64_t)(targetSeconds / self.audioTimeBase);
     } else {
-        _seekRequested = NO;
-        return;
+        streamIdx = self.audioStreamIndex;
+        seek_target = (int64_t)(targetSeconds / self.audioTimeBase);
     }
-    
-    int ret = av_seek_frame(self.formatContext, -1, seek_target, AVSEEK_FLAG_BACKWARD);
+
+    int ret = av_seek_frame(self.formatContext, streamIdx, seek_target, AVSEEK_FLAG_BACKWARD);
     if (ret < 0) {
         NSLog(@"Seek failed: %@", [self getFFmpegError:ret]);
-        _seekRequested = NO;
+        atomic_store_explicit(&_seekRequested, false, memory_order_release);
         return;
     }
-    
-    // 刷新编解码器内部缓冲区
-    if (self.videoCodecContext) {
-        avcodec_flush_buffers(self.videoCodecContext);
-    }
-    if (self.audioCodecContext) {
-        avcodec_flush_buffers(self.audioCodecContext);
-    }
-    
+
     // 清空所有队列中的旧数据
+    // avcodec_flush_buffers 由各解码线程在检测到 _seekGeneration 变化后自行调用，
+    // 避免跨线程并发访问 codec context（avcodec_* 函数非线程安全）
     [self.videoPacketQueue flush];
     [self.audioPacketQueue flush];
     [self.videoFrameQueue flush];
     [self.audioFrameQueue flush];
-    
+
     // 重置时间基准，渲染线程会重新计算 baseTime
     self.baseTime = 0;
-    
-    _seekRequested = NO;
+
+    atomic_store_explicit(&_seekRequested, false, memory_order_release);
 }
 
 @end

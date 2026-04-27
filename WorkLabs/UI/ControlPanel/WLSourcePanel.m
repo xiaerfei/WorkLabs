@@ -10,8 +10,7 @@
 #import "WLSceneManager.h"
 #import "WLMediaSourceItem.h"
 #import "WLEvent.h"
-#import "WLDevicesManager.h"
-#import "WLCameraSourceConfig.h"
+#import "WLMenuPanelViewController.h"
 
 @interface WLSourcePanel () <NSTableViewDataSource, NSTableViewDelegate>
 
@@ -19,16 +18,15 @@
 @property (nonatomic, strong) NSView *contentView;
 @property (nonatomic, strong) NSView *toolbarView;
 
-// 空状态相关
 @property (nonatomic, strong) NSTextField *iconLabel;
 @property (nonatomic, strong) NSTextField *hintLabel;
 
-// 源列表
 @property (nonatomic, strong) NSScrollView *scrollView;
 @property (nonatomic, strong) NSTableView *tableView;
 
-// 事件
+@property (nonatomic, strong) WLToolbarButton *addButton;
 @property (nonatomic, strong) WLEventDisposeBag *bag;
+@property (nonatomic, strong) NSPopover *addPopover;
 
 @end
 
@@ -45,7 +43,6 @@
 - (void)setupViews {
     [self backgroundColorWithHex:0x1E1E1E];
 
-    // 标题栏
     self.titleBar = [[NSView alloc] init];
     [self.titleBar backgroundColorWithHex:0x252525];
     [self addSubview:self.titleBar];
@@ -55,8 +52,7 @@
     }];
 
     NSImageView *iconView = [[NSImageView alloc] init];
-    iconView.image = [NSImage imageWithSystemSymbolName:@"square.stack.3d.up"
-                                  accessibilityDescription:nil];
+    iconView.image = [NSImage imageWithSystemSymbolName:@"square.stack.3d.up" accessibilityDescription:nil];
     iconView.contentTintColor = [NSColor colorWithWhite:0.7 alpha:1.0];
     [self.titleBar addSubview:iconView];
     [iconView mas_makeConstraints:^(MASConstraintMaker *make) {
@@ -74,7 +70,6 @@
         make.centerY.equalTo(self.titleBar);
     }];
 
-    // 底部工具栏
     self.toolbarView = [[NSView alloc] init];
     [self.toolbarView backgroundColorWithHex:0x1A1A1A];
     [self addSubview:self.toolbarView];
@@ -84,7 +79,6 @@
     }];
     [self setupToolbar];
 
-    // 分隔线
     NSView *topSep = [[NSView alloc] init];
     [topSep backgroundColorWithHex:0x3C3C3C];
     [self addSubview:topSep];
@@ -103,7 +97,6 @@
         make.height.mas_equalTo(1);
     }];
 
-    // 内容区：空状态占位
     self.contentView = [[NSView alloc] init];
     [self.contentView backgroundColorWithHex:0x1E1E1E];
     [self addSubview:self.contentView];
@@ -117,7 +110,6 @@
 }
 
 - (void)setupEmptyState {
-    // 问号图标
     self.iconLabel = [NSTextField labelWithString:@"?"];
     self.iconLabel.font = [NSFont systemFontOfSize:36.0 weight:NSFontWeightThin];
     self.iconLabel.textColor = [NSColor colorWithWhite:0.35 alpha:1.0];
@@ -129,7 +121,6 @@
         make.width.mas_equalTo(50);
     }];
 
-    // 提示文字
     self.hintLabel = [NSTextField labelWithString:@"您还没有添加任何源。\n点击下面的 + 按钮，\n或者右击此处添加一个。"];
     self.hintLabel.font = [NSFont systemFontOfSize:11.0];
     self.hintLabel.textColor = [NSColor colorWithWhite:0.45 alpha:1.0];
@@ -142,40 +133,27 @@
         make.right.equalTo(self.contentView).offset(-8);
     }];
 
-    // 源列表
     [self setupTableView];
-
-    // 事件监听
     [self registerEventObservers];
-
     [self updateContentViewVisibility];
 }
 
 - (void)setupToolbar {
-    NSArray *configs = @[
-        @[@"plus",           NSStringFromSelector(@selector(addSource))],
-        @[@"minus",          NSStringFromSelector(@selector(deleteSource))],
-        @[@"gearshape",      NSStringFromSelector(@selector(sourceSettings))],
-        @[@"chevron.up",     NSStringFromSelector(@selector(moveSourceUp))],
-        @[@"chevron.down",   NSStringFromSelector(@selector(moveSourceDown))],
-    ];
+    self.addButton = [self makeToolbarButtonWithSymbolName:@"plus" action:@selector(showAddPopover)];
+    [self.toolbarView addSubview:self.addButton];
+    [self.addButton mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.centerY.equalTo(self.toolbarView);
+        make.left.equalTo(self.toolbarView).offset(6);
+        make.width.height.mas_equalTo(24);
+    }];
 
-    NSView *prev = nil;
-    for (NSArray *cfg in configs) {
-        WLToolbarButton *btn = [self makeToolbarButtonWithSymbolName:cfg[0]
-                                                       action:NSSelectorFromString(cfg[1])];
-        [self.toolbarView addSubview:btn];
-        [btn mas_makeConstraints:^(MASConstraintMaker *make) {
-            make.centerY.equalTo(self.toolbarView);
-            make.width.height.mas_equalTo(24);
-            if (prev) {
-                make.left.equalTo(prev.mas_right).offset(2);
-            } else {
-                make.left.equalTo(self.toolbarView).offset(6);
-            }
-        }];
-        prev = btn;
-    }
+    WLToolbarButton *deleteBtn = [self makeToolbarButtonWithSymbolName:@"minus" action:@selector(deleteSource)];
+    [self.toolbarView addSubview:deleteBtn];
+    [deleteBtn mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.centerY.equalTo(self.toolbarView);
+        make.left.equalTo(self.addButton.mas_right).offset(2);
+        make.width.height.mas_equalTo(24);
+    }];
 }
 
 - (WLToolbarButton *)makeToolbarButtonWithSymbolName:(NSString *)symbolName action:(SEL)action {
@@ -187,127 +165,34 @@
     btn.target = self;
     btn.action = action;
     [btn setContentTintColor:[NSColor whiteColor]];
-    
+
     NSTrackingArea *trackingArea = [[NSTrackingArea alloc] initWithRect:NSZeroRect
                                                                 options:(NSTrackingMouseEnteredAndExited | NSTrackingActiveAlways | NSTrackingInVisibleRect | NSViewWidthSizable | NSViewHeightSizable)
                                                                   owner:btn
                                                                userInfo:nil];
     [btn addTrackingArea:trackingArea];
-    
     return btn;
 }
 
 #pragma mark - Toolbar Actions
 
-- (void)addSource {
-    NSMenu *menu = [[NSMenu alloc] init];
+- (void)showAddPopover {
+    WLMenuPanelViewController *menuVC = [[WLMenuPanelViewController alloc] init];
+    menuVC.callerType = WLMenuPanelCallerTypeSource;
 
-    // 摄像头源
-    NSMenuItem *cameraItem = [[NSMenuItem alloc] initWithTitle:@"摄像头"
-                                                        action:@selector(addCameraSourceMenuItem:)
-                                                 keyEquivalent:@""];
-    cameraItem.target = self;
+    self.addPopover = [[NSPopover alloc] init];
+    self.addPopover.contentViewController = menuVC;
+    self.addPopover.behavior = NSPopoverBehaviorTransient;
 
-    // 摄像头子菜单
-    NSMenu *cameraSubMenu = [[NSMenu alloc] init];
-    NSArray<WLDeviceItem *> *devices = [[WLDevicesManager manager] currentVideoDevices];
-    if (devices.count > 0) {
-        for (WLDeviceItem *item in devices) {
-            NSMenuItem *deviceItem = [[NSMenuItem alloc] initWithTitle:item.localizedName ?: @""
-                                                                action:@selector(addCameraWithDeviceItem:)
-                                                         keyEquivalent:@""];
-            deviceItem.target = self;
-            deviceItem.representedObject = item.device;
-            [cameraSubMenu addItem:deviceItem];
-        }
-    } else {
-        NSMenuItem *noneItem = [[NSMenuItem alloc] initWithTitle:@"无可用摄像头" action:nil keyEquivalent:@""];
-        noneItem.enabled = NO;
-        [cameraSubMenu addItem:noneItem];
-    }
-    cameraItem.submenu = cameraSubMenu;
-    [menu addItem:cameraItem];
+    __weak typeof(self) weakSelf = self;
+    menuVC.dismissHandler = ^{
+        [weakSelf.addPopover close];
+        weakSelf.addPopover = nil;
+    };
 
-    // 视频文件源
-    NSMenuItem *videoItem = [[NSMenuItem alloc] initWithTitle:@"视频文件"
-                                                       action:@selector(addVideoFileSource:)
-                                                keyEquivalent:@""];
-    videoItem.target = self;
-    [menu addItem:videoItem];
-
-    // 音频文件源
-    NSMenuItem *audioItem = [[NSMenuItem alloc] initWithTitle:@"音频文件"
-                                                       action:@selector(addAudioFileSource:)
-                                                keyEquivalent:@""];
-    audioItem.target = self;
-    [menu addItem:audioItem];
-
-    // 弹出菜单
-    NSButton *plusBtn = [self findPlusButton];
-    NSRect frame = plusBtn ? plusBtn.frame : NSMakeRect(0, 0, 0, 0);
-    [menu popUpMenuPositioningItem:nil atLocation:NSMakePoint(0, frame.size.height) inView:plusBtn];
-}
-
-- (NSButton *)findPlusButton {
-    for (NSView *subview in self.toolbarView.subviews) {
-        if ([subview isKindOfClass:[NSButton class]]) {
-            NSButton *btn = (NSButton *)subview;
-            if (btn.action == @selector(addSource)) {
-                return btn;
-            }
-        }
-    }
-    return nil;
-}
-
-- (void)addCameraWithDeviceItem:(NSMenuItem *)sender {
-    AVCaptureDevice *device = sender.representedObject;
-    if (!device) return;
-
-    WLCameraSourceConfig *config = [[WLCameraSourceConfig alloc] init];
-    config.device = device;
-    config.sessionPreset = AVCaptureSessionPresetHigh;
-    [[WLSceneManager manager] addCameraSourceWithConfig:config];
-}
-
-- (void)addVideoFileSource:(NSMenuItem *)sender {
-    NSOpenPanel *panel = [NSOpenPanel openPanel];
-    panel.canChooseFiles = YES;
-    panel.canChooseDirectories = NO;
-    panel.allowsMultipleSelection = NO;
-    panel.allowedContentTypes = @[
-        [UTType typeWithFilenameExtension:@"mp4"],
-        [UTType typeWithFilenameExtension:@"mov"],
-        [UTType typeWithFilenameExtension:@"mkv"],
-        [UTType typeWithFilenameExtension:@"avi"],
-        [UTType typeWithFilenameExtension:@"m4v"],
-    ];
-
-    [panel beginSheetModalForWindow:self.window completionHandler:^(NSModalResponse result) {
-        if (result == NSModalResponseOK && panel.URL) {
-            [[WLSceneManager manager] addVideoSourceWithPath:panel.URL.path];
-        }
-    }];
-}
-
-- (void)addAudioFileSource:(NSMenuItem *)sender {
-    NSOpenPanel *panel = [NSOpenPanel openPanel];
-    panel.canChooseFiles = YES;
-    panel.canChooseDirectories = NO;
-    panel.allowsMultipleSelection = NO;
-    panel.allowedContentTypes = @[
-        [UTType typeWithFilenameExtension:@"mp3"],
-        [UTType typeWithFilenameExtension:@"aac"],
-        [UTType typeWithFilenameExtension:@"wav"],
-        [UTType typeWithFilenameExtension:@"m4a"],
-        [UTType typeWithFilenameExtension:@"flac"],
-    ];
-
-    [panel beginSheetModalForWindow:self.window completionHandler:^(NSModalResponse result) {
-        if (result == NSModalResponseOK && panel.URL) {
-            [[WLSceneManager manager] addAudioSourceWithPath:panel.URL.path];
-        }
-    }];
+    [self.addPopover showRelativeToRect:self.addButton.bounds
+                                 ofView:self.addButton
+                          preferredEdge:NSRectEdgeMaxY];
 }
 
 - (void)deleteSource {
@@ -315,30 +200,6 @@
     if (selected) {
         [[WLSceneManager manager] removeSource:selected];
     }
-}
-
-- (void)sourceSettings {
-    // 待实现
-}
-
-- (void)moveSourceUp {
-    WLSceneManager *sm = [WLSceneManager manager];
-    WLMediaSourceItem *selected = sm.selectedSource;
-    if (!selected) return;
-
-    NSUInteger index = [sm.sources indexOfObject:selected];
-    if (index == NSNotFound || index == 0) return;
-    [sm moveSourceAtIndex:index toIndex:index - 1];
-}
-
-- (void)moveSourceDown {
-    WLSceneManager *sm = [WLSceneManager manager];
-    WLMediaSourceItem *selected = sm.selectedSource;
-    if (!selected) return;
-
-    NSUInteger index = [sm.sources indexOfObject:selected];
-    if (index == NSNotFound || index >= sm.sources.count - 1) return;
-    [sm moveSourceAtIndex:index toIndex:index + 1];
 }
 
 #pragma mark - TableView Setup
@@ -361,7 +222,6 @@
     self.scrollView.drawsBackground = NO;
     self.scrollView.hidden = YES;
     [self.contentView addSubview:self.scrollView];
-
     [self.scrollView mas_makeConstraints:^(MASConstraintMaker *make) {
         make.edges.equalTo(self.contentView);
     }];
@@ -383,24 +243,30 @@
 }
 
 - (void)updateContentViewVisibility {
-    BOOL hasSources = [WLSceneManager manager].sources.count > 0;
-
+    BOOL hasSources = [self filteredSources].count > 0;
     self.iconLabel.hidden = hasSources;
     self.hintLabel.hidden = hasSources;
     self.scrollView.hidden = !hasSources;
 }
 
+- (NSArray<WLMediaSourceItem *> *)filteredSources {
+    return [[WLSceneManager manager].sources filteredArrayUsingPredicate:
+        [NSPredicate predicateWithBlock:^BOOL(WLMediaSourceItem *item, NSDictionary *bindings) {
+            return item.type != WLMediaSourceTypeAudio;
+        }]];
+}
+
 #pragma mark - NSTableViewDataSource
 
 - (NSInteger)numberOfRowsInTableView:(NSTableView *)tableView {
-    return [WLSceneManager manager].sources.count;
+    return [self filteredSources].count;
 }
 
 #pragma mark - NSTableViewDelegate
 
 - (NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(NSTableColumn *)tableColumn row:(NSInteger)row {
-    NSArray<WLMediaSourceItem *> *sources = [WLSceneManager manager].sources;
-    if (row < 0 || row >= sources.count) return nil;
+    NSArray<WLMediaSourceItem *> *sources = [self filteredSources];
+    if (row < 0 || row >= (NSInteger)sources.count) return nil;
 
     WLMediaSourceItem *item = sources[row];
 
@@ -428,8 +294,8 @@
     NSString *iconName = nil;
     switch (item.type) {
         case WLMediaSourceTypeCamera: iconName = @"camera.fill"; break;
-        case WLMediaSourceTypeVideo:  iconName = @"film";       break;
-        case WLMediaSourceTypeAudio:  iconName = @"music.note"; break;
+        case WLMediaSourceTypeVideo:  iconName = @"film";        break;
+        default:                      iconName = @"questionmark"; break;
     }
     iconView.image = [NSImage imageWithSystemSymbolName:iconName accessibilityDescription:nil];
     iconView.contentTintColor = [NSColor colorWithWhite:0.7 alpha:1.0];
@@ -442,8 +308,8 @@
 
 - (void)tableViewSelectionDidChange:(NSNotification *)notification {
     NSInteger row = self.tableView.selectedRow;
-    NSArray<WLMediaSourceItem *> *sources = [WLSceneManager manager].sources;
-    if (row >= 0 && row < sources.count) {
+    NSArray<WLMediaSourceItem *> *sources = [self filteredSources];
+    if (row >= 0 && row < (NSInteger)sources.count) {
         [[WLSceneManager manager] selectSource:sources[row]];
     } else {
         [[WLSceneManager manager] deselectAll];

@@ -80,7 +80,7 @@
     WLSend().type(WLObserveSourceChange).payload(@{
         @"action": @"resolutionChange",
         @"resolution": @(outputResolution)
-    });
+    }).send();
 }
 
 #pragma mark - 源管理 (只读)
@@ -110,7 +110,7 @@
     WLSend().type(WLObserveSourceChange).payload(@{
         @"action": @"add",
         @"item": item
-    });
+    }).send();
 
     return item;
 }
@@ -138,7 +138,7 @@
     WLSend().type(WLObserveSourceChange).payload(@{
         @"action": @"add",
         @"item": item
-    });
+    }).send();
 
     return item;
 }
@@ -163,7 +163,7 @@
     WLSend().type(WLObserveSourceChange).payload(@{
         @"action": @"add",
         @"item": item
-    });
+    }).send();
 
     return item;
 }
@@ -192,7 +192,7 @@
     WLSend().type(WLObserveSourceChange).payload(@{
         @"action": @"remove",
         @"index": @(index)
-    });
+    }).send();
 }
 
 #pragma mark - 选择
@@ -207,7 +207,7 @@
     WLSend().type(WLObserveSourceChange).payload(@{
         @"action": @"select",
         @"item": item ?: [NSNull null]
-    });
+    }).send();
 }
 
 - (void)deselectAll {

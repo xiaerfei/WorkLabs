@@ -24,13 +24,13 @@
 
 #import "WLVideoDeviceSettingWindowController.h"
 #import "WLVideoDeviceSettingView.h"
-#import "WLControlPanelContainerView.h"
+#import "WLPanelViewController.h"
 
 #import "WLSceneViewController.h"
 #import "WLSceneManager.h"
 
 @interface WLMainViewController ()
-@property (nonatomic, strong) WLControlPanelContainerView *controlPanelContainer;
+@property (nonatomic, strong) WLPanelViewController *panelVC;
 @property (nonatomic, strong) WLEventDisposeBag *bag;
 @property (nonatomic, strong) WLMediaSource *mediaSource;
 @property (nonatomic, strong) WLVideoDeviceSettingWindowController *settingWindowController;
@@ -68,17 +68,13 @@
     }];
     
     // 控制面板容器，固定在窗口底部
-    self.controlPanelContainer = [[WLControlPanelContainerView alloc] init];
-    [self.view addSubview:self.controlPanelContainer];
-    [self.controlPanelContainer mas_makeConstraints:^(MASConstraintMaker *make) {
-        make.left.right.bottom.equalTo(self.view);
+    self.panelVC = [[WLPanelViewController alloc] init];
+    [self addChildViewController:self.panelVC];
+    [self.view addSubview:self.panelVC.view];
+    [self.panelVC.view mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.leading.trailing.bottom.equalTo(self.view);
         make.height.mas_equalTo(220);
     }];
-
-    // 注释掉硬编码的媒体源初始化（已通过 WLSceneManager 动态添加）
-    // NSString *path = @"/Users/erfeixia/Downloads/Test-4K.mp4";
-    // self.mediaSource = [[WLMediaSource alloc] initWithPath:path];
-    // [self.mediaSource start];
     
     [WLStreamsManager manager].videoRenderType = WLVideoRenderTypeCamera;
     [WLStreamsManager manager].audioRenderType = WLAudioRenderTypeMic;
@@ -102,17 +98,15 @@
 }
 
 - (void)setupSeekControls {
-    // 进度条背景容器
     self.seekContainer = [[NSView alloc] init];
     [self.seekContainer backgroundColorWithHex:0x2A2A2A];
     [self.view addSubview:self.seekContainer];
     [self.seekContainer mas_makeConstraints:^(MASConstraintMaker *make) {
         make.left.right.equalTo(self.view);
-        make.bottom.equalTo(self.controlPanelContainer.mas_top);
+        make.bottom.equalTo(self.panelVC.view.mas_top);
         make.height.mas_equalTo(36);
     }];
     
-    // 当前时间标签
     self.currentTimeLabel = [NSTextField labelWithString:@"00:00"];
     self.currentTimeLabel.textColor = [NSColor colorWithWhite:0.7 alpha:1.0];
     self.currentTimeLabel.font = [NSFont monospacedDigitSystemFontOfSize:11.0 weight:NSFontWeightRegular];
@@ -123,7 +117,6 @@
         make.centerY.equalTo(self.seekContainer);
     }];
     
-    // 总时间标签
     self.totalTimeLabel = [NSTextField labelWithString:@"00:00"];
     self.totalTimeLabel.textColor = [NSColor colorWithWhite:0.7 alpha:1.0];
     self.totalTimeLabel.font = [NSFont monospacedDigitSystemFontOfSize:11.0 weight:NSFontWeightRegular];
@@ -133,7 +126,6 @@
         make.centerY.equalTo(self.seekContainer);
     }];
     
-    // 进度滑块
     self.seekSlider = [[NSSlider alloc] init];
     self.seekSlider.minValue = 0;
     self.seekSlider.maxValue = 100;

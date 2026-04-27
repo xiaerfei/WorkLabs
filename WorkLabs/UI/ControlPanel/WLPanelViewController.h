@@ -1,5 +1,5 @@
 //
-//  WLControlPanelContainerView.h
+//  WLPanelViewController.h
 //  WorkLabs
 //
 
@@ -7,7 +7,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface WLControlPanelContainerView : NSView
+@interface WLPanelViewController : NSViewController
 
 @end
 
