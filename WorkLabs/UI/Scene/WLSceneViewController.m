@@ -7,13 +7,19 @@
 #import "WLSceneManager.h"
 #import "WLMediaSourceItem.h"
 #import "WLMediaSourcePreview.h"
+#import "WLMediaSource.h"
 #import "WLEvent.h"
 #import "NSView+BackgroundColor.h"
 
-@interface WLSceneViewController ()
+@interface WLSceneViewController () <NSDraggingDestination>
 
 @property (nonatomic, strong) NSMutableDictionary<NSUUID *, WLMediaSourcePreview *> *previewMap;
+@property (nonatomic, strong) NSMutableDictionary<NSUUID *, WLMediaSourceItem *> *itemMap;
 @property (nonatomic, strong) WLEventDisposeBag *bag;
+
+@property (nonatomic, assign) BOOL isDragging;
+@property (nonatomic, weak) WLMediaSourcePreview *draggingPreview;
+@property (nonatomic, assign) NSPoint dragOffset;
 
 @end
 
@@ -24,6 +30,7 @@
 
     self.view.backgroundColor = [NSColor blackColor];
     self.previewMap = [NSMutableDictionary dictionary];
+    self.itemMap = [NSMutableDictionary dictionary];
 
     [self registerEventObservers];
 }
@@ -54,7 +61,6 @@
                     [weakSelf addPreviewForItem:item];
                 }
             } else if ([action isEqualToString:@"remove"]) {
-                // 重新同步所有预览
                 [weakSelf syncPreviews];
             } else if ([action isEqualToString:@"select"]) {
                 [weakSelf updateSelection];
@@ -67,13 +73,22 @@
 - (void)addPreviewForItem:(WLMediaSourceItem *)item {
     if (self.previewMap[item.uuid]) return;
 
-    WLMediaSourcePreview *preview = [[WLMediaSourcePreview alloc] initWithFrame:NSZeroRect];
-    preview.item = item;
+    WLMediaSourcePreview *preview = nil;
+
+    if ([item.sourceEngine isKindOfClass:[WLMediaSource class]]) {
+        WLMediaSource *mediaSource = (WLMediaSource *)item.sourceEngine;
+        preview = mediaSource.preview;
+    } else {
+        preview = [[WLMediaSourcePreview alloc] initWithFrame:NSZeroRect];
+    }
+
     preview.selected = item.isSelected;
-    [preview updateTransform];
+
+    self.itemMap[item.uuid] = item;
+    [self updatePreviewFrame:preview forItem:item];
 
     if (item.type == WLMediaSourceTypeAudio) {
-        [preview showAudioPlaceholder];
+        [self showAudioPlaceholderForPreview:preview];
     }
 
     [self.view addSubview:preview];
@@ -85,7 +100,6 @@
 - (void)syncPreviews {
     NSArray<WLMediaSourceItem *> *sources = self.sceneManager.sources;
 
-    // 移除不再存在的 preview
     NSMutableSet<NSUUID *> *currentUUIDs = [NSMutableSet set];
     for (WLMediaSourceItem *item in sources) {
         [currentUUIDs addObject:item.uuid];
@@ -97,10 +111,10 @@
             WLMediaSourcePreview *preview = self.previewMap[uuid];
             [preview removeFromSuperview];
             [self.previewMap removeObjectForKey:uuid];
+            [self.itemMap removeObjectForKey:uuid];
         }
     }
 
-    // 添加新的 preview
     for (WLMediaSourceItem *item in sources) {
         [self addPreviewForItem:item];
     }
@@ -125,7 +139,6 @@
     for (WLMediaSourceItem *item in sorted) {
         WLMediaSourcePreview *preview = self.previewMap[item.uuid];
         if (preview) {
-            // 移除后重新添加以调整层级
             [preview removeFromSuperview];
             [self.view addSubview:preview];
         }
@@ -136,10 +149,47 @@
     [self syncPreviews];
 }
 
+#pragma mark - Frame & Overlay Helpers
+
+- (void)updatePreviewFrame:(WLMediaSourcePreview *)preview forItem:(WLMediaSourceItem *)item {
+    NSRect frame = NSMakeRect(item.position.x - item.size.width / 2,
+                               item.position.y - item.size.height / 2,
+                               item.size.width,
+                               item.size.height);
+    preview.frame = frame;
+}
+
+- (WLMediaSourceItem *)itemForPreview:(WLMediaSourcePreview *)preview {
+    for (NSUUID *uuid in self.previewMap) {
+        if (self.previewMap[uuid] == preview) {
+            return self.itemMap[uuid];
+        }
+    }
+    return nil;
+}
+
+- (void)showAudioPlaceholderForPreview:(WLMediaSourcePreview *)preview {
+    NSView *placeholder = [[NSView alloc] initWithFrame:preview.bounds];
+    placeholder.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    placeholder.wantsLayer = YES;
+    placeholder.layer.backgroundColor = [[NSColor colorWithWhite:0.15 alpha:1.0] CGColor];
+
+    NSImageView *audioIcon = [[NSImageView alloc] initWithFrame:NSMakeRect(0, 0, 32, 32)];
+    audioIcon.image = [NSImage imageWithSystemSymbolName:@"music.note"
+                                    accessibilityDescription:nil];
+    audioIcon.contentTintColor = [NSColor colorWithWhite:0.5 alpha:0.6];
+    audioIcon.imageScaling = NSImageScaleProportionallyUpOrDown;
+    audioIcon.frame = NSMakeRect((preview.bounds.size.width - 32) / 2,
+                                  (preview.bounds.size.height - 32) / 2,
+                                  32, 32);
+
+    [placeholder addSubview:audioIcon];
+    [preview addSubview:placeholder];
+}
+
 #pragma mark - Mouse Events
 
 - (void)mouseDown:(NSEvent *)event {
-    // 点击空白区域取消选中
     NSPoint locationInView = [self.view convertPoint:event.locationInWindow fromView:nil];
 
     BOOL hitPreview = NO;
@@ -147,10 +197,16 @@
         NSPoint localPoint = [preview convertPoint:event.locationInWindow fromView:nil];
         if (NSPointInRect(localPoint, preview.bounds)) {
             hitPreview = YES;
-            // 选中该源
-            if (preview.item) {
-                [self.sceneManager selectSource:preview.item];
+
+            WLMediaSourceItem *item = [self itemForPreview:preview];
+            if (item) {
+                [self.sceneManager selectSource:item];
             }
+
+            self.isDragging = YES;
+            self.draggingPreview = preview;
+            self.dragOffset = NSMakePoint(localPoint.x - preview.bounds.size.width / 2,
+                                           localPoint.y - preview.bounds.size.height / 2);
             break;
         }
     }
@@ -160,11 +216,32 @@
     }
 }
 
+- (void)mouseDragged:(NSEvent *)event {
+    if (!self.isDragging || !self.draggingPreview) return;
+
+    WLMediaSourceItem *item = [self itemForPreview:self.draggingPreview];
+    if (!item) return;
+
+    NSPoint locationInSuperview = [self.view convertPoint:event.locationInWindow fromView:nil];
+    CGFloat newX = locationInSuperview.x - self.dragOffset.x;
+    CGFloat newY = locationInSuperview.y - self.dragOffset.y;
+
+    newX = MAX(0, MIN(newX, self.view.bounds.size.width));
+    newY = MAX(0, MIN(newY, self.view.bounds.size.height));
+
+    item.position = NSMakePoint(newX, newY);
+    [self updatePreviewFrame:self.draggingPreview forItem:item];
+}
+
+- (void)mouseUp:(NSEvent *)event {
+    self.isDragging = NO;
+    self.draggingPreview = nil;
+}
+
 #pragma mark - Keyboard Events
 
 - (void)keyDown:(NSEvent *)event {
     unsigned short keyCode = event.keyCode;
-    // Delete / Backspace
     if (keyCode == 0x33 || keyCode == 0x75) {
         WLMediaSourceItem *selected = self.sceneManager.selectedSource;
         if (selected) {

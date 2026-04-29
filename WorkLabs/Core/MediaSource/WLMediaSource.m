@@ -57,14 +57,13 @@
 @property (nonatomic, strong) WLVideoConcatStreams *streams;
 @property (nonatomic, strong) WLAudioMixStreams *audioMixStreams;
 
+@property (nonatomic, strong, readwrite) WLMediaSourcePreview *preview;
+
 @end
 
 @implementation WLMediaSource {
     // 声明一个原子类型的整数
     _Atomic int _activeRenderThreads;
-    _Atomic int32_t _seekGeneration;
-    _Atomic bool _seekRequested;
-    _Atomic double _seekTarget;
 }
 
 - (void)dealloc {
@@ -84,6 +83,7 @@
         self.baseTime = 0.0;
         self.streams = [[WLVideoConcatStreams alloc] init];
         self.audioMixStreams = [[WLAudioMixStreams alloc] init];
+        self.preview = [[WLMediaSourcePreview alloc] initWithFrame:NSZeroRect];
     }
     return self;
 }
@@ -118,10 +118,6 @@
     AVPacket *packet = av_packet_alloc();
     
     while (self.isRunning) {
-        // 检查是否有 seek 请求
-        if (_seekRequested) {
-            [self performSeek];
-        }
         
         int size = av_read_frame(self.formatContext, packet);
         if (size < 0 || packet->size < 0) {
@@ -190,17 +186,8 @@
 - (void)videoDecodeThread {
     [NSThread currentThread].name = @"com.wl-decode-video.thread";
     AVFrame *frame = av_frame_alloc();
-    int32_t lastSeekGen = 0;
     
     while (self.isVideoDecoding) {
-        // 检测 seek 生成计数器是否变化
-        int32_t currentGen = atomic_load(&_seekGeneration);
-        if (currentGen != lastSeekGen) {
-            // 在本线程内 flush，避免跨线程并发访问 codec context
-            avcodec_flush_buffers(self.videoCodecContext);
-            lastSeekGen = currentGen;
-            continue;
-        }
         
         int result = [self decodeFrame:self.videoCodecContext
                                  frame:frame
@@ -214,15 +201,9 @@
             node.pts = frame->pts * self.videoTimeBase;
             [self.videoFrameQueue enQueue:node];
         } else if (result == AVERROR_EOF) {
-            // 再次检查：seek 可能在 decodeFrame 期间发生
-            currentGen = atomic_load(&_seekGeneration);
-            if (currentGen != lastSeekGen) {
-                lastSeekGen = currentGen;
-                continue;
-            }
             break;
         }
-        av_frame_unref(frame); // 重置 frame 状态
+        av_frame_unref(frame);
     }
     av_frame_free(&frame);
     
@@ -234,15 +215,7 @@
 - (void)audioDecodeThread {
     [NSThread currentThread].name = @"com.wl-decode-audio.thread";
     AVFrame *frame = av_frame_alloc();
-    int32_t lastSeekGen = 0;
     while (self.isAudioDecoding) {
-        // 检测 seek 生成计数器是否变化
-        int32_t currentGen = atomic_load(&_seekGeneration);
-        if (currentGen != lastSeekGen) {
-            avcodec_flush_buffers(self.audioCodecContext);
-            lastSeekGen = currentGen;
-            continue;
-        }
         
         int result = [self decodeFrame:self.audioCodecContext
                                  frame:frame
@@ -255,12 +228,6 @@
             node.pts = frame->pts * self.audioTimeBase;
             [self.audioFrameQueue enQueue:node];
         } else if (result == AVERROR_EOF) {
-            // 再次检查：seek 可能在 decodeFrame 期间发生
-            currentGen = atomic_load(&_seekGeneration);
-            if (currentGen != lastSeekGen) {
-                lastSeekGen = currentGen;
-                continue;
-            }
             break;
         }
         av_frame_unref(frame);
@@ -287,23 +254,15 @@
         }
         
         if (ret == AVERROR(EAGAIN)) {
-            // 轮询模式，可被 seek 打断
-            WLNode *node = nil;
-            int pollCount = 0;
-            while (!node && !atomic_load_explicit(&_seekRequested, memory_order_acquire)) {
-                node = [queue deQueueWithBlock:NO];
-                if (!node && !atomic_load_explicit(&_seekRequested, memory_order_acquire)) {
-                    usleep(1000); // 1ms 轮询间隔
-                    pollCount++;
-                    if (pollCount > 5000) break; // ~5 秒超时保护
-                }
-            }
-
-            if (atomic_load_explicit(&_seekRequested, memory_order_acquire)) {
-                return AVERROR_EOF;
-            }
+            // 使用带超时的阻塞出队，替代忙轮询
+            // 队列有数据时立即返回，无数据时阻塞等待（零 CPU）
+            // flush() 会 broadcast 唤醒，超时则继续等待
+            WLNode *node = [queue deQueueWithTimeout:30]; // 30ms 超时
             
-            if (!node) return AVERROR_EOF;
+            if (!node) {
+                // 超时，继续等待
+                continue;
+            }
             
             ret = avcodec_send_packet(avctx, node.packet);
             
@@ -332,30 +291,28 @@
         
         WLNode *node = [self.videoFrameQueue peek];
         if (!node) {
-            usleep(5 * 1000);
+            usleep(10 * 1000);
             continue;
         }
-        
+                
         Float64 abs_pts = node.pts * 1000 + self.baseTime;
-        
-        if ((abs_pts + self.videoPtsOffset < current_time) &&
-            [self.videoFrameQueue count] >= 4) {
+                
+        if (abs_pts + self.videoPtsOffset < current_time) {
             node = [self.videoFrameQueue deQueueWithBlock:NO];
-            if (node && node.frame->format == AV_PIX_FMT_VIDEOTOOLBOX) {
-                // 新架构: 通过 block 回调输出视频帧
+            if (!node) continue;
+            if (node.frame->format == AV_PIX_FMT_VIDEOTOOLBOX) {
                 CVPixelBufferRef pixelBuffer = (CVPixelBufferRef)node.frame->data[3];
-                if (pixelBuffer && self.videoFrameOutput) {
-                    CVPixelBufferRetain(pixelBuffer);
-                    self.videoFrameOutput(pixelBuffer, node.pts);
-                    CVPixelBufferRelease(pixelBuffer);
+                if (pixelBuffer) {
+                    [self.preview displayPixelBuffer:pixelBuffer];
                 }
-                // 保留旧架构
-                [streams addVideoNode:node];
-            } else {
-                [node flush];                
             }
+            [node flush];
         } else {
-            usleep(5 * 1000);
+            Float64 waitMs = abs_pts + self.videoPtsOffset - current_time;
+            if (waitMs > 50) waitMs = 50;
+            if (waitMs > 1) {
+                usleep((useconds_t)(waitMs * 1000));
+            }
         }
     }
     [self.videoFrameQueue flush];
@@ -383,14 +340,14 @@
         
         if (abs_pts + self.audioPtsOffset < current_time) {
             node = [self.audioFrameQueue deQueueWithBlock:NO];
-            // 新架构: 通过 block 回调输出音频帧
-            if (self.audioFrameOutput && node.frame) {
-                self.audioFrameOutput(node.frame, node.pts);
-            }
-            // 保留旧架构
+            if (!node) continue;
             [[WLStreamsManager manager] addAudioNode:node];
         } else {
-            usleep(10 * 1000);
+            Float64 waitMs = abs_pts + self.audioPtsOffset - current_time;
+            if (waitMs > 50) waitMs = 50;
+            if (waitMs > 1) {
+                usleep((useconds_t)(waitMs * 1000));
+            }
         }
     }
 
@@ -612,51 +569,6 @@ fail:
         return (Float64)fmtCtx->duration / AV_TIME_BASE;
     }
     return 0.0;
-}
-
-#pragma mark - Seek
-- (void)seekToTime:(Float64)seconds {
-    if (!self.running || !self.formatContext) return;
-    if (self.videoStreamIndex < 0 && self.audioStreamIndex < 0) return;
-    
-    atomic_store_explicit(&_seekTarget, MAX(0, (double)seconds), memory_order_relaxed);
-    // release 确保 _seekTarget 写入对读取 _seekRequested 的线程可见
-    atomic_store_explicit(&_seekRequested, true, memory_order_release);
-    atomic_fetch_add_explicit(&_seekGeneration, 1, memory_order_release);
-}
-
-- (void)performSeek {
-    Float64 targetSeconds = (Float64)atomic_load_explicit(&_seekTarget, memory_order_acquire);
-
-    int streamIdx;
-    int64_t seek_target;
-    if (self.videoStreamIndex >= 0) {
-        streamIdx = self.videoStreamIndex;
-        seek_target = (int64_t)(targetSeconds / self.videoTimeBase);
-    } else {
-        streamIdx = self.audioStreamIndex;
-        seek_target = (int64_t)(targetSeconds / self.audioTimeBase);
-    }
-
-    int ret = av_seek_frame(self.formatContext, streamIdx, seek_target, AVSEEK_FLAG_BACKWARD);
-    if (ret < 0) {
-        NSLog(@"Seek failed: %@", [self getFFmpegError:ret]);
-        atomic_store_explicit(&_seekRequested, false, memory_order_release);
-        return;
-    }
-
-    // 清空所有队列中的旧数据
-    // avcodec_flush_buffers 由各解码线程在检测到 _seekGeneration 变化后自行调用，
-    // 避免跨线程并发访问 codec context（avcodec_* 函数非线程安全）
-    [self.videoPacketQueue flush];
-    [self.audioPacketQueue flush];
-    [self.videoFrameQueue flush];
-    [self.audioFrameQueue flush];
-
-    // 重置时间基准，渲染线程会重新计算 baseTime
-    self.baseTime = 0;
-
-    atomic_store_explicit(&_seekRequested, false, memory_order_release);
 }
 
 @end

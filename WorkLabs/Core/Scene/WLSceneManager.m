@@ -99,7 +99,6 @@
     WLCameraSource *cameraSource = [[WLCameraSource alloc] initWithConfig:config];
     item.sourceEngine = cameraSource;
 
-    __weak typeof(item) weakItem = item;
     cameraSource.frameOutput = ^(CVPixelBufferRef pixelBuffer, Float64 pts) {
         // 帧回调 — 后续由 WLMediaSourcePreview 消费
     };
@@ -123,15 +122,6 @@
 
     WLMediaSource *mediaSource = [[WLMediaSource alloc] initWithPath:path];
     item.sourceEngine = mediaSource;
-
-    __weak typeof(item) weakItem = item;
-    mediaSource.videoFrameOutput = ^(CVPixelBufferRef pixelBuffer, Float64 pts) {
-        // 视频帧回调 — 后续由 WLMediaSourcePreview 消费
-    };
-    mediaSource.audioFrameOutput = ^(AVFrame *frame, Float64 pts) {
-        // 音频帧回调 — 后续由 WLAudioMixer 消费
-    };
-
     [self.mutableSources addObject:item];
     [item start];
 
@@ -151,12 +141,6 @@
 
     WLMediaSource *mediaSource = [[WLMediaSource alloc] initWithPath:path];
     item.sourceEngine = mediaSource;
-
-    __weak typeof(item) weakItem = item;
-    mediaSource.audioFrameOutput = ^(AVFrame *frame, Float64 pts) {
-        // 音频帧回调 — 后续由 WLAudioMixer 消费
-    };
-
     [self.mutableSources addObject:item];
     [item start];
 

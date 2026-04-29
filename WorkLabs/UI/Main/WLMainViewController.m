@@ -130,19 +130,12 @@
     self.seekSlider.minValue = 0;
     self.seekSlider.maxValue = 100;
     self.seekSlider.continuous = YES;
-    self.seekSlider.target = self;
-    self.seekSlider.action = @selector(seekSliderChanged:);
     [self.seekContainer addSubview:self.seekSlider];
     [self.seekSlider mas_makeConstraints:^(MASConstraintMaker *make) {
         make.left.equalTo(self.currentTimeLabel.mas_right).offset(8);
         make.right.equalTo(self.totalTimeLabel.mas_left).offset(-8);
         make.centerY.equalTo(self.seekContainer);
     }];
-}
-
-- (void)seekSliderChanged:(NSSlider *)sender {
-    [self.mediaSource seekToTime:sender.doubleValue];
-    self.currentTimeLabel.stringValue = [self formatTime:sender.doubleValue];
 }
 
 - (NSString *)formatTime:(Float64)seconds {

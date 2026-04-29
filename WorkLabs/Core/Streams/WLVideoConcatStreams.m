@@ -115,9 +115,6 @@
                 if (base_time == 0) {
                     base_time = current_time;
                 }
-                Float64 offset = current_time - base_time;
-                printf("[Encoder Camera] pts=%f now=%f diff=%f\n",
-                       node.pts, offset, fabs(offset - node.pts));
                 [manager pixelBuffer:pixelBuffer pts:node.pts];
                 [node flush];
                 break;
@@ -132,9 +129,6 @@
                 if (base_time == 0) {
                     base_time = current_time;
                 }
-                Float64 offset = current_time - base_time;
-                printf("[Encoder Video] pts=%f now=%f diff=%f\n",
-                       node.pts, offset, fabs(offset - node.pts));
                 [manager pixelBuffer:pixelBuffer pts:node.pts];
                 [node flush];
                 break;

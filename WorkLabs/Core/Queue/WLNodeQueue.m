@@ -151,12 +151,58 @@
     pthread_mutex_unlock(&_mutex);
 }
 
+- (nullable WLNode *)deQueueWithTimeout:(int)milliseconds {
+    pthread_mutex_lock(&_mutex);
+    
+    if (!_head && !_abortRequest) {
+        struct timespec ts;
+        // 获取当前时间并加上超时
+        clock_gettime(CLOCK_REALTIME, &ts);
+        ts.tv_sec  += milliseconds / 1000;
+        ts.tv_nsec += (milliseconds % 1000) * 1000000L;
+        if (ts.tv_nsec >= 1000000000L) {
+            ts.tv_sec  += 1;
+            ts.tv_nsec -= 1000000000L;
+        }
+        pthread_cond_timedwait(&_cond, &_mutex, &ts);
+    }
+    
+    // 超时或被 flush 唤醒后，检查队列状态
+    if (_abortRequest || !_head) {
+        pthread_mutex_unlock(&_mutex);
+        return nil;
+    }
+    
+    // 正常出队逻辑
+    WLNode *node = _head;
+    _head = node.next;
+    if (!_head) _tail = nil;
+    
+    node.next = nil;
+    _nodeSize--;
+    
+    pthread_cond_signal(&_cond);
+    pthread_mutex_unlock(&_mutex);
+    return node;
+}
+
 - (WLNode *)peek {
     pthread_mutex_lock(&_mutex);
     // 仅仅查看，不改变 nodeSize 和指针偏移
     WLNode *node = _head;
     pthread_mutex_unlock(&_mutex);
     return node;
+}
+
+- (void)requeueFront:(WLNode *)node {
+    if (!node) return;
+    pthread_mutex_lock(&_mutex);
+    node.next = _head;
+    _head = node;
+    if (!_tail) _tail = node;
+    _nodeSize++;
+    pthread_cond_signal(&_cond);
+    pthread_mutex_unlock(&_mutex);
 }
 
 - (int)count {

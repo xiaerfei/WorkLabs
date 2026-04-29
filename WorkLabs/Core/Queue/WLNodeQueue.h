@@ -62,6 +62,14 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable WLNode *)deQueueWithBlock:(BOOL)block;
 
 /**
+ 带超时的阻塞出队。队列为空时阻塞等待，超时后返回 nil。
+ 若期间队列被 flush，pthread_cond_broadcast 会提前唤醒并返回 nil。
+ @param milliseconds 最大等待毫秒数
+ @return 成功返回节点，超时或队列为空时返回 nil。
+ */
+- (nullable WLNode *)deQueueWithTimeout:(int)milliseconds;
+
+/**
  查看队头节点（不移除）
  */
 - (nullable WLNode *)peek;
@@ -76,6 +84,12 @@ NS_ASSUME_NONNULL_BEGIN
  清空队列：释放当前所有已缓存的 AVPacket/AVFrame。
  */
 - (void)flush;
+
+/**
+ 将节点重新放回队头（用于帧时间未到的场景）
+ @param node 待放回的节点
+ */
+- (void)requeueFront:(WLNode *)node;
 
 /**
  当前队列中的节点总数

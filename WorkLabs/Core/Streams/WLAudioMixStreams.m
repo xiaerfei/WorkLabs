@@ -69,9 +69,6 @@
                 if (base_time == 0) {
                     base_time = current_time;
                 }
-                Float64 offset = current_time - base_time;
-                printf("[Encoder Audio] pts=%f now=%f diff=%f\n",
-                       node.pts, offset, fabs(offset - node.pts));
                 [manager frame:node.frame pts:node.pts];
                 [node flush];
                 break;
