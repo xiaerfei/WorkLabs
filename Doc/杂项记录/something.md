@@ -104,20 +104,8 @@
 
 ## AudioUnit 研究
 
-- [iOS 音视频高级编程：Audio Unit 播放 FFmpeg 解码的音频](https://blog.51cto.com/u_16124099/6328630)（对于 AudioUnit 播放音频的初始化过程进行了研究）
-- [ijkplay 播放直播流延时控制小结](https://www.jianshu.com/p/d6a5d8756eec)
-- [WebRTC 源码分析之 IOS Audio Unit](https://www.jianshu.com/p/e86380eca764)
-- [Media Playback Programming Guide](https://developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/MediaPlaybackGuide/Contents/Resources/en.lproj/Introduction/Introduction.html)
-- [Audio Unit 工作原理](https://acefish.github.io/15773512971221.html)
 - [AudioQueue 知识](https://www.jianshu.com/p/ed6d0862bd0d)
-- [iOS 音频之 Audio Unit & AudioEngine](https://github.com/zhenshub/WorkNote/blob/master/%E9%9F%B3%E8%A7%86%E9%A2%91%E6%8A%80%E6%9C%AF/iOS%E9%9F%B3%E9%A2%91%E4%B9%8BAudioUnit%26AudioEngine.md)
-- [IOS 端音频的采集与播放](https://xie.infoq.cn/article/b8c110b4c6d696b05a7c2f22c)
 - [（强烈推荐）移动端音视频从零到上手](https://www.jianshu.com/p/228b668361bd)
-- [AudioToolBox 音频硬编码 AAC](https://juejin.cn/post/7069395297239040037)
-- [深入理解 AudioUnit (一) ~ IO Unit 结构和运行机制](https://xueshi.me/2022/03/12/AudioUnit-01-IOUnit/)
-
-
-
 
 ## 待解决问题
 
@@ -141,9 +129,6 @@ int samplesConverted = swr_convert(_swrContext,
 - 音频卡顿：连续丢帧会导致播放不连贯
 - 同步问题：PTS 时间戳计算会出错
 
-## ffplay
-- [ffplay packet queue 分析](https://zhuanlan.zhihu.com/p/43295650)
-
 ## VideoToolbox 搜集
 
 - [iOS VideoToolbox 硬编指南(VideoToolbox避坑指南)](https://www.nxrte.com/jishu/4368.html)
@@ -160,7 +145,7 @@ int samplesConverted = swr_convert(_swrContext,
 > 作者：诚明飞
 > 来源：知乎
 > 著作权归作者所有。商业请联系作者获得授权，非商业请注明出处。
-> 原文链接：https://www.zhihu.com/question/27005982/answer/51158064
+> [原文链接](https://www.zhihu.com/question/27005982/answer/51158064)
 
 在视频编解码领域从事工作几年，还没有仔细总结一路怎么走来。趁知友提的问题，再回头看看，稍有心得体会，希望对你有帮助。
 视频编解码所从事的工作大致分成 3 类：编解码算法研究、编解码标准实现、编解码应用开发。
@@ -183,338 +168,191 @@ int samplesConverted = swr_convert(_swrContext,
 
 
 
-<details class="lake-collapse"><summary id="ue0642126"><span class="ne-text">ffplay</span></summary><ol class="ne-ol"><li id="u798a4a69" data-lake-index-type="0"><a href="https://cloud.tencent.com/developer/article/1409508" data-href="https://cloud.tencent.com/developer/article/1409508" target="_blank" class="ne-link"><span class="ne-text">ffplay源码分析2-数据结构(环形缓冲器)</span></a></li><li id="uef348902" data-lake-index-type="0"><a href="https://www.cnblogs.com/juju-go/p/16489044.html" data-href="https://www.cnblogs.com/juju-go/p/16489044.html" target="_blank" class="ne-link"><span class="ne-text">ffplay 源码分析(结构体有详细的参数说明)</span></a></li><li id="uaea5e879" data-lake-index-type="0"><a href="https://cloud.tencent.com/developer/column/75651" data-href="https://cloud.tencent.com/developer/column/75651" target="_blank" class="ne-link"><span class="ne-text">音视频开发技术(博客 分析 FFMpeg 和 FFplay 相关的结构体和源码)</span></a></li><li id="u2ab5b3b0" data-lake-index-type="0"><a href="https://xie.infoq.cn/article/6e2c7e13db8d1d3f68db70ce0" data-href="https://xie.infoq.cn/article/6e2c7e13db8d1d3f68db70ce0" target="_blank" class="ne-link"><span class="ne-text">ffplay 视频播放原理分析(简要说明 ffplay 各个函数的基本功能并未深入分析)</span></a></li><li id="uf63c22e7" data-lake-index-type="0"><a href="https://cloud.tencent.com/developer/column/94726" data-href="https://cloud.tencent.com/developer/column/94726" target="_blank" class="ne-link"><span class="ne-text">txp玩Linux(很杂， 涉及一部分音视频 ffplay 相关的, 还有一些基础的知识、心得和源码分析)</span></a></li><li id="ud6cbfa53" data-lake-index-type="0"><a href="https://avmedia.0voice.com/?id=287" data-href="https://avmedia.0voice.com/?id=287" target="_blank" class="ne-link"><span class="ne-text">音视频开发中文网(论坛)</span></a></li><li id="u3a040727" data-lake-index-type="0"><a href="https://www.bilibili.com/read/cv15950768/" data-href="https://www.bilibili.com/read/cv15950768/" target="_blank" class="ne-link"><span class="ne-text">FFplay源码分析-nobuffer</span></a></li><li id="u91c6bff9" data-lake-index-type="0"><a href="https://www.cnblogs.com/leisure_chn/p/10312713.html" data-href="https://www.cnblogs.com/leisure_chn/p/10312713.html" target="_blank" class="ne-link"><span class="ne-text">ffplay源码分析6-音频重采样</span></a></li><li id="u03574037" data-lake-index-type="0"><a href="https://developer.aliyun.com/article/1467268" data-href="https://developer.aliyun.com/article/1467268" target="_blank" class="ne-link"><span class="ne-text">深入理解FFmpeg音视频编程：处理封装、解码、播放 队列与回放策略</span></a></li><li id="u5a81c26c" data-lake-index-type="0"><a href="https://github.com/xiaerfei/ffplay-explained" data-href="https://github.com/xiaerfei/ffplay-explained" target="_blank" class="ne-link"><span class="ne-text">ffplay.c源码分析与理解(比较详细的解析了整个源码部分)</span></a></li><li id="u2b6bdfb8" data-lake-index-type="0"><span class="ne-text">音视频开发之音频基础知识！(介绍了 AAC 的格式)</span><a href="https://cloud.tencent.com/developer/article/2215365" data-href="https://cloud.tencent.com/developer/article/2215365" target="_blank" class="ne-link"><span class="ne-text">https://cloud.tencent.com/developer/article/2215365</span></a></li><li id="u6c77c8b7" data-lake-index-type="0"><span class="ne-text">音视频封装格式：AAC音频基础和ADTS打包方案详解 </span><a href="https://cloud.tencent.com/developer/article/1746985" data-href="https://cloud.tencent.com/developer/article/1746985" target="_blank" class="ne-link"><span class="ne-text">https://cloud.tencent.com/developer/article/1746985</span></a></li></ol><p id="u83b4d72d" class="ne-p"><span class="ne-text" style="color: rgb(24, 24, 24)"></span></p><p id="u03796d94" class="ne-p"><span class="ne-text" style="color: rgb(24, 24, 24)"></span></p></details>
+## ffplay
 
-
-ffplay.c源码分析【2】 https://www.cnblogs.com/juju-go/p/16500356.html
-
-ffplay.c源码分析与理解 https://github.com/leo4048111/ffplay-explained
-
-播放器技术分享（1）：架构设计 https://blog.51cto.com/ticktick/2324928
-
-
-
-
-
-[FFmpeg视频播放的内存管理](https://juejin.cn/post/6844903698515099656)
-
-
-
-[[FFmpeg] AVPacket 的使用记录(初始化、引用、解引用、释放)](https://blog.csdn.net/ihmhm12345/article/details/115507698)
-
-
-
-[从零开始敲一个播放器（002）媒体流解析流程(介绍了一些关于 AVPacket 的字段)](https://zhuanlan.zhihu.com/p/622260387)
-
-
-
-[FFmpeg数据结构：AVPacket解析](https://www.cnblogs.com/wangguchangqing/p/5790705.html)
+- [ffplay packet queue 分析](https://zhuanlan.zhihu.com/p/43295650)
+- [ffplay源码分析2-数据结构(环形缓冲器)](https://cloud.tencent.com/developer/article/1409508)
+- [ffplay 源码分析(结构体有详细的参数说明)](https://www.cnblogs.com/juju-go/p/16489044.html)
+- [音视频开发技术(博客 分析 FFMpeg 和 FFplay 相关的结构体和源码)](https://cloud.tencent.com/developer/column/75651)
+- [ffplay 视频播放原理分析](https://xie.infoq.cn/article/6e2c7e13db8d1d3f68db70ce0)
+- [txp玩Linux(涉及音视频 ffplay、基础知识、心得和源码分析)](https://cloud.tencent.com/developer/column/94726)
+- [音视频开发中文网(论坛)](https://avmedia.0voice.com/?id=287)
+- [FFplay源码分析-nobuffer](https://www.bilibili.com/read/cv15950768/)
+- [ffplay源码分析6-音频重采样](https://www.cnblogs.com/leisure_chn/p/10312713.html)
+- [深入理解FFmpeg音视频编程：处理封装、解码、播放](https://developer.aliyun.com/article/1467268)
+- [ffplay.c源码分析与理解](https://github.com/xiaerfei/ffplay-explained)
+- [音视频开发之音频基础知识！(介绍了 AAC 的格式)](https://cloud.tencent.com/developer/article/2215365)
+- [AAC音频基础和ADTS打包方案详解](https://cloud.tencent.com/developer/article/1746985)
+- [ffplay.c源码分析【2】](https://www.cnblogs.com/juju-go/p/16500356.html)
+- [播放器技术分享（1）：架构设计](https://blog.51cto.com/ticktick/2324928)
+- [FFmpeg视频播放的内存管理](https://juejin.cn/post/6844903698515099656)
+- [AVPacket 的使用记录(初始化、引用、解引用、释放)](https://blog.csdn.net/ihmhm12345/article/details/115507698)
+- [从零开始敲一个播放器（002）媒体流解析流程](https://zhuanlan.zhihu.com/p/622260387)
+- [FFmpeg数据结构：AVPacket解析](https://www.cnblogs.com/wangguchangqing/p/5790705.html)
 
 
 ## WebRTC 搜集
-B站WebRTC测试实践
-https://www.nxrte.com/jishu/webrtc/40585.html
-webrtc源码分析(8)-拥塞控制(上)-码率预估 https://www.cnblogs.com/ishen/p/15249678.html
-webrtc源码分析总: https://www.cnblogs.com/ishen/category/1619028.html
-WebRTC Native 源码导读 https://blog.piasy.com/tags/index.html#WebRTC
-
-WebRTC源码分析(博主 list) https://chensongpoixs.github.io/tags/?tag=WebRTC#/
-webrtc源码分析(4)-视频发送流程 https://www.cnblogs.com/ishen/p/15154959.html
-
-Webrtc 源码分析起步 https://blog.csdn.net/ababab12345/article/details/119834031
-WebRTC TURN 协议源码分析 https://justme0.com/archive/turn.html
-
-WebRTC 的音视频如何同步
-https://www.fanyamin.com/blog/webrtc-de-yin-shi-pin-ru-he-tong-bu.html
-
-WebRTC Native 源码导读（九）：iOS 视频硬编码实现分析
-https://blog.piasy.com/2018/05/04/WebRTC-iOS-HW-Encode-Video/index.html
-
-AV1
-搜集
-关于苹果 AV1 支持您需要了解的一切
-https://www.nxrte.com/jishu/42456.html
-
-音视频问题汇总–H264标准中u和ue的差别
-https://www.nxrte.com/jishu/yinshipin/32270.html
-
-自己动手写 H.264 解码器
-https://www.zzsin.com/catalog/write_avc_decoder.html
-
-SEI
-如何理解和使用 SEI（媒体补充增强信息）？
-https://www.nxrte.com/jishu/23419.html
-
-SEI补充增强信息(全网最全SEI指南)
-https://www.nxrte.com/jishu/10446.html
-
-什么是 H.264 SEI？H.264 SEI 的编码和获取
-https://www.nxrte.com/jishu/44484.html
-
-H264
-实现一个h264编码器前期准备
-https://www.nxrte.com/jishu/36031.html
-
-如何在H264码流的SPS中获取宽和高信息？
-https://www.nxrte.com/jishu/14432.html
-
-H.264学习笔记
-https://www.nxrte.com/jishu/2422.html
-
-H.264 码流结构和编解码过程
-https://www.nxrte.com/jishu/21000.html
-
-H264的编码帧类型(IDR帧、I帧、P帧或B帧)和帧结构
-https://www.nxrte.com/jishu/21382.html
-
-音视频压缩：H264码流层次结构和NALU详解
-https://cloud.tencent.com/developer/article/1746993
-
-YUV转RGB有哪些重要的点 https://juejin.cn/post/7033237038446936101
-
-如何开发出一款仿映客直播APP项目实践篇 -【原理篇】 https://www.jianshu.com/p/b2674fc2ac35
-
-视频直播的技术原理和实现思路方案整理 https://github.com/f2e-journey/xueqianban/issues/61
-
-## 图形渲染
-构建 和 自定义 和自己的Shader炫酷特效
-https://www.zzsin.com/shaderplus.html
-
-## 搜索
-## 博客 
-关键帧Keyframe
-
-[https://juejin.cn/user/255551407668360/posts](https://juejin.cn/user/255551407668360/posts)
-
-<font style="color:rgb(126, 140, 141);">昵称： </font>[blackstar666](https://home.cnblogs.com/u/smartNeo/) 博客搜集
-
-音频： [https://www.cnblogs.com/smartNeo/category/1977258.html](https://www.cnblogs.com/smartNeo/category/1977258.html)
-
-
-
-[音频之声道那些事--PCM 声道](https://www.cnblogs.com/smartNeo/p/14789302.html)
-
-
-
-[视音频数据处理入门：PCM音频采样数据处理](https://blog.csdn.net/leixiaohua1020/article/details/50534316?spm=1001.2014.3001.5502)
-
-
-
-测试软件：[https://samplerateconverter.com/educational/pcm-audio#what-pcm](https://samplerateconverter.com/educational/pcm-audio#what-pcm)
-
-
-
-[实时音视频的那些事儿（一）](https://blog.csdn.net/weixin_42684521/article/details/129388459)
-
-
-
-[(强烈推荐)移动端音视频从零到上手](https://www.jianshu.com/p/228b668361bd)
-
-
-
-音频编码 Audio Converter
-
-[https://xiaodongxie1024.github.io/2019/05/15/20190515_audioEncoder/](https://xiaodongxie1024.github.io/2019/05/15/20190515_audioEncoder/)
-
-
-
-iOS利用FFmpeg解码音频数据并播放
-
-[https://xiaodongxie1024.github.io/2019/06/30/20190630_ios_audio_decoder/](https://xiaodongxie1024.github.io/2019/06/30/20190630_ios_audio_decoder/)
-
-
-
-AudioQueue实现音频流实时播放实战
-
-[https://xiaodongxie1024.github.io/2019/06/29/20190629_ios_audioqueue_player/](https://xiaodongxie1024.github.io/2019/06/29/20190629_ios_audioqueue_player/)
-
-
-
-iOS利用FFmpeg parse音视频数据流
-
-[https://xiaodongxie1024.github.io/2019/06/11/20190611_ios_parseavdata_ffmpeg/](https://xiaodongxie1024.github.io/2019/06/11/20190611_ios_parseavdata_ffmpeg/)
-
-
-
-iOS采集录制音视频API选择推荐(几种录音 api)
-
-[https://xiaodongxie1024.github.io/2019/05/11/20190511_AudioSelect/](https://xiaodongxie1024.github.io/2019/05/11/20190511_AudioSelect/)
-
-
-
-
-
-Audio Unit采集音频实战
-
-[https://xiaodongxie1024.github.io/2019/05/11/20190511_AudioUnit_capture/](https://xiaodongxie1024.github.io/2019/05/11/20190511_AudioUnit_capture/)
-
-
-
-Audio File 音频文件录制(AudioQueue,AudioUnit,AudioConverter音频来源)
-
-[https://xiaodongxie1024.github.io/2019/05/11/20190511_audioFile_record/](https://xiaodongxie1024.github.io/2019/05/11/20190511_audioFile_record/)
-
-
-
-Audio Queue 多种格式支持采集音频实战
-
-[https://xiaodongxie1024.github.io/2019/05/11/20190511_AudioQueue_capture/](https://xiaodongxie1024.github.io/2019/05/11/20190511_AudioQueue_capture/)
-
-
-
-IOS 端音频的采集与播放
-
-[https://xie.infoq.cn/article/b8c110b4c6d696b05a7c2f22c](https://xie.infoq.cn/article/b8c110b4c6d696b05a7c2f22c)
-
-
-
-[iOS音频之Audio Unit & AudioEngine(介绍了基本的使用方法)](https://github.com/zhenshub/WorkNote/blob/master/%E9%9F%B3%E8%A7%86%E9%A2%91%E6%8A%80%E6%9C%AF/iOS%E9%9F%B3%E9%A2%91%E4%B9%8BAudioUnit%26AudioEngine.md)
-
-
-
-[iOS AVAudioEngine使用教程](https://blog.csdn.net/Philm_iOS/article/details/81664556)
-
-
-
-[AVFoundation框架解析（二十七） —— 基于AVAudioEngine的简单使用示例（一）](https://www.jianshu.com/p/56ceba2f8a30)
-
-
-
-[【融云分析】iOS 混音之 AVAudioEngine 详解](https://zhuanlan.zhihu.com/p/252852148)
-
-
-
-[Audio API Overview](https://www.objc.io/issues/24-audio/audio-api-overview/)
-
-
-
-[iOS Audio : 变声，混响，语音合成 TTS,AVAudioEngine](https://zhuanlan.zhihu.com/p/85136922)
-
-
-
-[AVAudioEngine Tutorial for iOS: Getting Started](https://www.kodeco.com/21672160-avaudioengine-tutorial-for-ios-getting-started)
-
-
-
-iOS音频播放 (三)：AudioFileStream
-
-[https://msching.github.io/blog/2014/07/09/audio-in-ios-3/](https://msching.github.io/blog/2014/07/09/audio-in-ios-3/)
-
-<font style="color:rgb(64, 64, 64);"></font>
-
-<font style="color:rgb(64, 64, 64);">AudioQueue 知识</font>
-
-[https://www.jianshu.com/p/ed6d0862bd0d](https://www.jianshu.com/p/ed6d0862bd0d)
-
-
-
-AudioStreamer
-
-[https://github.com/mattgallagher/AudioStreamer](https://github.com/mattgallagher/AudioStreamer)
-
-WebRTC 系列之音频会话管理
-
-[https://blog.csdn.net/netease_im/article/details/113875029?utm_medium=distribute.pc_relevant.none-task-blog-OPENSEARCH-10.control&dist_request_id=&depth_1-utm_source=distribute.pc_relevant.none-task-blog-OPENSEARCH-10.control](https://blog.csdn.net/netease_im/article/details/113875029?utm_medium=distribute.pc_relevant.none-task-blog-OPENSEARCH-10.control&dist_request_id=&depth_1-utm_source=distribute.pc_relevant.none-task-blog-OPENSEARCH-10.control)
-
-
-
-Apple Audio Document
-
-[https://developer.apple.com/library/archive/documentation/Audio/Conceptual/AudioSessionProgrammingGuide/AudioSessionBasics/AudioSessionBasics.html#//apple_ref/doc/uid/TP40007875-CH3-SW1](https://developer.apple.com/library/archive/documentation/Audio/Conceptual/AudioSessionProgrammingGuide/AudioSessionBasics/AudioSessionBasics.html#//apple_ref/doc/uid/TP40007875-CH3-SW1)
-
-
-
-iOS 音频-AVAudioSession
-
-[https://www.jianshu.com/p/fb0e5fb71b3c](https://www.jianshu.com/p/fb0e5fb71b3c)
-
-
-
-在线教室 iOS 端声音问题综合解决方案
-
-[https://mp.weixin.qq.com/s?__biz=MzI1MzYzMjE0MQ==&mid=2247488032&idx=1&sn=a8e8948fcd043cd0124e8bfe26aa0784&chksm=e9d0d9c2dea750d45cb31e321c2206cc5e2c1d6a6ce1ea888432d7529660254df18325bb0582&mpshare=1&scene=1&srcid=0302VQAMfPTnksVVWajpjD31&sharer_sharetime=1614681590686&sharer_shareid=56acb924444b93ede624b545b0383c04#rd](https://mp.weixin.qq.com/s?__biz=MzI1MzYzMjE0MQ==&mid=2247488032&idx=1&sn=a8e8948fcd043cd0124e8bfe26aa0784&chksm=e9d0d9c2dea750d45cb31e321c2206cc5e2c1d6a6ce1ea888432d7529660254df18325bb0582&mpshare=1&scene=1&srcid=0302VQAMfPTnksVVWajpjD31&sharer_sharetime=1614681590686&sharer_shareid=56acb924444b93ede624b545b0383c04#rd)
-
-
-
-音频变速变调 -sonic 源码分析
-
-[https://xie.infoq.cn/article/d71ced957347f6f70f3c0775d](https://xie.infoq.cn/article/d71ced957347f6f70f3c0775d)
-
-
-
-音频变速变调原理及 soundtouch 代码分析
-
-[https://xie.infoq.cn/article/6c522d10615dfaa4abe6df4f6](https://xie.infoq.cn/article/6c522d10615dfaa4abe6df4f6)
-
-
-
-音频均衡器 EQ
-
-[https://xie.infoq.cn/article/7d89f0251237cc6b8ce740e77](https://xie.infoq.cn/article/7d89f0251237cc6b8ce740e77)
-
-AVAudioSession-Category各种姿势
-
-[https://www.sunyazhou.com/2018/01/AVAudioSessionCategory/](https://www.sunyazhou.com/2018/01/AVAudioSessionCategory/)
-
-AVAudioSession Programming Guide
-
-[https://maxwellqi.github.io/ios-avaudiosession-guide/](https://maxwellqi.github.io/ios-avaudiosession-guide/)
-
-
-
-关于实现唱吧清唱功能的理解
-
-[https://oliverqueen.cn/2018-06-19-MusicAbout/](https://oliverqueen.cn/2018-06-19-MusicAbout/)
-
-
-
-增益和音量的关系
-
-[有个问题一直没搞懂，高低增益仅仅是“音量上”的改变吗？](http://erji.net/forum.php?mod=viewthread&tid=2159506&page=2)
-
-[音频增益会影响声音大小吗](http://www.erji.net/forum.php?mod=viewthread&tid=2173604#:~:text=7%2008%3A34-,%E5%A2%9E%E7%9B%8A%E5%92%8C%E8%BE%93%E5%87%BA%E5%8A%9F%E7%8E%87%E6%97%A0%E5%85%B3%E3%80%82,%E5%8A%9F%E7%8E%87%E4%BC%9A%E5%8F%98%E5%A4%A7%E5%BE%88%E5%A4%9A%E3%80%82)
-
-
-
-[音视频开发入门：音频基础](https://blog.jianchihu.net/av-develop-audio-basis.html)
-
-处理库
-
-[Audiokit](https://www.audiokit.io/)
-
-
-
-[veImageX 演进之路：iOS 高性能图片加载 SDK](https://developer.volcengine.com/articles/7238813685727100965)
-
-<font style="color:rgb(40, 47, 56);"></font>
-
-[在视频中，颜色空间使用YUV420好，还是YUV444好？｜社区征文](https://developer.volcengine.com/articles/7175466416382935097)
-
-<font style="color:rgb(40, 47, 56);"></font>
-
-[播放器技术分享（1）：架构设计](https://blog.51cto.com/ticktick/2324928)
-
-[播放器技术分享（2）：缓冲区管理](https://blog.51cto.com/ticktick/2326207)
-
-[播放器技术分享（3）：音画同步](https://blog.51cto.com/ticktick/2328003)
-
-[播放器技术分享（4）：首开时间](https://blog.51cto.com/ticktick/2334148)
-
-[播放器技术分享（5）：延时优化](https://blog.51cto.com/ticktick/2339355)
-
-[倚天屠龙化长虹——音视频与渲染](https://zhuanlan.zhihu.com/p/350594727)
-
-[如何学习音视频开发?](https://www.zhihu.com/question/325943454)
+- [B 站 WebRTC 测试实践](https://www.nxrte.com/jishu/webrtc/40585.html)
+- [WebRTC 源码分析（8）- 拥塞控制（上）- 码率预估](https://www.cnblogs.com/ishen/p/15249678.html)
+- [WebRTC 源码分析汇总](https://www.cnblogs.com/ishen/category/1619028.html)
+- [WebRTC Native 源码导读](https://blog.piasy.com/tags/index.html#WebRTC)
+- [WebRTC 源码分析（博主 list）](https://chensongpoixs.github.io/tags/?tag=WebRTC#/)
+- [WebRTC 源码分析（4）- 视频发送流程](https://www.cnblogs.com/ishen/p/15154959.html)
+- [WebRTC 源码分析起步](https://blog.csdn.net/ababab12345/article/details/119834031)
+- [WebRTC TURN 协议源码分析](https://justme0.com/archive/turn.html)
+- [WebRTC 的音视频如何同步](https://www.fanyamin.com/blog/webrtc-de-yin-shi-pin-ru-he-tong-bu.html)
+- [WebRTC Native 源码导读（九）：iOS 视频硬编码实现分析](https://blog.piasy.com/2018/05/04/WebRTC-iOS-HW-Encode-Video/index.html)
+
+## AV1
+- [关于苹果 AV1 支持您需要了解的一切](https://www.nxrte.com/jishu/42456.html)
+
+## H264/编码
+- [音视频问题汇总 – H264 标准中 u 和 ue 的差别](https://www.nxrte.com/jishu/yinshipin/32270.html)
+- [自己动手写 H.264 解码器](https://www.zzsin.com/catalog/write_avc_decoder.html)
+- [实现一个 H264 编码器前期准备](https://www.nxrte.com/jishu/36031.html)
+- [如何在 H264 码流的 SPS 中获取宽和高信息？](https://www.nxrte.com/jishu/14432.html)
+- [H.264 学习笔记](https://www.nxrte.com/jishu/2422.html)
+- [H.264 码流结构和编解码过程](https://www.nxrte.com/jishu/21000.html)
+- [H264 的编码帧类型（IDR 帧、I 帧、P 帧或 B 帧）和帧结构](https://www.nxrte.com/jishu/21382.html)
+- [音视频压缩：H264 码流层次结构和 NALU 详解](https://cloud.tencent.com/developer/article/1746993)
+
+## SEI
+- [如何理解和使用 SEI（媒体补充增强信息）？](https://www.nxrte.com/jishu/23419.html)
+- [SEI 补充增强信息（全网最全 SEI 指南）](https://www.nxrte.com/jishu/10446.html)
+- [什么是 H.264 SEI？H.264 SEI 的编码和获取](https://www.nxrte.com/jishu/44484.html)
+
+## 视频技术
+- [YUV 转 RGB 有哪些重要的点](https://juejin.cn/post/7033237038446936101)
+- [如何开发出一款仿映客直播 APP 项目实践篇 - 原理篇](https://www.jianshu.com/p/b2674fc2ac35)
+- [视频直播的技术原理和实现思路方案整理](https://github.com/f2e-journey/xueqianban/issues/61)
+
+## 图形渲染 / Shader
+- [构建和使用自己的 Shader 炫酷特效](https://www.zzsin.com/shaderplus.html)
+
+## 博客搜集
+- [掘金 - blackstar666](https://juejin.cn/user/255551407668360/posts)
+- [博客园 - blackstar666](https://home.cnblogs.com/u/smartNeo/)
+- [blackstar666 博客园 - 音频](https://www.cnblogs.com/smartNeo/category/1977258.html)
+
+
+
+## 音频解码与处理
+- [音频之声道那些事 -- PCM 声道](https://www.cnblogs.com/smartNeo/p/14789302.html)
+- [视音频数据处理入门：PCM 音频采样数据处理](https://blog.csdn.net/leixiaohua1020/article/details/50534316)
+- [实时音视频的那些事儿（一）](https://blog.csdn.net/weixin_42684521/article/details/129388459)
+- [(强烈推荐) 移动端音视频从零到上手](https://www.jianshu.com/p/228b668361bd)
+
+### 音频编码
+- [音频编码 Audio Converter](https://xiaodongxie1024.github.io/2019/05/15/20190515_audioEncoder/)
+- [iOS 利用 FFmpeg 解码音频数据并播放](https://xiaodongxie1024.github.io/2019/06/30/20190630_ios_audio_decoder/)
+- [AudioQueue 实现音频流实时播放实战](https://xiaodongxie1024.github.io/2019/06/29/20190629_ios_audioqueue_player/)
+- [iOS 利用 FFmpeg parse 音视频数据流](https://xiaodongxie1024.github.io/2019/06/11/20190611_ios_parseavdata_ffmpeg/)
+- [iOS 采集录制音视频 API 选择推荐（几种录音 API）](https://xiaodongxie1024.github.io/2019/05/11/20190511_AudioSelect/)
+- [Audio Unit 采集音频实战](https://xiaodongxie1024.github.io/2019/05/11/20190511_AudioUnit_capture/)
+- [Audio File 音频文件录制（AudioQueue, AudioUnit, AudioConverter 音频来源）](https://xiaodongxie1024.github.io/2019/05/11/20190511_audioFile_record/)
+- [Audio Queue 多种格式支持采集音频实战](https://xiaodongxie1024.github.io/2019/05/11/20190511_AudioQueue_capture/)
+- [iOS 端音频的采集与播放](https://xie.infoq.cn/article/b8c110b4c6d696b05a7c2f22c)
+
+
+
+### AVAudioEngine
+- [iOS 音频之 Audio Unit & AudioEngine（介绍了基本的使用方法）](https://github.com/zhenshub/WorkNote/blob/master/%E9%9F%B3%E8%A7%86%E9%A2%91%E6%8A%80%E6%9C%AF/iOS%E9%9F%B3%E9%A2%91%E4%B9%8BAudioUnit%26AudioEngine.md)
+- [iOS AVAudioEngine 使用教程](https://blog.csdn.net/Philm_iOS/article/details/81664556)
+- [AVFoundation 框架解析（二十七）—— 基于 AVAudioEngine 的简单使用示例](https://www.jianshu.com/p/56ceba2f8a30)
+- [【融云分析】iOS 混音之 AVAudioEngine 详解](https://zhuanlan.zhihu.com/p/252852148)
+- [Audio API Overview](https://www.objc.io/issues/24-audio/audio-api-overview/)
+- [iOS Audio : 变声，混响，语音合成 TTS, AVAudioEngine](https://zhuanlan.zhihu.com/p/85136922)
+- [AVAudioEngine Tutorial for iOS: Getting Started](https://www.kodeco.com/21672160-avaudioengine-tutorial-for-ios-getting-started)
+
+### 音频播放
+- [iOS 音频播放（三）：AudioFileStream](https://msching.github.io/blog/2014/07/09/audio-in-ios-3/)
+- [AudioQueue 知识](https://www.jianshu.com/p/ed6d0862bd0d)
+- [AudioStreamer](https://github.com/mattgallagher/AudioStreamer)
+- [WebRTC 系列之音频会话管理](https://blog.csdn.net/netease_im/article/details/113875029)
+- [iOS 音频 - AVAudioSession](https://www.jianshu.com/p/fb0e5fb71b3c)
+- [AVAudioSession Programming Guide](https://maxwellqi.github.io/ios-avaudiosession-guide/)
+- [AVAudioSession-Category 各种姿势](https://www.sunyazhou.com/2018/01/AVAudioSessionCategory/)
+
+### 音频处理
+- [在线教室 iOS 端声音问题综合解决方案](https://mp.weixin.qq.com/s?__biz=MzI1MzYzMjE0MQ==&mid=2247488032&idx=1&sn=a8e8948fcd043cd0124e8bfe26aa0784)
+- [音频变速变调 - sonic 源码分析](https://xie.infoq.cn/article/d71ced957347f6f70f3c0775d)
+- [音频变速变调原理及 soundtouch 代码分析](https://xie.infoq.cn/article/6c522d10615dfaa4abe6df4f6)
+- [音频均衡器 EQ](https://xie.infoq.cn/article/7d89f0251237cc6b8ce740e77)
+- [关于实现唱吧清唱功能的理解](https://oliverqueen.cn/2018-06-19-MusicAbout/)
+
+
+
+### 音量与增益
+- [增益和音量的关系](http://erji.net/forum.php?mod=viewthread&tid=2159506&page=2)
+- [音频增益会影响声音大小吗](http://www.erji.net/forum.php?mod=viewthread&tid=2173604)
+
+### 其他音频资源
+- [音视频开发入门：音频基础](https://blog.jianchihu.net/av-develop-audio-basis.html)
+- [Audiokit](https://www.audiokit.io/)
+
+### 视频技术
+- [veImageX 演进之路：iOS 高性能图片加载 SDK](https://developer.volcengine.com/articles/7238813685727100965)
+- [在视频中，颜色空间使用 YUV420 好，还是 YUV444 好？](https://developer.volcengine.com/articles/7175466416382935097)
+
+### 播放器技术
+- [播放器技术分享（1）：架构设计](https://blog.51cto.com/ticktick/2324928)
+- [播放器技术分享（2）：缓冲区管理](https://blog.51cto.com/ticktick/2326207)
+- [播放器技术分享（3）：音画同步](https://blog.51cto.com/ticktick/2328003)
+- [播放器技术分享（4）：首开时间](https://blog.51cto.com/ticktick/2334148)
+- [播放器技术分享（5）：延时优化](https://blog.51cto.com/ticktick/2339355)
+- [倚天屠龙化长虹——音视频与渲染](https://zhuanlan.zhihu.com/p/350594727)
+- [如何学习音视频开发?](https://www.zhihu.com/question/325943454)
 
 
 ## AudioUnit
-<details class="lake-collapse"><summary id="ub2f2ff36"><span class="ne-text">收集地址</span></summary><p id="u5f52fb57" class="ne-p"><span class="ne-text">使用 Audio Unit 录制音频</span></p><p id="u29cf95c9" class="ne-p"><a href="https://github.com/zhonglaoban/AudioUnitRecorder" data-href="https://github.com/zhonglaoban/AudioUnitRecorder" target="_blank" class="ne-link"><span class="ne-text">https://github.com/zhonglaoban/AudioUnitRecorder</span></a></p><p id="u6607ccfb" class="ne-p"><span class="ne-text"></span></p><p id="u01180d2d" class="ne-p"><span class="ne-text">构造Audio Unit应用</span></p><p id="ud424e8ba" class="ne-p"><a href="https://acefish.github.io/15776919276552.html" data-href="https://acefish.github.io/15776919276552.html" target="_blank" class="ne-link"><span class="ne-text">https://acefish.github.io/15776919276552.html</span></a></p><p id="ua1d07238" class="ne-p"><span class="ne-text"></span></p><p id="u78dd56af" class="ne-p"><span class="ne-text">深入理解 AudioUnit (一) ~ IO Unit 结构和运行机制</span></p><p id="u64cb24ec" class="ne-p"><a href="https://xueshi.io/2022/03/12/AudioUnit-01-IOUnit/" data-href="https://xueshi.io/2022/03/12/AudioUnit-01-IOUnit/" target="_blank" class="ne-link"><span class="ne-text">https://xueshi.io/2022/03/12/AudioUnit-01-IOUnit/</span></a></p><p id="ubd7a6b81" class="ne-p"><span class="ne-text"></span></p><p id="ubcd9887c" class="ne-p"><span class="ne-text">深入理解 AudioUnit (二) ~ Mixing Unit &amp; Effect Unit &amp; Converter Unit</span></p><p id="u65a953b9" class="ne-p"><a href="https://xueshi.io/2022/03/19/AudioUnit-02-Mixer-and-Effect-Units/" data-href="https://xueshi.io/2022/03/19/AudioUnit-02-Mixer-and-Effect-Units/" target="_blank" class="ne-link"><span class="ne-text">https://xueshi.io/2022/03/19/AudioUnit-02-Mixer-and-Effect-Units/</span></a></p><p id="u9349ba85" class="ne-p"><span class="ne-text"></span></p><p id="u770fde8d" class="ne-p"><span class="ne-text">iOS底层音频处理初步研究</span></p><p id="u86cf7087" class="ne-p"><a href="http://masterviva.cn/2020/10/05/AudioUnit-Effect/" data-href="http://masterviva.cn/2020/10/05/AudioUnit-Effect/" target="_blank" class="ne-link"><span class="ne-text">http://masterviva.cn/2020/10/05/AudioUnit-Effect/</span></a></p><p id="u84e3e872" class="ne-p"><br></p><p id="u686a1e40" class="ne-p"><span class="ne-text">Audio Unit: iOS中最底层最强大的音频控制API</span></p><p id="ufc93b08a" class="ne-p"><a href="https://zhuanlan.zhihu.com/p/615587742" data-href="https://zhuanlan.zhihu.com/p/615587742" target="_blank" class="ne-link"><span class="ne-text">https://zhuanlan.zhihu.com/p/615587742</span></a></p><p id="u48c49634" class="ne-p"><span class="ne-text"></span></p><p id="uabd4316b" class="ne-p"><span class="ne-text">Audio Unit 工作原理</span></p><p id="u48b65f46" class="ne-p"><a href="https://acefish.github.io/15773512971221.html" data-href="https://acefish.github.io/15773512971221.html" target="_blank" class="ne-link"><span class="ne-text">https://acefish.github.io/15773512971221.html</span></a></p><p id="u7e2573a2" class="ne-p"><span class="ne-text"></span></p><p id="uf1f190f9" class="ne-p"><span class="ne-text">AudioUnit</span></p><p id="u0ad93122" class="ne-p"><a href="https://www.sunyazhou.com/2018/05/AudioUnit/" data-href="https://www.sunyazhou.com/2018/05/AudioUnit/" target="_blank" class="ne-link"><span class="ne-text">https://www.sunyazhou.com/2018/05/AudioUnit/</span></a></p><p id="u9f101c79" class="ne-p"><span class="ne-text"></span></p><p id="ua0becad7" class="ne-p"><span class="ne-text">AudioUnit 框架详细解析</span></p><p id="u91925518" class="ne-p"><a href="https://developer.aliyun.com/article/663835" data-href="https://developer.aliyun.com/article/663835" target="_blank" class="ne-link"><span class="ne-text">https://developer.aliyun.com/article/663835</span></a></p><p id="u6acc99c7" class="ne-p"><span class="ne-text"></span></p><p id="u01e85e2b" class="ne-p"><span class="ne-text">iOS音频-AudioUnit（官方文档）</span></p><p id="u1c283fa7" class="ne-p"><a href="https://juejin.cn/post/6980729874931515399" data-href="https://juejin.cn/post/6980729874931515399" target="_blank" class="ne-link"><span class="ne-text">https://juejin.cn/post/6980729874931515399</span></a></p><p id="u21dd5ef6" class="ne-p"><span class="ne-text"></span></p><p id="u552e40d6" class="ne-p"><span class="ne-text">iOS音频播放(三)AudioUnit介绍与实战</span></p><p id="ubb4743b1" class="ne-p"><a href="https://juejin.cn/post/6844903944930459655" data-href="https://juejin.cn/post/6844903944930459655" target="_blank" class="ne-link"><span class="ne-text">https://juejin.cn/post/6844903944930459655</span></a></p><p id="u3f091c28" class="ne-p"><span class="ne-text"></span></p><p id="udfab7196" class="ne-p"><span class="ne-text">iOS CoreAudio AudioStreamBasicDescription 音频格式概念简介</span></p><p id="ue7e82ce7" class="ne-p"><a href="https://cloud.tencent.com/developer/article/1873839" data-href="https://cloud.tencent.com/developer/article/1873839" target="_blank" class="ne-link"><span class="ne-text">https://cloud.tencent.com/developer/article/1873839</span></a></p><p id="ua2da8dc9" class="ne-p"><span class="ne-text"></span></p><p id="u0f747444" class="ne-p"><span class="ne-text">互动连麦场景实现：从技术角度解析</span></p><p id="u942d1c9b" class="ne-p"><a href="https://developer.baidu.com/article/details/2824868" data-href="https://developer.baidu.com/article/details/2824868" target="_blank" class="ne-link"><span class="ne-text">https://developer.baidu.com/article/details/2824868</span></a></p><p id="ua559acbf" class="ne-p"><span class="ne-text"></span></p><p id="u4458fdd6" class="ne-p"><span class="ne-text">关于实现唱吧清唱功能的理解</span></p><p id="u258be902" class="ne-p"><a href="https://oliverqueen.cn/2018-06-19-MusicAbout/" data-href="https://oliverqueen.cn/2018-06-19-MusicAbout/" target="_blank" class="ne-link"><span class="ne-text">https://oliverqueen.cn/2018-06-19-MusicAbout/</span></a></p><p id="u2a5c2ec0" class="ne-p"><span class="ne-text">About Audio Unit Hosting</span></p><p id="u05350371" class="ne-p"><a href="https://developer.apple.com/library/archive/documentation/MusicAudio/Conceptual/AudioUnitHostingGuide_iOS/Introduction/Introduction.html#//apple_ref/doc/uid/TP40009492" data-href="https://developer.apple.com/library/archive/documentation/MusicAudio/Conceptual/AudioUnitHostingGuide_iOS/Introduction/Introduction.html#//apple_ref/doc/uid/TP40009492" target="_blank" class="ne-link"><span class="ne-text">https://developer.apple.com/library/archive/documentation/MusicAudio/Conceptual/AudioUnitHostingGuide_iOS/Introduction/Introduction.html#//apple_ref/doc/uid/TP40009492</span></a></p><p id="u726e1960" class="ne-p"><br></p><p id="u56faf92e" class="ne-p"><span class="ne-text">iOS 音视频高级编程：Audio Unit播放FFmpeg解码的音频</span></p><p id="u2cf4b5bb" class="ne-p"><a href="https://blog.51cto.com/u_16124099/6328630?articleABtest=0" data-href="https://blog.51cto.com/u_16124099/6328630?articleABtest=0" target="_blank" class="ne-link"><span class="ne-text">https://blog.51cto.com/u_16124099/6328630?articleABtest=0</span></a></p><p id="uae96d476" class="ne-p"><span class="ne-text"></span></p><p id="u24fb5a14" class="ne-p"><span class="ne-text">iOS AudioSession详解 Category选择 听筒扬声器切换</span></p><p id="ue8168a74" class="ne-p"><a href="https://blog.51cto.com/u_16124099/6801235" data-href="https://blog.51cto.com/u_16124099/6801235" target="_blank" class="ne-link"><span class="ne-text">https://blog.51cto.com/u_16124099/6801235</span></a></p><p id="u9a80dd3e" class="ne-p"><span class="ne-text"></span></p><p id="ua9a08360" class="ne-p"><span class="ne-text">QQ电话适配iOS10 Callkit框架分享 </span></p><p id="u6c587ac2" class="ne-p"><a href="https://blog.51cto.com/u_16124099/6801197" data-href="https://blog.51cto.com/u_16124099/6801197" target="_blank" class="ne-link"><span class="ne-text">https://blog.51cto.com/u_16124099/6801197</span></a></p><p id="uaf016193" class="ne-p"><span class="ne-text"></span></p><p id="ub26c24de" class="ne-p"><span class="ne-text" style="color: rgb(34, 34, 38)">音频左右声道数据合并到一个声道</span></p><p id="u30bcc245" class="ne-p"><a href="https://blog.csdn.net/qq_42014563/article/details/107953692" data-href="https://blog.csdn.net/qq_42014563/article/details/107953692" target="_blank" class="ne-link"><span class="ne-text">https://blog.csdn.net/qq_42014563/article/details/107953692</span></a></p><p id="u5ec1a24a" class="ne-p"><span class="ne-text"></span></p></details>
+
+- [使用 Audio Unit 录制音频](https://github.com/zhonglaoban/AudioUnitRecorder)
+- [构造 Audio Unit 应用](https://acefish.github.io/15776919276552.html)
+- [深入理解 AudioUnit (一) ~ IO Unit 结构和运行机制](https://xueshi.io/2022/03/12/AudioUnit-01-IOUnit/)
+- [深入理解 AudioUnit (二) ~ Mixing Unit & Effect Unit & Converter Unit](https://xueshi.io/2022/03/19/AudioUnit-02-Mixer-and-Effect-Units/)
+- [iOS 底层音频处理初步研究](http://masterviva.cn/2020/10/05/AudioUnit-Effect/)
+- [Audio Unit: iOS 中最底层最强大的音频控制 API](https://zhuanlan.zhihu.com/p/615587742)
+- [Audio Unit 工作原理](https://acefish.github.io/15773512971221.html)
+- [AudioUnit](https://www.sunyazhou.com/2018/05/AudioUnit/)
+- [AudioUnit 框架详细解析](https://developer.aliyun.com/article/663835)
+- [iOS 音频 - AudioUnit（官方文档）](https://juejin.cn/post/6980729874931515399)
+- [iOS 音频播放（三）AudioUnit 介绍与实战](https://juejin.cn/post/6844903944930459655)
+- [iOS CoreAudio AudioStreamBasicDescription 音频格式概念简介](https://cloud.tencent.com/developer/article/1873839)
+- [互动连麦场景实现：从技术角度解析](https://developer.baidu.com/article/details/2824868)
+- [关于实现唱吧清唱功能的理解](https://oliverqueen.cn/2018-06-19-MusicAbout/)
+- [About Audio Unit Hosting](https://developer.apple.com/library/archive/documentation/MusicAudio/Conceptual/AudioUnitHostingGuide_iOS/Introduction/Introduction.html)
+- [iOS 音视频高级编程：Audio Unit 播放 FFmpeg 解码的音频](https://blog.51cto.com/u_16124099/6328630)
+- [iOS AudioSession 详解 Category 选择 听筒扬声器切换](https://blog.51cto.com/u_16124099/6801235)
+- [QQ 电话适配 iOS10 CallKit 框架分享](https://blog.51cto.com/u_16124099/6801197)
+- [音频左右声道数据合并到一个声道](https://blog.csdn.net/qq_42014563/article/details/107953692)
+
 ## WebRTC
-<details class="lake-collapse"><summary id="u2b9b9238"><span class="ne-text">搜集相关</span></summary><p id="ubc6a7276" class="ne-p"><span class="ne-text">WebRTC 系列之音频的那些事</span></p><p id="u327c4647" class="ne-p"><a href="https://worktile.com/kb/p/5925" data-href="https://worktile.com/kb/p/5925" target="_blank" class="ne-link"><span class="ne-text">https://worktile.com/kb/p/5925</span></a></p><p id="u618e0a91" class="ne-p"><span class="ne-text"></span></p><p id="u13ae8457" class="ne-p"><span class="ne-text">WebRTC 开发（九）音频采集与渲染</span></p><p id="u41982289" class="ne-p"><a href="https://depthlove.github.io/2019/12/17/webrtc-development-9-audio-capture-and-render/" data-href="https://depthlove.github.io/2019/12/17/webrtc-development-9-audio-capture-and-render/" target="_blank" class="ne-link"><span class="ne-text">https://depthlove.github.io/2019/12/17/webrtc-development-9-audio-capture-and-render/</span></a></p><p id="u40d48062" class="ne-p"><span class="ne-text"></span></p><p id="u1dac7a6b" class="ne-p"><span class="ne-text">剑痴乎的博客(WebRTC 相关)</span></p><p id="uf711cb41" class="ne-p"><a href="https://blog.jianchihu.net/" data-href="https://blog.jianchihu.net/" target="_blank" class="ne-link"><span class="ne-text">https://blog.jianchihu.net/</span></a></p><p id="u31ee6f88" class="ne-p"><span class="ne-text"></span></p><p id="ucd25c590" class="ne-p"><span class="ne-text">音频采集与播放（AudioRecord与AudioTrack）最全笔记</span></p><p id="ue44980ff" class="ne-p"><a href="https://juejin.cn/post/7286307632192356411" data-href="https://juejin.cn/post/7286307632192356411" target="_blank" class="ne-link"><span class="ne-text">https://juejin.cn/post/7286307632192356411</span></a></p><p id="ub2b30c8c" class="ne-p"><span class="ne-text"></span></p><p id="u3962004f" class="ne-p"><span class="ne-text">WebRTC本地音频回调、选用音频采集设备及自定义输入音频</span></p><p id="ubb21d446" class="ne-p"><a href="https://blog.csdn.net/weixin_39343678/article/details/99948451" data-href="https://blog.csdn.net/weixin_39343678/article/details/99948451" target="_blank" class="ne-link"><span class="ne-text">https://blog.csdn.net/weixin_39343678/article/details/99948451</span></a></p><p id="u9175e442" class="ne-p"><span class="ne-text"></span></p><p id="ub6fe1ba0" class="ne-p"><span class="ne-text"></span></p><p id="u0465f35a" class="ne-p"><span class="ne-text">音视频通信为什么要选择WebRTC</span></p><p id="u67991125" class="ne-p"><a href="https://blog.avdancedu.com/b363212d/" data-href="https://blog.avdancedu.com/b363212d/" target="_blank" class="ne-link"><span class="ne-text">https://blog.avdancedu.com/b363212d/</span></a></p><p id="u61ecd7ad" class="ne-p"><span class="ne-text"></span></p><p id="ucacbabe7" class="ne-p"><span class="ne-text">WebRTC IOS视频硬编码流程及其中传递的CVPixelBufferRef</span></p><p id="u80226db4" class="ne-p"><a href="https://www.jianshu.com/p/a27930e722c1" data-href="https://www.jianshu.com/p/a27930e722c1" target="_blank" class="ne-link"><span class="ne-text">https://www.jianshu.com/p/a27930e722c1</span></a></p><p id="u1c041f69" class="ne-p"><span class="ne-text"></span></p><p id="u47b9da81" class="ne-p"><span class="ne-text">DTLS协议中client/server的认证过程和密钥协商过程</span></p><p id="ue4e13972" class="ne-p"><a href="https://blog.csdn.net/pengkunlun_hit/article/details/52177227?utm_source=blogxgwz5" data-href="https://blog.csdn.net/pengkunlun_hit/article/details/52177227?utm_source=blogxgwz5" target="_blank" class="ne-link"><span class="ne-text">https://blog.csdn.net/pengkunlun_hit/article/details/52177227?utm_source=blogxgwz5</span></a></p><p id="u049c0b6d" class="ne-p"><span class="ne-text"></span></p><p id="udfdc91fe" class="ne-p"><span class="ne-text">WebRTC源码分析之IOS Audio Unit</span></p><p id="uc8bdd081" class="ne-p"><a href="https://www.jianshu.com/p/e86380eca764" data-href="https://www.jianshu.com/p/e86380eca764" target="_blank" class="ne-link"><span class="ne-text">https://www.jianshu.com/p/e86380eca764</span></a></p><p id="u5643bb91" class="ne-p"><span class="ne-text"></span></p><p id="udc28b0b5" class="ne-p"><span class="ne-text">AudioUnit</span></p><p id="ua3938b36" class="ne-p"><a href="https://www.jianshu.com/p/4f63a23f3c55" data-href="https://www.jianshu.com/p/4f63a23f3c55" target="_blank" class="ne-link"><span class="ne-text">https://www.jianshu.com/p/4f63a23f3c55</span></a></p><p id="u7814bff1" class="ne-p"><span class="ne-text"></span></p><p id="ua1307211" class="ne-p"><span class="ne-text">Audio Unit Hosting Fundamentals</span></p><p id="ud582a8f6" class="ne-p"><a href="https://developer.apple.com/library/archive/documentation/MusicAudio/Conceptual/AudioUnitHostingGuide_iOS/AudioUnitHostingFundamentals/AudioUnitHostingFundamentals.html" data-href="https://developer.apple.com/library/archive/documentation/MusicAudio/Conceptual/AudioUnitHostingGuide_iOS/AudioUnitHostingFundamentals/AudioUnitHostingFundamentals.html" target="_blank" class="ne-link"><span class="ne-text">https://developer.apple.com/library/archive/documentation/MusicAudio/Conceptual/AudioUnitHostingGuide_iOS/AudioUnitHostingFundamentals/AudioUnitHostingFundamentals.html</span></a></p><p id="u1f89cfbc" class="ne-p"><span class="ne-text"></span></p><p id="u000fbf0d" class="ne-p"><span class="ne-text">WebRTC 混音分析</span></p><p id="ud1cf96bd" class="ne-p"><a href="https://www.jianshu.com/p/eeb5ea6ef097" data-href="https://www.jianshu.com/p/eeb5ea6ef097" target="_blank" class="ne-link"><span class="ne-text">https://www.jianshu.com/p/eeb5ea6ef097</span></a></p><p id="u649cb82b" class="ne-p"><span class="ne-text"></span></p><p id="ubfaf0c13" class="ne-p"><span class="ne-text">游戏实时语音解决方案是怎么炼成的</span></p><p id="uacac1b4d" class="ne-p"><a href="https://blog.csdn.net/zego_0616/article/details/78803475" data-href="https://blog.csdn.net/zego_0616/article/details/78803475" target="_blank" class="ne-link"><span class="ne-text">https://blog.csdn.net/zego_0616/article/details/78803475</span></a></p><p id="u3e1007f6" class="ne-p"><span class="ne-text"></span></p><p id="u9d2f6880" class="ne-p"><span class="ne-text" style="color: rgb(40, 47, 56)">深入探究音视频开源库WebRTC中NetEQ音频抗网络延时与抗丢包的实现机制 | 主赛道</span></p><p id="u83d436d0" class="ne-p"><a href="https://developer.volcengine.com/articles/7317915600867557430" data-href="https://developer.volcengine.com/articles/7317915600867557430" target="_blank" class="ne-link"><span class="ne-text" style="color: rgb(40, 47, 56)">https://developer.volcengine.com/articles/7317915600867557430</span></a></p><p id="ue3a62e4e" class="ne-p"><span class="ne-text" style="color: rgb(40, 47, 56)"></span></p><p id="u68c253fc" class="ne-p"><span class="ne-text" style="color: rgb(40, 47, 56)">“零耗时”首帧视频体验的优化实践</span></p><p id="u46a3b7b8" class="ne-p"><a href="https://developer.volcengine.com/articles/7240373081837928486" data-href="https://developer.volcengine.com/articles/7240373081837928486" target="_blank" class="ne-link"><span class="ne-text" style="color: rgb(40, 47, 56)">https://developer.volcengine.com/articles/7240373081837928486</span></a></p><p id="u387cc52d" class="ne-p"><span class="ne-text" style="color: rgb(40, 47, 56)"></span></p><p id="ueb45794f" class="ne-p"><span class="ne-text" style="color: rgb(40, 47, 56)"></span></p></details>
-## OBS
-<details class="lake-collapse"><summary id="u1e78a993"><span class="ne-text">搜集相关</span></summary><p id="u9a178175" class="ne-p"><span class="ne-text">【音视频】OBS原理分析</span></p><p id="ue8acb5f8" class="ne-p"><a href="https://keenjin.github.io/2020/03/obs%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90/" data-href="https://keenjin.github.io/2020/03/obs%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90/" target="_blank" class="ne-link"><span class="ne-text">https://keenjin.github.io/2020/03/obs%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90/</span></a></p><p id="u050ac92d" class="ne-p"><span class="ne-text"></span></p><p id="ud41d211e" class="ne-p"><span class="ne-text">obs音视频同步方法</span></p><p id="u70195508" class="ne-p"><a href="https://www.jianshu.com/p/999aeccba3c0" data-href="https://www.jianshu.com/p/999aeccba3c0" target="_blank" class="ne-link"><span class="ne-text">https://www.jianshu.com/p/999aeccba3c0</span></a></p><p id="ua033726a" class="ne-p"><span class="ne-text"></span></p><p id="ub7355077" class="ne-p"><span class="ne-text">obs视频采集源码分析</span></p><p id="ue3cfe369" class="ne-p"><a href="https://jiantaofu.github.io/2015/07/12/obs%E8%A7%86%E9%A2%91%E9%87%87%E9%9B%86%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90/" data-href="https://jiantaofu.github.io/2015/07/12/obs%E8%A7%86%E9%A2%91%E9%87%87%E9%9B%86%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90/" target="_blank" class="ne-link"><span class="ne-text">https://jiantaofu.github.io/2015/07/12/obs%E8%A7%86%E9%A2%91%E9%87%87%E9%9B%86%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90/</span></a></p></details>
+
+- [WebRTC 系列之音频的那些事](https://worktile.com/kb/p/5925)
+- [WebRTC 开发（九）音频采集与渲染](https://depthlove.github.io/2019/12/17/webrtc-development-9-audio-capture-and-render/)
+- [剑痴乎的博客(WebRTC 相关)](https://blog.jianchihu.net/)
+- [音频采集与播放（AudioRecord与AudioTrack）最全笔记](https://juejin.cn/post/7286307632192356411)
+- [WebRTC本地音频回调、选用音频采集设备及自定义输入音频](https://blog.csdn.net/weixin_39343678/article/details/99948451)
+- [音视频通信为什么要选择WebRTC](https://blog.avdancedu.com/b363212d/)
+- [WebRTC IOS视频硬编码流程及其中传递的CVPixelBufferRef](https://www.jianshu.com/p/a27930e722c1)
+- [DTLS协议中client/server的认证过程和密钥协商过程](https://blog.csdn.net/pengkunlun_hit/article/details/52177227?utm_source=blogxgwz5)
+- [WebRTC源码分析之IOS Audio Unit](https://www.jianshu.com/p/e86380eca764)
+- [AudioUnit](https://www.jianshu.com/p/4f63a23f3c55)
+- [Audio Unit Hosting Fundamentals](https://developer.apple.com/library/archive/documentation/MusicAudio/Conceptual/AudioUnitHostingGuide_iOS/AudioUnitHostingFundamentals/AudioUnitHostingFundamentals.html)
+- [WebRTC 混音分析](https://www.jianshu.com/p/eeb5ea6ef097)
+- [游戏实时语音解决方案是怎么炼成的](https://blog.csdn.net/zego_0616/article/details/78803475)
+- [深入探究音视频开源库WebRTC中NetEQ音频抗网络延时与抗丢包的实现机制](https://developer.volcengine.com/articles/7317915600867557430)
+- ["零耗时"首帧视频体验的优化实践](https://developer.volcengine.com/articles/7240373081837928486)
+
+- [【音视频】OBS原理分析](https://keenjin.github.io/2020/03/obs%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90/)
+- [obs音视频同步方法](https://www.jianshu.com/p/999aeccba3c0)
+- [obs视频采集源码分析](https://jiantaofu.github.io/2015/07/12/obs%E8%A7%86%E9%A2%91%E9%87%87%E9%9B%86%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90/)
+
 ## 音频相关
-<details class="lake-collapse"><summary id="u8bfecc4b"><span class="ne-text">搜集</span></summary><p id="udd05d9ff" class="ne-p"><a href="https://zhuanlan.zhihu.com/p/687277624" data-href="https://zhuanlan.zhihu.com/p/687277624" target="_blank" class="ne-link"><span class="ne-text">音频技术编程概要</span></a></p><p id="uf8cbe5cf" class="ne-p"><a href="https://blog.jianchihu.net/pcm-vol-control-advance.html" data-href="https://blog.jianchihu.net/pcm-vol-control-advance.html" target="_blank" class="ne-link"><span class="ne-text">PCM音量控制（高级篇）</span></a></p><p id="u9a2a826f" class="ne-p"><a href="https://blog.jianchihu.net/pcm-volume-control.html" data-href="https://blog.jianchihu.net/pcm-volume-control.html" target="_blank" class="ne-link"><span class="ne-text">PCM音量控制</span></a></p><p id="u68248518" class="ne-p"><br></p></details>
+
+- [音频技术编程概要](https://zhuanlan.zhihu.com/p/687277624)
+- [PCM音量控制（高级篇）](https://blog.jianchihu.net/pcm-vol-control-advance.html)
+- [PCM音量控制](https://blog.jianchihu.net/pcm-volume-control.html)
 
 
 ## AudioUnit
@@ -552,60 +390,19 @@ io_unit_description.componentFlagsMask = 0;
 
 ## AVAudioEngine
 
-关于实现唱吧清唱功能的理解 https://oliverqueen.cn/2018-06-19-MusicAbout/
-【融云分析】iOS 混音之 AVAudioEngine 详解 https://www.rongcloud.cn/blog/?p=4222
-iOS Audio hand by hand: 变声，混响，语音合成 TTS，Swift5，基于 AVAudioEngine 等 https://juejin.cn/post/6844903957144272903
-Chrome 中 AVAudioEngine https://source.chromium.org/chromium/chromium/src/+/main:third_party/tflite_support/src/tensorflow_lite_support/ios/task/audio/core/audio_record/sources/TFLAudioRecord.m
-
-AVAudioEngine Tutorial for iOS: Getting Started https://www.kodeco.com/21672160-avaudioengine-tutorial-for-ios-getting-started
-
-一步一步教你实现iOS音频频谱动画（一）https://juejin.cn/post/6844903784011792391
-一步一步教你实现iOS音频频谱动画（二）https://juejin.cn/post/6844903791670591495
-
-iOSPrinciple_AVFoundation(读书推荐《音视频开发进阶指南 基于Android与iOS平台的实践》) https://github.com/ReverseScale/iOSPrinciple_AVFoundation
-
-AVFoundation 框架解析 https://developer.aliyun.com/article/663875
-
-## 音频相关
-iOS 音频采集、转换和播放
-IOS 端音频的采集与播放(豆瓣开源的播放器) https://xie.infoq.cn/article/b8c110b4c6d696b05a7c2f22c
-豆瓣 https://github.com/douban/DOUAudioStreamer
-
-Configuring an Audio Session https://developer.apple.com/library/archive/documentation/Audio/Conceptual/AudioSessionProgrammingGuide/AudioSessionBasics/AudioSessionBasics.html
-WebRTC 系列之音频会话管理 https://blog.csdn.net/netease_im/article/details/113875029?utm_medium=distribute.pc_relevant.none-task-blog-OPENSEARCH-10.control&dist_request_id=&depth_1-utm_source=distribute.pc_relevant.none-task-blog-OPENSEARCH-10.control
-
-音频解码 Audio Converter https://www.jianshu.com/p/25188072a11a
-iOS 音频-AVAudioSession  https://www.jianshu.com/p/fb0e5fb71b3c
-在线教室 iOS 端声音问题综合解决方案 https://mp.weixin.qq.com/s?__biz=MzI1MzYzMjE0MQ==&mid=2247488032&idx=1&sn=a8e8948fcd043cd0124e8bfe26aa0784&chksm=e9d0d9c2dea750d45cb31e321c2206cc5e2c1d6a6ce1ea888432d7529660254df18325bb0582&mpshare=1&scene=1&srcid=0302VQAMfPTnksVVWajpjD31&sharer_sharetime=1614681590686&sharer_shareid=56acb924444b93ede624b545b0383c04#rd
-音频解码 Audio Converter https://xiaodongxie1024.github.io/2019/05/19/20190519_AudioDecoder/
-Chrome audio_encoder https://source.chromium.org/chromium/chromium/src/+/main:media/cast/encoding/audio_encoder.cc
-
-iOS音频-audioUnit总结 https://www.jianshu.com/p/f859640fcb33
-【iOS音视频学习】AudioToolBox音频硬编码AAC https://juejin.cn/post/7069395297239040037
-
-AudioSession Programming Guide https://developer.apple.com/library/archive/documentation/Audio/Conceptual/AudioSessionProgrammingGuide/Introduction/Introduction.html#//apple_ref/doc/uid/TP40007875-CH1-SW1
-Media Playback Programming Guide https://developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/MediaPlaybackGuide/Contents/Resources/en.lproj/Introduction/Introduction.html#//apple_ref/doc/uid/TP40016757-CH1-SW1
-Multimedia Programming Guide(已过时)https://developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/MultimediaPG/UsingAudio/UsingAudio.html#//apple_ref/doc/uid/TP40009767-CH2-SW9
-AVFoundation Document https://developer.apple.com/documentation/avfoundation?language=objc
-AVFoundation Programming Guides and Reference(和 AVFoundation 相关的资源) https://developer.apple.com/av-foundation/
-Apple Developer Documentation https://developer.apple.com/documentation?language=objc
-IOS 端音频的采集与播放 https://xie.infoq.cn/article/b8c110b4c6d696b05a7c2f22c
-
-## ijkplayer
-
-● ijkplayer中遇到的问题汇总 https://juejin.cn/post/6844903694845083655
-● ijkplayer丢帧的处理方案 https://www.jianshu.com/p/ecf51ee32589
-● ijkplay播放直播流延时控制小结  https://www.jianshu.com/p/d6a5d8756eec?utm_campaign=hugo&utm_medium=reader_share&utm_content=note&utm_source=qq
-● 开源播放器 ijkplayer (二) ：ijkplayer倍速变调问题解决方案 https://www.cnblogs.com/renhui/p/6510872.html
-● ijkplayer直播播放器使用经验之谈——卡顿优化和秒开实现 https://blog.csdn.net/cmshao/article/details/80149176
-
-
-
-
-Ijkplayer、ExoPlayer、VLC播放器综合比较  https://juejin.cn/post/6956604648476622856
+- [关于实现唱吧清唱功能的理解](https://oliverqueen.cn/2018-06-19-MusicAbout/)
+- [iOS 混音之 AVAudioEngine 详解](https://www.rongcloud.cn/blog/?p=4222)
+- [iOS Audio hand by hand: 变声，混响，语音合成 TTS](https://juejin.cn/post/6844903957144272903)
+- [Chrome 中 AVAudioEngine](https://source.chromium.org/chromium/chromium/src/+/main:third_party/tflite_support/src/tensorflow_lite_support/ios/task/audio/core/audio_record/sources/TFLAudioRecord.m)
+- [AVAudioEngine Tutorial for iOS: Getting Started](https://www.kodeco.com/21672160-avaudioengine-tutorial-for-ios-getting-started)
+- [一步一步教你实现iOS音频频谱动画（一）](https://juejin.cn/post/6844903784011792391)
+- [一步一步教你实现iOS音频频谱动画（二）](https://juejin.cn/post/6844903791670591495)
+- [iOSPrinciple_AVFoundation（推荐《音视频开发进阶指南 基于Android与iOS平台的实践》）](https://github.com/ReverseScale/iOSPrinciple_AVFoundation)
+- [AVFoundation 框架解析](https://developer.aliyun.com/article/663875)
 
 ## 杂项
-深入聊聊音视频同步 https://zhuanlan.zhihu.com/p/832217090
-快速音视频同步-RFC6501 https://zhuanlan.zhihu.com/p/557441630
-WebRTC音视频同步 https://zhuanlan.zhihu.com/p/346004563
-目前在音视频同步方面影响最大的国际标准是 https://www.itu.int/dms_pubrec/itu-r/rec/bt/R-REC-BT.1359-1-199811-I!!PDF-E.pdf
+
+- [深入聊聊音视频同步](https://zhuanlan.zhihu.com/p/832217090)
+- [快速音视频同步-RFC6501](https://zhuanlan.zhihu.com/p/557441630)
+- [WebRTC音视频同步](https://zhuanlan.zhihu.com/p/346004563)
+- [目前在音视频同步方面影响最大的国际标准是 ITU-R BT.1359](https://www.itu.int/dms_pubrec/itu-r/rec/bt/R-REC-BT.1359-1-199811-I!!PDF-E.pdf)
