@@ -7,7 +7,7 @@
 
 #import "WLMediaSource.h"
 #import "WLNodeQueue.h"
-#import "WLVideoConcatStreams.h"
+#import "WLVideoModeStreams.h"
 #import "WLAudioMixStreams.h"
 #import "WLStreamsManager.h"
 
@@ -54,7 +54,7 @@
 @property (nonatomic, assign) Float64 videoPtsOffset;
 @property (nonatomic, assign) Float64 audioPtsOffset;
 
-@property (nonatomic, strong) WLVideoConcatStreams *streams;
+@property (nonatomic, strong) WLVideoModeStreams *streams;
 @property (nonatomic, strong) WLAudioMixStreams *audioMixStreams;
 
 @property (nonatomic, strong, readwrite) WLMediaSourcePreview *preview;
@@ -81,7 +81,7 @@
         self.videoPtsOffset = 30.0;
         self.audioPtsOffset = 30.0;
         self.baseTime = 0.0;
-        self.streams = [[WLVideoConcatStreams alloc] init];
+        self.streams = [[WLVideoModeStreams alloc] init];
         self.audioMixStreams = [[WLAudioMixStreams alloc] init];
         self.preview = [[WLMediaSourcePreview alloc] initWithFrame:NSZeroRect];
     }
@@ -301,12 +301,10 @@
             node = [self.videoFrameQueue deQueueWithBlock:NO];
             if (!node) continue;
             if (node.frame->format == AV_PIX_FMT_VIDEOTOOLBOX) {
-                CVPixelBufferRef pixelBuffer = (CVPixelBufferRef)node.frame->data[3];
-                if (pixelBuffer) {
-                    [self.preview displayPixelBuffer:pixelBuffer];
-                }
+                [streams addVideoNode:node];
+            } else {
+                [node flush];
             }
-            [node flush];
         } else {
             Float64 waitMs = abs_pts + self.videoPtsOffset - current_time;
             if (waitMs > 50) waitMs = 50;

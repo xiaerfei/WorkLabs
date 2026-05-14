@@ -11,19 +11,24 @@
 #import <libavutil/frame.h>
 
 NS_ASSUME_NONNULL_BEGIN
+@class WLRenderingManager;
+@protocol WLRenderingDelegate <NSObject>
+
+- (void)manager:(WLRenderingManager *)manager cameraBuffer:(CMSampleBufferRef)cameraBuffer;
+- (void)manager:(WLRenderingManager *)manager extBuffer:(CMSampleBufferRef)extBuffer;
+
+@end
+
 
 @interface WLRenderingManager : NSObject
 
-@property (nonatomic, strong, readonly) WLViedoPreview *videoPreview;
+@property (nonatomic, strong) id <WLRenderingDelegate> delegate;
 
 + (instancetype)manager;
 
-- (void)pixelBuffer:(CVPixelBufferRef)pixelBuffer pts:(Float64)pts;
+- (void)addForCameraPixelBuffer:(CVPixelBufferRef)pixelBuffer pts:(Float64)pts;
+- (void)addForExtPixelBuffer:(CVPixelBufferRef)pixelBuffer pts:(Float64)pts;
 
-#pragma mark - Audio
-- (void)startPlay;
-- (void)stopPlay;
-- (void)frame:(AVFrame *)frame pts:(Float64)pts;
 @end
 
 NS_ASSUME_NONNULL_END

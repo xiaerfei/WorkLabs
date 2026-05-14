@@ -47,7 +47,7 @@
 		9CB4744C2F78CC1F00C8138F /* WLStreamsManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CB4744B2F78CC1F00C8138F /* WLStreamsManager.m */; };
 		9CB474522F78CC7E00C8138F /* WLRenderingManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CB474512F78CC7E00C8138F /* WLRenderingManager.m */; };
 		9CB742C72EF42E4D00E773A3 /* WLEventObserveItem.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CB742C62EF42E4D00E773A3 /* WLEventObserveItem.m */; };
-		9CBEC7F72F75F09400FEB37E /* WLVideoConcatStreams.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CBEC7F62F75F09400FEB37E /* WLVideoConcatStreams.m */; };
+		9CBEC7F72F75F09400FEB37E /* WLVideoModeStreams.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CBEC7F62F75F09400FEB37E /* WLVideoModeStreams.m */; };
 		9CC059982F0D4915004FEB9C /* TVUAudioManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CC059972F0D4915004FEB9C /* TVUAudioManager.m */; };
 		9CC2AD502F76C46A000E39D4 /* WLAudioMixStreams.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CC2AD4F2F76C46A000E39D4 /* WLAudioMixStreams.m */; };
 		9CCBFD322F8EFA4100D040F5 /* WLCameraSourceSettingView.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CCBFD312F8EFA4000D040F5 /* WLCameraSourceSettingView.m */; };
@@ -150,8 +150,8 @@
 		9CB474512F78CC7E00C8138F /* WLRenderingManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLRenderingManager.m; sourceTree = "<group>"; };
 		9CB742C52EF42E4D00E773A3 /* WLEventObserveItem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLEventObserveItem.h; sourceTree = "<group>"; };
 		9CB742C62EF42E4D00E773A3 /* WLEventObserveItem.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLEventObserveItem.m; sourceTree = "<group>"; };
-		9CBEC7F52F75F09400FEB37E /* WLVideoConcatStreams.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLVideoConcatStreams.h; sourceTree = "<group>"; };
-		9CBEC7F62F75F09400FEB37E /* WLVideoConcatStreams.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLVideoConcatStreams.m; sourceTree = "<group>"; };
+		9CBEC7F52F75F09400FEB37E /* WLVideoModeStreams.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLVideoModeStreams.h; sourceTree = "<group>"; };
+		9CBEC7F62F75F09400FEB37E /* WLVideoModeStreams.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLVideoModeStreams.m; sourceTree = "<group>"; };
 		9CC059962F0D4915004FEB9C /* TVUAudioManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = TVUAudioManager.h; sourceTree = "<group>"; };
 		9CC059972F0D4915004FEB9C /* TVUAudioManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = TVUAudioManager.m; sourceTree = "<group>"; };
 		9CC2AD4E2F76C46A000E39D4 /* WLAudioMixStreams.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLAudioMixStreams.h; sourceTree = "<group>"; };
@@ -453,8 +453,8 @@
 		9CBEC7F42F75F06B00FEB37E /* Streams */ = {
 			isa = PBXGroup;
 			children = (
-				9CBEC7F52F75F09400FEB37E /* WLVideoConcatStreams.h */,
-				9CBEC7F62F75F09400FEB37E /* WLVideoConcatStreams.m */,
+				9CBEC7F52F75F09400FEB37E /* WLVideoModeStreams.h */,
+				9CBEC7F62F75F09400FEB37E /* WLVideoModeStreams.m */,
 				9CC2AD4E2F76C46A000E39D4 /* WLAudioMixStreams.h */,
 				9CC2AD4F2F76C46A000E39D4 /* WLAudioMixStreams.m */,
 				9CB4744A2F78CC1F00C8138F /* WLStreamsManager.h */,
@@ -724,7 +724,7 @@
 				9C012D1B2F6E674200FB5170 /* WLNodeQueue.m in Sources */,
 				9CB474522F78CC7E00C8138F /* WLRenderingManager.m in Sources */,
 				9CE171942F9CEF8900F13DB6 /* WLAudioMixer.m in Sources */,
-				9CBEC7F72F75F09400FEB37E /* WLVideoConcatStreams.m in Sources */,
+				9CBEC7F72F75F09400FEB37E /* WLVideoModeStreams.m in Sources */,
 				9CB18F342EF035CD00C248B0 /* main.m in Sources */,
 				9CB18F352EF035CD00C248B0 /* TVUVideoManager.mm in Sources */,
 				9CE433C32F81FB670025C582 /* WLCoreUtils.m in Sources */,

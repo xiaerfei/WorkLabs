@@ -1,5 +1,5 @@
 //
-//  WLVideoConcatStreams.h
+//  WLVideoModeStreams.h
 //  WorkLabs
 //
 //  Created by erfeixia on 2026/3/27.
@@ -11,7 +11,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface WLVideoConcatStreams : NSObject
+@interface WLVideoModeStreams : NSObject
 
 @property (nonatomic, assign) WLVideoRenderType videoRenderType;
 

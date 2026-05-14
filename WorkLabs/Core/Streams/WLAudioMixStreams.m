@@ -37,12 +37,10 @@
         return;
     }
     self.rendering = YES;
-    [[WLRenderingManager manager] startPlay];
     [NSThread detachNewThreadSelector:@selector(encoderThread) toTarget:self withObject:nil];
 }
 
 - (void)stopMix {
-    [[WLRenderingManager manager] stopPlay];
     self.rendering = NO;
 }
 #pragma mark - Thread
@@ -69,7 +67,7 @@
                 if (base_time == 0) {
                     base_time = current_time;
                 }
-                [manager frame:node.frame pts:node.pts];
+                
                 [node flush];
                 break;
             }

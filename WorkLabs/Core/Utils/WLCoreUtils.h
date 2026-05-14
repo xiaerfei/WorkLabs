@@ -23,7 +23,8 @@ typedef NS_ENUM(NSInteger, WLFromType) {
 typedef NS_ENUM(NSInteger, WLVideoRenderType) {
     WLVideoRenderTypeCamera,
     WLVideoRenderTypeMedia,
-    WLVideoRenderTypeConcat,
+    WLVideoRenderTypePBP,
+    WLVideoRenderTypePIP,
 };
 
 

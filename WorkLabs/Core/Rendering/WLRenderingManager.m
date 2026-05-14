@@ -18,7 +18,6 @@
 - (instancetype)init {
     self = [super init];
     if (self) {
-        [self configure];
     }
     return self;
 }
@@ -40,22 +39,7 @@
         CFRelease(sampleBuffer);
     }
 }
-#pragma mark - Audio
-- (void)startPlay {
-    [self.audioQueuePlayer play];
-}
-- (void)stopPlay {
-    [self.audioQueuePlayer stop];
-}
-
-- (void)frame:(AVFrame *)frame pts:(Float64)pts {
-    [self.audioQueuePlayer putAVFrame:frame];
-}
 #pragma mark - Private Methods
-- (void)configure {
-    self.videoPreview = [[WLViedoPreview alloc] init];
-    self.audioQueuePlayer = [[WLAudioQueuePlayer alloc] initWithSampleRate:44100 channels:2];
-}
 
 - (CMSampleBufferRef)sampleBufferFromPixelBuffer:(CVPixelBufferRef)pixelBuffer pts:(Float64)pts {
     CMVideoFormatDescriptionRef formatDescription = NULL;

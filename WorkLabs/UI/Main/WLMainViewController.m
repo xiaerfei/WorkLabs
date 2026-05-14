@@ -78,7 +78,6 @@
     
     [WLStreamsManager manager].videoRenderType = WLVideoRenderTypeCamera;
     [WLStreamsManager manager].audioRenderType = WLAudioRenderTypeMic;
-    [[WLStreamsManager manager] start];
     
     [self setupSeekControls];
     

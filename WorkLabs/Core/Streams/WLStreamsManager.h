@@ -21,8 +21,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)addVideoNode:(WLNode *)node;
 - (void)addAudioNode:(WLNode *)node;
 
-- (void)start;
-- (void)stop;
 @end
 
 NS_ASSUME_NONNULL_END
