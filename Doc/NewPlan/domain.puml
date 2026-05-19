@@ -1,0 +1,229 @@
+@startuml WLMediaSource
+skinparam class {
+    BackgroundColor #FEFEFE
+    BorderColor #333333
+    ArrowColor #333333
+}
+
+enum WLMediaSourceState {
+    CfgFFmpeg
+    CfgFFmpegFailed
+    ReadVideo
+    Exit
+}
+
+enum WLNodeType {
+    None
+    Video
+    Audio
+}
+
+enum WLFromType {
+    Media
+    Camera
+}
+
+enum WLVideoRenderType {
+    Camera
+    Media
+    PBP
+    PIP
+}
+
+enum WLAudioRenderType {
+    Mic
+    Media
+    Mix
+}
+
+class WLMediaSource {
+    - path : String
+    - state : WLMediaSourceState
+    - running : BOOL
+    - totalDuration : Float64
+    + preview : WLMediaSourcePreview
+
+    - videoDecoding : BOOL
+    - audioDecoding : BOOL
+    - videoRendering : BOOL
+    - audioRendering : BOOL
+
+    - formatContext : Ptr
+    - videoCodecContext : Ptr
+    - audioCodecContext : Ptr
+    - videoStreamIndex : int
+    - audioStreamIndex : int
+
+    - videoPacketQueue : WLNodeQueue
+    - audioPacketQueue : WLNodeQueue
+    - videoFrameQueue : WLNodeQueue
+    - audioFrameQueue : WLNodeQueue
+
+    - videoTimeBase : double
+    - audioTimeBase : double
+    - baseTime : Float64
+    - videoPtsOffset : Float64
+    - audioPtsOffset : Float64
+
+    - streams : WLVideoModeStreams
+    - audioMixStreams : WLAudioMixStreams
+
+    - activeRenderThreads : int
+
+    + initWithPath(path)
+    + start()
+    + stop()
+    - parseThread()
+    - addPacket(packet, type)
+    - configureQueue()
+    - configureDecode()
+    - videoDecodeThread()
+    - audioDecodeThread()
+    - decodeFrame(codecCtx, frame, queue)
+    - videoRenderThread()
+    - audioRenderThread()
+    - configureFFmpeg()
+    - openFile()
+    - openVideoStream()
+    - setupHardwareDecoder()
+    - closeVideoStream()
+    - openAudioStream()
+    - releaseFFmpegResources()
+}
+
+class WLMediaSourcePreview {
+    - selected : BOOL
+    + displayPixelBuffer(buffer)
+}
+
+class WLNodeQueue {
+    + type : WLNodeType
+    + nodeSize : Integer
+    + allSize : Integer
+    + abortRequest : BOOL
+    + queueName : String
+    + head : WLNode
+    + tail : WLNode
+
+    + initWithType(type, size)
+    + enQueue(node)
+    + enQueueNonBlocking(node)
+    + deQueueWithBlock(block)
+    + deQueueWithTimeout(ms)
+    + peek()
+    + abort()
+    + flush()
+    + requeueFront(node)
+    + count()
+}
+
+class WLNode {
+    + type : WLNodeType
+    + fromType : WLFromType
+    + packet : Ptr
+    + frame : Ptr
+    + pts : Float64
+    + data : Ptr
+    + next : WLNode
+
+    + flush()
+}
+
+class WLVideoModeStreams {
+    - queueDict : Dictionary
+    - rendering : BOOL
+    - ciContext : Ptr
+    - metalDevice : Ptr
+
+    + videoRenderType : WLVideoRenderType
+    + addNode(node)
+    + startConcat()
+    + stopConcat()
+}
+
+class WLAudioMixStreams {
+    - queueDict : Dictionary
+
+    + audioRenderType : WLAudioRenderType
+    + addNode(node)
+    + startMix()
+    + stopMix()
+}
+
+class WLStreamsManager {
+    - videoStream : WLVideoModeStreams
+    - audioStream : WLAudioMixStreams
+
+    + videoRenderType : WLVideoRenderType
+    + audioRenderType : WLAudioRenderType
+    + manager()
+    + addVideoNode(node)
+    + addAudioNode(node)
+    + start()
+    + stop()
+}
+
+class WLResample {
+    - swrContext : Ptr
+    - inputChannelLayout : int
+    - outputChannelLayout : int
+    - isPlanarInput : BOOL
+    - isPlanarOutput : BOOL
+    - outputFormatDesc : Ptr
+    - processedInputSamples : int
+    - processedOutputSamples : int
+    - baseTimestamp : double
+    - lastReportedTime : double
+    - totalInputSamples : int
+    - totalOutputSamples : int
+    - bufferTooSmallCount : int
+    - truncationCount : int
+    - scratchBuffer : Ptr
+    - scratchBufferSize : int
+
+    + inputSampleRate : int
+    + inputSampleFormat : int
+    + inputChannels : int
+    + outputSampleRate : int
+    + outputSampleFormat : int
+    + outputChannels : int
+    + bytesPerOutputFrame : int
+    + timeSyncMode : int
+
+    + init(inputRate, inputFormat, inputChannels, outputRate, outputFormat, outputChannels)
+    + resampleFrame(inputFrame, outBuffer, outFrames, outPts)
+    + resampleFrame2(inputFrame, outputData, outputSamples, capacity)
+    + safeResampleFrame(inputFrame, outputData, outputSamples, capacity)
+    + multiPassResampleFrame(inputFrame, outputData, outputSamples, capacity)
+    + flushIntoBuffer(outBuffer, outFrames, outPts)
+    + flushToOutputData(outputData, outputSamples, capacity)
+    + estimateOutputFramesForInputFrames(inputFrames)
+    + estimateBufferSizeForInputFrames(inputFrames)
+    + isFormatCompatibleWithInputFrame(frame)
+    + reset()
+    + synchronizeWithTimestamp(timestamp)
+    + synchronizedPlaybackTime()
+}
+
+WLMediaSource "1" *-- "4" WLNodeQueue
+WLMediaSource "1" *-- "1" WLMediaSourcePreview
+WLMediaSource "1" *-- "1" WLVideoModeStreams
+WLMediaSource "1" *-- "1" WLAudioMixStreams
+WLMediaSource ..> WLMediaSourceState
+
+WLNodeQueue "1" o-- "0..*" WLNode
+WLNode ..> WLNodeType
+WLNode ..> WLFromType
+
+WLVideoModeStreams "1" *-- "2" WLNodeQueue
+WLVideoModeStreams ..> WLVideoRenderType
+
+WLAudioMixStreams "1" *-- "2" WLNodeQueue
+WLAudioMixStreams ..> WLAudioRenderType
+
+WLStreamsManager "1" *-- "1" WLVideoModeStreams
+WLStreamsManager "1" *-- "1" WLAudioMixStreams
+
+WLMediaSource ..> WLStreamsManager
+
+@enduml

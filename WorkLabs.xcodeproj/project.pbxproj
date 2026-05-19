@@ -295,6 +295,13 @@
 			path = Video;
 			sourceTree = "<group>";
 		};
+		9C857C722FBBD5A5005E3901 /* NewPlan */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = NewPlan;
+			sourceTree = "<group>";
+		};
 		9CA6B4382EC069B2002C613D = {
 			isa = PBXGroup;
 			children = (
@@ -369,6 +376,7 @@
 		9CB18F2D2EF035CD00C248B0 /* WorkLabs */ = {
 			isa = PBXGroup;
 			children = (
+				9C857C722FBBD5A5005E3901 /* NewPlan */,
 				9CC059942F0D485C004FEB9C /* Core */,
 				9C7D404C2F0BFDD500756788 /* Video */,
 				9C7D40492F0BFD5B00756788 /* UI */,
