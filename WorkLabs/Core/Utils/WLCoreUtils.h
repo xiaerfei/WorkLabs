@@ -9,17 +9,6 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-typedef NS_ENUM(NSInteger, WLNodeType) {
-    WLNodeTypeNone,
-    WLNodeTypeVideo,
-    WLNodeTypeAudio
-};
-
-typedef NS_ENUM(NSInteger, WLFromType) {
-    WLFromTypeMedia,
-    WLFromTypeCamera,
-};
-
 typedef NS_ENUM(NSInteger, WLVideoRenderType) {
     WLVideoRenderTypeCamera,
     WLVideoRenderTypeMedia,

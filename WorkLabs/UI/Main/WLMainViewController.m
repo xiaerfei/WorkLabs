@@ -19,7 +19,6 @@
 
 #import "WLMediaSource.h"
 #import "WLRenderingManager.h"
-#import "WLStreamsManager.h"
 #import "WLNode.h"
 
 #import "WLVideoDeviceSettingWindowController.h"
@@ -76,8 +75,9 @@
         make.height.mas_equalTo(220);
     }];
     
-    [WLStreamsManager manager].videoRenderType = WLVideoRenderTypeCamera;
-    [WLStreamsManager manager].audioRenderType = WLAudioRenderTypeMic;
+    // TODO: 使用 WLPipelineManager 替代旧的 StreamsManager
+    // [WLStreamsManager manager].videoRenderType = WLVideoRenderTypeCamera;
+    // [WLStreamsManager manager].audioRenderType = WLAudioRenderTypeMic;
     
     [self setupSeekControls];
     

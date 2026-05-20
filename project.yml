@@ -1,0 +1,20 @@
+name: WorkLabs
+options:
+  deploymentTarget:
+    macOS: "15.2"
+settings:
+  base:
+    CLANG_ENABLE_OBJC_ARC: YES
+    PRODUCT_NAME: WorkLabs
+targets:
+  WorkLabs:
+    type: application
+    platform: macOS
+    sources:
+      - WorkLabs
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.tvunetworks.partyline
+    info:
+      path: WorkLabs/Info.plist
+    entitlements:
+      path: WorkLabs/WorkLabs.entitlements

@@ -7,9 +7,6 @@
 
 #import "WLMediaSource.h"
 #import "WLNodeQueue.h"
-#import "WLVideoModeStreams.h"
-#import "WLAudioMixStreams.h"
-#import "WLStreamsManager.h"
 
 #include "libavformat/avformat.h"
 #include "libavcodec/avcodec.h"
@@ -54,9 +51,6 @@
 @property (nonatomic, assign) Float64 videoPtsOffset;
 @property (nonatomic, assign) Float64 audioPtsOffset;
 
-@property (nonatomic, strong) WLVideoModeStreams *streams;
-@property (nonatomic, strong) WLAudioMixStreams *audioMixStreams;
-
 @property (nonatomic, strong, readwrite) WLMediaSourcePreview *preview;
 
 @end
@@ -81,8 +75,6 @@
         self.videoPtsOffset = 30.0;
         self.audioPtsOffset = 30.0;
         self.baseTime = 0.0;
-        self.streams = [[WLVideoModeStreams alloc] init];
-        self.audioMixStreams = [[WLAudioMixStreams alloc] init];
         self.preview = [[WLMediaSourcePreview alloc] initWithFrame:NSZeroRect];
     }
     return self;
@@ -280,7 +272,6 @@
 #pragma mark - Render Thread
 - (void)videoRenderThread {
     [NSThread currentThread].name = @"com.wl-render-video.thread";
-    WLStreamsManager *streams = [WLStreamsManager manager];
     while (self.isVideoRendering) {
         Float64 current_time = CFAbsoluteTimeGetCurrent() * 1000;
         
@@ -301,7 +292,8 @@
             node = [self.videoFrameQueue deQueueWithBlock:NO];
             if (!node) continue;
             if (node.frame->format == AV_PIX_FMT_VIDEOTOOLBOX) {
-                [streams addVideoNode:node];
+                // TODO: 接入 WLPipelineManager
+                [node flush];
             } else {
                 [node flush];
             }
@@ -339,7 +331,8 @@
         if (abs_pts + self.audioPtsOffset < current_time) {
             node = [self.audioFrameQueue deQueueWithBlock:NO];
             if (!node) continue;
-            [[WLStreamsManager manager] addAudioNode:node];
+            // TODO: 接入 WLPipelineManager
+            [node flush];
         } else {
             Float64 waitMs = abs_pts + self.audioPtsOffset - current_time;
             if (waitMs > 50) waitMs = 50;

@@ -1403,3 +1403,153 @@ typedef NS_ENUM(NSInteger, WLStreamState) {
 - 如有重大变更，需团队成员 review 并达成一致
 
 **最后更新时间**：2026-05-19
+
+---
+
+## 附录 B: 现有代码分析与补充计划（2026-05-20）
+
+> 基于对全部源码的实际阅读，补充计划与现有实现的差距分析。
+
+### B.1 现状盘点
+
+| 模块 | 代码位置 | 状态 | 关键发现 |
+|------|----------|------|----------|
+| **WLStreamsManager** (单例) | Core/Streams/ | 框架搭好 | 路由 addVideoNode:/addAudioNode: 到子模块，但没有 start/stop 生命周期方法（实际在 WLMediaSource 内部自行调用） |
+| **WLVideoModeStreams** | Core/Streams/ | 框架搭好，混合逻辑空 | `encoderThread` 的 while 循环体为空，从未实际取帧处理 |
+| **WLAudioMixStreams** | Core/Streams/ | 部分实现 | `WLAudioRenderTypeMeida` 模式有基础逻辑但只 flush 节点不输出；`Mix` 模式完全为空 |
+| **WLCameraSource** | Core/CameraSource/ | **已实现** | 通过 AVCaptureSession 采集，输出 CVPixelBufferRef，同时走 `frameOutput` block 和直接 `addVideoNode:` 注入 WLStreamsManager |
+| **WLMediaSource** | Core/MediaSource/ | **已实现（有 bug）** | 内部创建了自己的 `WLVideoModeStreams` 和 `WLAudioMixStreams` **私有实例**，没有走单例 WLStreamsManager。Camera 和 Media 的数据永远不会交汇 |
+| **WLSceneManager** (Scene 层) | Core/Scene/ | 新架构框架 | 已有源管理（增删改查）、分辨率配置、事件通知。但 `WLSceneRenderer` 和 `WLAudioMixer` 都是空壳 |
+| **WLMediaSourceItem** | Core/Scene/ | 已实现 | 统一的源包装层，支持 Camera/Video/Audio 三种类型，有 position/size/zOrder/rotation/volume 等布局属性 |
+| **WLRenderingManager** | Core/Rendering/ | 部分实现 | 有 CVPixelBufferRef → CMSampleBufferRef → AVSampleBufferDisplayLayer 的预览链路 |
+| **WLEncoder** (WLVideoEncode + WLAudioEncode) | Core/Encodes/ | **空壳** | 只有空的 @interface 声明，无任何实现 |
+| **WLPushStreamsManager** | Core/PushStreams/ | **空壳** | 只有 pixelBuffer:pts: 方法声明，无实现 |
+| **WLResample** | Core/Audio/ | **已实现** | 完整的 libswresample 封装，支持多种重采样策略和时间同步模式 |
+| **WLNodeQueue** | Core/Queue/ | **已实现** | 基于 pthread 的线程安全队列，支持阻塞/非阻塞入队、超时出队、abort 机制 |
+| **WLNode** | Core/Queue/ | **已实现（需扩展）** | 支持 AVPacket*/AVFrame*/CVPixelBufferRef，不支持 CMSampleBufferRef |
+
+### B.2 核心问题
+
+#### 问题 1：两套架构并存，数据流无法交汇
+
+项目实际存在 **两套架构**：
+
+- **架构 A（Streams 层）**：`WLStreamsManager` → `WLVideoModeStreams` + `WLAudioMixStreams`
+  - Camera 走这套：`WLCameraSource` → `[WLStreamsManager manager] addVideoNode:`
+  - Media 也走这套但用的是私有实例：`WLMediaSource` 内部 `self.streams = [[WLVideoModeStreams alloc] init]`
+
+- **架构 B（Scene 层）**：`WLSceneManager` → `WLMediaSourceItem` → `WLSceneRenderer` + `WLAudioMixer`
+  - 新设计的上层管理架构，但渲染和混音都是空壳
+
+**核心矛盾**：WLMediaSource 创建了私有的 WLVideoModeStreams 实例，而非使用 WLStreamsManager 单例。导致 Camera 和 Media 的数据永远不会交汇，无法实现混合。
+
+**决策点**：
+
+| 方案 | 描述 | 优点 | 缺点 |
+|------|------|------|------|
+| **A：统一走 StreamsManager** | 废弃 Scene 层的渲染/混音，所有 Source 统一注入 WLStreamsManager | 改动最小，已有 Camera 和队列基础设施 | 缺少源的布局管理能力 |
+| **B：统一走 SceneManager** | 废弃 StreamsManager，所有 Source 统一走 WLSceneManager | 有完整的源管理和布局系统 | 需要重写数据路由层 |
+| **C：两层合并（推荐）** | WLSceneManager 管理源列表和 UI 布局，底层数据流走 WLStreamsManager | 兼顾管理能力和数据路由 | 需要明确两层的职责边界 |
+
+#### 问题 2：WLNode 不支持 CMSampleBufferRef
+
+当前 WLNode 只支持三种数据类型：
+
+```objc
+@property (nonatomic, assign) AVPacket *packet;    // FFmpeg 编码包
+@property (nonatomic, assign) AVFrame *frame;      // FFmpeg 解码帧
+@property (nonatomic, assign) CVPixelBufferRef data; // 视频像素缓冲区
+```
+
+麦克风采集输出的是 `CMSampleBufferRef`（包含音频 PCM 数据），WLNode 无法承载。需要新增字段并扩展 flush 方法。
+
+#### 问题 3：Encoder + PushStream 完全缺失
+
+从"采集/解码"到"推出去"之间，编码器和推流器都是空壳。这是实现 Phase 1（Camera + Mic → RTMP）的最大缺口。
+
+### B.3 补充实施步骤
+
+基于现有代码分析，将原始计划细化为以下执行顺序：
+
+| 步骤 | 任务 | 依赖 | 影响文件 |
+|------|------|------|----------|
+| **Step 0** | 统一架构决策：修复 WLMediaSource 使用单例 WLStreamsManager | 决策确认 | WLMediaSource.m, 可能涉及 WLStreamsManager.m |
+| **Step 1** | 扩展 WLNode 支持 CMSampleBufferRef | 无 | WLNode.h/m |
+| **Step 2** | 实现 WLMicSource（麦克风采集） | Step 1 | 新建 NewPlan/Audio/ 目录 |
+| **Step 3** | 补全 WLVideoModeStreams.encoderThread 混合逻辑 | Step 0 | WLVideoModeStreams.m |
+| **Step 4** | 补全 WLAudioMixStreams.encoderThread 混音逻辑 | Step 1, Step 2 | WLAudioMixStreams.m |
+| **Step 5** | 实现 WLEncoder（VideoToolbox H264 + AudioToolbox AAC） | Step 3/4 | Core/Encodes/ 下的空壳文件 |
+| **Step 6** | 实现 WLPushStreamsManager（RTMP 推流） | Step 5 | Core/PushStreams/ 下的空壳文件 |
+| **Step 7** | 链路串通测试：Camera → Mix → Encode → RTMP | 全部 | — |
+
+**Step 0 是阻塞项**：不解决架构统一问题，后续步骤的数据无法正确流转。
+
+### B.4 补充后的 Phase 1 详细任务
+
+#### Phase 1.0：架构统一（0.5 天）
+
+- 选定架构方案（推荐方案 C：两层合并）
+- 修改 WLMediaSource.m，将内部的私有 `WLVideoModeStreams` 和 `WLAudioMixStreams` 替换为 `[WLStreamsManager manager]` 的引用
+- 确认 Camera 和 Media 的数据能进入同一个处理管道
+
+#### Phase 1.1：WLNode 扩展 + WLMicSource（1 天）
+
+- WLNode 新增 `CMSampleBufferRef sampleBuffer` 属性
+- flush 方法中增加 `CFRelease(_sampleBuffer)` 逻辑
+- 实现 WLMicSource：AVCaptureSession + AVCaptureAudioDataOutput
+- 通过 `[WLStreamsManager manager] addAudioNode:]` 注入音频数据
+
+#### Phase 1.2：混合逻辑补全（1 天）
+
+- WLVideoModeStreams.encoderThread：根据 videoRenderType 从队列取帧，做简单切换或合成
+- WLAudioMixStreams.encoderThread：补全三种模式的实际输出逻辑
+- 统一时间戳基准（建议使用 mach_absolute_time）
+
+#### Phase 1.3：编码器实现（1-2 天）
+
+- WLVideoEncode：VideoToolbox H264 硬件编码
+  - 接收 CVPixelBufferRef
+  - 输出 CMBlockBufferRef（编码后的 NALU）
+- WLAudioEncode：AudioToolbox AAC 编码
+  - 接收 PCM 数据
+  - 输出 AAC 编码帧
+
+#### Phase 1.4：推流器实现（1-2 天）
+
+- WLPushStreamsManager：基于 FFmpeg avformat 实现 RTMP 推流
+  - 或考虑使用 LFLiveKit 等成熟开源库降低风险
+  - FLV 封装
+  - 断线重连
+
+#### Phase 1.5：串通测试（0.5-1 天）
+
+- Camera + Mic → WLStreamsManager → Encoder → RTMP
+- 验证延迟、音视频同步、稳定性
+
+### B.5 关于 WLSceneManager 的定位建议
+
+`WLSceneManager` 是一个设计良好的上层管理器，但它和 `WLStreamsManager` 的职责需要明确划分：
+
+| 职责 | 建议归属 |
+|------|----------|
+| 源的增删改查、选择、排序 | `WLSceneManager` |
+| UI 布局（position/size/zOrder/rotation） | `WLSceneManager` |
+| 输出分辨率配置 | `WLSceneManager` |
+| 数据路由、混合、编码 | `WLStreamsManager` |
+| 预览渲染 | `WLRenderingManager` |
+| RTMP 推流 | `WLPushStreamsManager` |
+
+`WLSceneManager` 作为"场景管理器"负责管什么源、怎么排布；`WLStreamsManager` 作为"流管理器"负责数据怎么流。
+
+### B.6 新增风险项
+
+| 风险项 | 概率 | 影响 | 应对措施 |
+|--------|------|------|----------|
+| **架构统一改动引入回归** | 中 | 高 | 先写集成测试验证现有功能不受影响 |
+| **WLMediaSource 的 stop() 未实现** | 已知 | 中 | 架构统一时一并修复 |
+| **WLNode 扩展影响所有 flush 路径** | 中 | 中 | 审计所有调用 flush 的地方，确保新字段被正确释放 |
+| **编码器选型不确定** | 低 | 高 | 优先 VideoToolbox（macOS 原生），备选 FFmpeg libx264 |
+
+---
+
+**最后更新时间**：2026-05-20（附录 B 补充）
