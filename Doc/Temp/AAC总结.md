@@ -376,7 +376,7 @@ typedef struct _AdtsHeader
     unsigned int nHome;               // 1bit
 
     unsigned int nCopyrightIdentificationBit;     // 1bit
-    unsigned int nCopyrigthIdentificationStart;   // 1bit
+    unsigned int nCopyrightIdentificationStart;   // 1bit
     unsigned int nAacFrameLength;    // 13bit - 帧长度
     unsigned int nAdtsBufferFullness; // 11bit - 缓冲满度
     unsigned int nNoRawDataBlocksInFrame; // 2bit - 原始帧数-1
@@ -384,6 +384,8 @@ typedef struct _AdtsHeader
 ```
 
 ### ADTS 头部生成函数
+
+> **修复 (2026-05-15)**: 完善了声道配置字段的设置
 
 ```c
 const int sampling_frequencies[] = {
@@ -397,7 +399,7 @@ int adts_header(char * const p_adts_header, const int data_length,
 {
     int sampling_frequency_index = 3; // 默认 48000Hz
     int adtsLen = data_length + 7;    // 头部7字节
-    
+
     // 查找采样率对应的下标
     for(int i = 0; i < 12; i++) {
         if(sampling_frequencies[i] == samplerate) {
@@ -406,19 +408,50 @@ int adts_header(char * const p_adts_header, const int data_length,
         }
     }
 
-    // 固定头
-    p_adts_header[0] = 0xff;         // syncword: 0xFFF (高8位)
-    p_adts_header[1] = 0xf0;         // syncword (低4位) + ID + Layer
-    p_adts_header[1] |= (profile << 6);    // profile (高2位)
-    
+    // 固定头 (7 bytes)
+    // byte 0: syncword 高8位 (0xFF)
+    p_adts_header[0] = 0xff;
+
+    // byte 1: syncword 低4位 (0xF) + ID (1bit) + layer (2bit)
+    p_adts_header[1] = 0xf0;
+
+    // byte 1 续: profile (2bit) - 注意: profile = Audio Object Type - 1
+    p_adts_header[1] |= ((profile - 1) << 6);
+
+    // byte 2: sampling_frequency_index (4bit) + private_bit (1bit) + channel_configuration (3bit高2位)
+    p_adts_header[2] = (sampling_frequency_index << 2) | (channels >> 2);
+
+    // byte 2 续: channel_configuration 低1位 + original/copy (1bit) + home (1bit)
+    p_adts_header[2] |= ((channels & 0x03) << 6);
+
     // 可变头
-    p_adts_header[3] = (adtsLen & 0x1800) >> 11;  // frame_length 高2位
-    p_adts_header[4] = (adtsLen & 0x7f8) >> 3;    // frame_length 中8位
-    p_adts_header[5] = (adtsLen & 0x7) << 5;      // frame_length 低3位
-    p_adts_header[5] |= 0x1f;                     // buffer fullness
-    
+    // byte 3: copyright_identification_bit (1bit) + copyright_identification_start (1bit) + frame_length 高6位
+    p_adts_header[3] = 0x00;
+
+    // byte 3 续: frame_length 中8位
+    p_adts_header[4] = (adtsLen >> 5) & 0xff;
+
+    // byte 5: frame_length 低5位 + adts_buffer_fullness 高3位
+    p_adts_header[5] = (adtsLen & 0x1f) << 3;
+
+    // byte 5 续: adts_buffer_fullness 低8位 (0x7FF = VBR)
+    p_adts_header[5] |= 0x07;
+
+    // byte 6: adts_buffer_fullness 低3位 + number_of_raw_data_blocks_in_frame (2bit) + 填充位
+    p_adts_header[6] = 0xf8;
+
     return 0;
 }
+
+// 注意: profile 参数传入实际的 AAC profile 值 (如 2=LC, 5=Main)
+// 函数内部会自动转换为 ADTS header 要求的格式 (profile - 1)
+```
+
+**调用示例:**
+```c
+char adts_header[7];
+adts_header(adts_header, aac_data_size, 2, 44100, 2);  // LC profile, 44.1kHz, 立体声
+```
 ```
 
 ### 解析 ADTS 帧
