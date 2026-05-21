@@ -9,6 +9,7 @@
 #import "WLCameraSourceConfig.h"
 #import "WLMediaSource.h"
 #import "WLEvent.h"
+#import "WLPipelineManager.h"
 
 @interface WLSceneManager ()
 
@@ -122,6 +123,12 @@
 
     WLMediaSource *mediaSource = [[WLMediaSource alloc] initWithPath:path];
     item.sourceEngine = mediaSource;
+
+    // 接入 WLPipelineManager
+    WLPipelineManager *pipeline = [WLPipelineManager manager];
+    [pipeline addVideoSource:mediaSource];
+    [pipeline addAudioSource:mediaSource];
+
     [self.mutableSources addObject:item];
     [item start];
 
@@ -165,6 +172,12 @@
     if (index >= self.mutableSources.count) return;
 
     WLMediaSourceItem *item = self.mutableSources[index];
+
+    // 从 WLPipelineManager 移除
+    if ([item.sourceEngine conformsToProtocol:@protocol(WLSource)]) {
+        [[WLPipelineManager manager] removeSource:(id<WLSource>)item.sourceEngine];
+    }
+
     [item stop];
 
     if (self.selectedSource == item) {

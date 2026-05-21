@@ -10,6 +10,7 @@
 #import <CoreVideo/CoreVideo.h>
 #include "libavutil/frame.h"
 #import "WLMediaSourcePreview.h"
+#import "WLSourceProtocol.h"
 
 NS_ASSUME_NONNULL_BEGIN
 typedef NS_ENUM(NSUInteger, WLMediaSourceState) {
@@ -23,7 +24,7 @@ typedef NS_ENUM(NSUInteger, WLMediaSourceState) {
     WLMediaSourceStateExit
 };
 
-@interface WLMediaSource : NSObject
+@interface WLMediaSource : NSObject <WLVideoSource, WLAudioSource>
 @property (nonatomic,   copy, readonly) NSString *path;
 @property (nonatomic, assign, readonly) WLMediaSourceState state;
 @property (nonatomic, assign, readonly, getter=isRunning) BOOL running;

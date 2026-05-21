@@ -27,6 +27,9 @@
 
 #import "WLSceneViewController.h"
 #import "WLSceneManager.h"
+#import "WLPipelineManager.h"
+#import "WLPreviewOutput.h"
+#import "WLAudioOutput.h"
 
 @interface WLMainViewController ()
 @property (nonatomic, strong) WLPanelViewController *panelVC;
@@ -75,9 +78,10 @@
         make.height.mas_equalTo(220);
     }];
     
-    // TODO: 使用 WLPipelineManager 替代旧的 StreamsManager
-    // [WLStreamsManager manager].videoRenderType = WLVideoRenderTypeCamera;
-    // [WLStreamsManager manager].audioRenderType = WLAudioRenderTypeMic;
+    // 配置 WLPipelineManager 输出
+    WLPipelineManager *pipeline = [WLPipelineManager manager];
+    pipeline.videoOutput = [[WLPreviewOutput alloc] init];
+    pipeline.audioOutput = [[WLAudioOutput alloc] init];
     
     [self setupSeekControls];
     

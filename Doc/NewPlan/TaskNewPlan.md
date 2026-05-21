@@ -39,60 +39,62 @@ flowchart TB
         UI_Control[UI Control]
     end
 
-    subgraph SM["StreamManager<br/>(Mix Thread - 流管理与混合)"]
+    subgraph Sources["输入源"]
         direction TB
-        subgraph VideoSources["Video 输入源"]
-            CameraSource["Camera Source<br/>(Video)"]
-            MediaSource_V["Media Source<br/>(Video)"]
-            NetworkSource_V["Network Source<br/>(Video)"]
+        subgraph VideoSources["Video 输入源 (最多2路)"]
+            VSrc1["Camera"]
+            VSrc2["MediaFile / Network"]
         end
-
-        subgraph AudioSources["Audio 输入源"]
-            MicSource["Mic Source"]
-            MediaSource_A["MediaAudio Source"]
-            NetworkSource_A["NetworkAudio Source"]
+        subgraph AudioSources["Audio 输入源 (最多2路)"]
+            ASrc1["Mic"]
+            ASrc2["MediaFile / Network"]
         end
-
-        VideoSelector[Video Selector]
-        AudioSelector[Audio Selector]
-        
-        CameraSource --> VideoSelector
-        MediaSource_V --> VideoSelector
-        NetworkSource_V --> VideoSelector
-        
-        MicSource --> AudioSelector
-        MediaSource_A --> AudioSelector
-        NetworkSource_A --> AudioSelector
     end
 
     subgraph Processing["处理层"]
-        VideoFilter["VideoFilter<br/>(Filter Thread)<br/>Scale/Crop/Mirror"]
-        AudioMixer["AudioMixer<br/>(Mix Thread)<br/>混音/切换"]
+        direction TB
+        subgraph VideoPipeline["Video Pipeline"]
+            VideoFilter1["VideoFilter (流1)<br/>Scale/Crop/Mirror"]
+            VideoFilter2["VideoFilter (流2)<br/>Scale/Crop/Mirror"]
+            VideoMix["VideoMix<br/>画面切换/合成"]
+        end
+        subgraph AudioPipeline["Audio Pipeline"]
+            AudioFilter1["AudioFilter (流1)<br/>Resample/Gain/NoiseSuppression"]
+            AudioFilter2["AudioFilter (流2)<br/>Resample/Gain/NoiseSuppression"]
+            AudioMixer["AudioMixer<br/>混音/音量控制"]
+        end
         StateMonitor["状态监控<br/>(状态机管理)<br/>错误处理/恢复"]
     end
 
     subgraph Output["输出层"]
         Rendering["Rendering<br/>(Preview)"]
         Encoder["Encoder<br/>(Encode Thread)<br/>H264/AAC"]
-        Muxer["Muxer<br/>(封装容器)"]
-        PushStream["PushStream<br/>(Network)<br/>RTMP 推流"]
+        PushStream["PushStream<br/>(Mux + Network)<br/>RTMP 推流"]
     end
 
-    UI_Control --> SM
-    SM --> Processing
-    VideoSelector --> VideoFilter
-    AudioSelector --> AudioMixer
-    VideoFilter --> Rendering
-    VideoFilter --> Encoder
+    UI_Control --> Sources
+    VSrc1 --> VideoFilter1
+    VSrc2 --> VideoFilter2
+    ASrc1 --> AudioFilter1
+    ASrc2 --> AudioFilter2
+
+    VideoFilter1 --> VideoMix
+    VideoFilter2 --> VideoMix
+    AudioFilter1 --> AudioMixer
+    AudioFilter2 --> AudioMixer
+
+    VideoMix --> Rendering
+    VideoMix --> Encoder
     AudioMixer --> Encoder
-    Encoder --> Muxer
-    Muxer --> PushStream
-    
+    Encoder --> PushStream
+
     style UI fill:#e1f5fe,stroke:#01579b,stroke-width:2px
-    style SM fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    style Sources fill:#fff3e0,stroke:#e65100,stroke-width:2px
     style VideoSources fill:#e3f2fd,stroke:#1565c0,stroke-width:1px
     style AudioSources fill:#e3f2fd,stroke:#1565c0,stroke-width:1px
     style Processing fill:#fff9c4,stroke:#f9a825,stroke-width:2px
+    style VideoPipeline fill:#e3f2fd,stroke:#1565c0,stroke-width:1px
+    style AudioPipeline fill:#e3f2fd,stroke:#1565c0,stroke-width:1px
     style Output fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
     style Rendering fill:#c8e6c9,stroke:#388e3c,stroke-width:1px
     style PushStream fill:#c8e6c9,stroke:#388e3c,stroke-width:1px
@@ -102,22 +104,54 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-    InputSources["Input Sources<br/>(Camera/Media/Network)"]
-    StreamManager["StreamManager<br/>(流管理与混合)"]
-    FilterMixer["Filter / Mixer<br/>(图像处理/音频混合)"]
+    subgraph Input["输入源"]
+        subgraph VSrc["Video (最多2路)"]
+            Camera["Camera"]
+            MediaOrNet_V["MediaFile / Network"]
+        end
+        subgraph ASrc["Audio (最多2路)"]
+            Mic["Mic"]
+            MediaOrNet_A["MediaFile / Network"]
+        end
+    end
+
+    subgraph VideoPipeline["Video Pipeline"]
+        VideoFilter1["VideoFilter (流1)<br/>Scale/Crop/Mirror"]
+        VideoFilter2["VideoFilter (流2)<br/>Scale/Crop/Mirror"]
+        VideoMix["VideoMix<br/>画面切换/合成"]
+    end
+
+    subgraph AudioPipeline["Audio Pipeline"]
+        AudioFilter1["AudioFilter (流1)<br/>Resample/Gain/NoiseSuppression"]
+        AudioFilter2["AudioFilter (流2)<br/>Resample/Gain/NoiseSuppression"]
+        AudioMixer["AudioMixer<br/>混音/音量控制"]
+    end
+
     Encoder["Encoder<br/>(H264/AAC 编码)"]
-    Muxer["Muxer<br/>(封装容器)"]
-    PushStream["PushStream<br/>(RTMP 推流)"]
+    PushStream["PushStream<br/>(Mux + RTMP 推流)"]
     Rendering["Rendering<br/>(本地预览)"]
 
-    InputSources --> StreamManager --> FilterMixer --> Encoder --> Muxer --> PushStream
-    FilterMixer -.-> Rendering
-    
-    style InputSources fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
-    style StreamManager fill:#fff3e0,stroke:#e65100,stroke-width:2px
-    style FilterMixer fill:#fff9c4,stroke:#f9a825,stroke-width:2px
+    Camera --> VideoFilter1
+    MediaOrNet_V --> VideoFilter2
+    Mic --> AudioFilter1
+    MediaOrNet_A --> AudioFilter2
+
+    VideoFilter1 --> VideoMix
+    VideoFilter2 --> VideoMix
+    AudioFilter1 --> AudioMixer
+    AudioFilter2 --> AudioMixer
+
+    VideoMix --> Encoder
+    AudioMixer --> Encoder
+    Encoder --> PushStream
+    VideoMix -.-> Rendering
+
+    style Input fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    style VSrc fill:#e3f2fd,stroke:#1565c0,stroke-width:1px
+    style ASrc fill:#e3f2fd,stroke:#1565c0,stroke-width:1px
+    style VideoPipeline fill:#fff9c4,stroke:#f9a825,stroke-width:2px
+    style AudioPipeline fill:#fff9c4,stroke:#f9a825,stroke-width:2px
     style Encoder fill:#fce4ec,stroke:#c62828,stroke-width:2px
-    style Muxer fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
     style PushStream fill:#c8e6c9,stroke:#388e3c,stroke-width:2px
     style Rendering fill:#b2dfdb,stroke:#00796b,stroke-width:2px,stroke-dasharray: 5 5
 ```

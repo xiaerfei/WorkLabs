@@ -53,12 +53,31 @@
 
 @property (nonatomic, strong, readwrite) WLMediaSourcePreview *preview;
 
+// WLSourceProtocol 协议属性
+@property (nonatomic, assign, readwrite) WLFromType fromType;
+@property (nonatomic, copy, nullable) void (^frameOutput)(CVPixelBufferRef pixelBuffer, Float64 pts);
+@property (nonatomic, copy, nullable) void (^sampleOutput)(CMSampleBufferRef sampleBuffer);
+
 @end
 
 @implementation WLMediaSource {
-    // 声明一个原子类型的整数
     _Atomic int _activeRenderThreads;
+
+    // 软解视频帧转换: AVFrame → BGRA CVPixelBufferRef
+    struct SwsContext *_swsCtx;
+    int _swsSrcW, _swsSrcH;
+    enum AVPixelFormat _swsSrcFmt;
+
+    // 音频帧转换: AVFrame → interleaved CMSampleBufferRef
+    struct SwrContext *_swrCtx;
+    int _swrSrcRate, _swrSrcChannels;
+    enum AVSampleFormat _swrSrcFmt;
 }
+
+@synthesize fromType = _fromType;
+@synthesize frameOutput = _frameOutput;
+@synthesize sampleOutput = _sampleOutput;
+@synthesize running = _running;
 
 - (void)dealloc {
     [self stop];
@@ -68,9 +87,9 @@
 - (instancetype)initWithPath:(NSString *)path {
     self = [super init];
     if (self) {
-        // 初始化原子变量
         atomic_init(&_activeRenderThreads, 0);
-        
+
+        _fromType = WLFromTypeMedia;
         self.path = path;
         self.videoPtsOffset = 30.0;
         self.audioPtsOffset = 30.0;
@@ -95,22 +114,22 @@
     if (errorMsg != nil) {
         return;
     }
-    
+
     [NSThread currentThread].name = @"com.media-source.thread";
-    
+
     [self configureQueue];
     [self configureDecode];
-    
+
     self.video_time_base = self.formatContext->streams[self.videoStreamIndex]->time_base;
     self.videoTimeBase = av_q2d(self.formatContext->streams[self.videoStreamIndex]->time_base);
     self.audioTimeBase = av_q2d(self.formatContext->streams[self.audioStreamIndex]->time_base);
-    
+
     atomic_store_explicit(&_activeRenderThreads, 2, memory_order_relaxed);
-    
+
     AVPacket *packet = av_packet_alloc();
-    
+
     while (self.isRunning) {
-        
+
         int size = av_read_frame(self.formatContext, packet);
         if (size < 0 || packet->size < 0) {
             /// 视频播放完成了
@@ -124,9 +143,9 @@
         }
         av_packet_unref(packet);
     }
-    
+
     av_packet_free(&packet);
-    
+
     self.videoDecoding = NO;
     self.audioDecoding = NO;
     [self.videoPacketQueue abort];
@@ -136,7 +155,7 @@
 - (void)addPacket:(AVPacket *)packet type:(WLNodeType)type {
     AVPacket *nodeP = av_packet_alloc();
     av_packet_ref(nodeP, packet);
-    
+
     WLNode *node = [WLNode new];
     node.type = type;
     node.packet = nodeP;
@@ -151,13 +170,13 @@
 - (void)configureQueue {
     self.videoPacketQueue = [[WLNodeQueue alloc] initWithType:WLNodeTypeVideo size:15];
     self.videoPacketQueue.queueName = @"video packet queue";
-    
+
     self.audioPacketQueue = [[WLNodeQueue alloc] initWithType:WLNodeTypeAudio size:20];
     self.audioPacketQueue.queueName = @"audio packet queue";
-    
+
     self.videoFrameQueue = [[WLNodeQueue alloc] initWithType:WLNodeTypeVideo size:4];
     self.videoFrameQueue.queueName = @"video frame queue";
-    
+
     self.audioFrameQueue = [[WLNodeQueue alloc] initWithType:WLNodeTypeAudio size:20];
     self.audioFrameQueue.queueName = @"audio frame queue";
 }
@@ -167,10 +186,10 @@
     self.audioDecoding  = YES;
     self.videoRendering = YES;
     self.audioRendering = YES;
-    
+
     [NSThread detachNewThreadSelector:@selector(videoDecodeThread) toTarget:self withObject:nil];
     [NSThread detachNewThreadSelector:@selector(audioDecodeThread) toTarget:self withObject:nil];
-    
+
     [NSThread detachNewThreadSelector:@selector(videoRenderThread) toTarget:self withObject:nil];
     [NSThread detachNewThreadSelector:@selector(audioRenderThread) toTarget:self withObject:nil];
 }
@@ -178,9 +197,9 @@
 - (void)videoDecodeThread {
     [NSThread currentThread].name = @"com.wl-decode-video.thread";
     AVFrame *frame = av_frame_alloc();
-    
+
     while (self.isVideoDecoding) {
-        
+
         int result = [self decodeFrame:self.videoCodecContext
                                  frame:frame
                                  queue:self.videoPacketQueue];
@@ -198,7 +217,7 @@
         av_frame_unref(frame);
     }
     av_frame_free(&frame);
-    
+
     [self.videoPacketQueue flush];
     self.videoRendering = NO;
     [self.videoFrameQueue abort];
@@ -208,7 +227,7 @@
     [NSThread currentThread].name = @"com.wl-decode-audio.thread";
     AVFrame *frame = av_frame_alloc();
     while (self.isAudioDecoding) {
-        
+
         int result = [self decodeFrame:self.audioCodecContext
                                  frame:frame
                                  queue:self.audioPacketQueue];
@@ -225,7 +244,7 @@
         av_frame_unref(frame);
     }
     av_frame_free(&frame);
-    
+
     [self.audioPacketQueue flush];
     self.audioRendering = NO;
     [self.audioFrameQueue abort];
@@ -235,32 +254,32 @@
              frame:(AVFrame *)frame
              queue:(WLNodeQueue *)queue {
     int ret = AVERROR(EAGAIN);
-    
+
     while (1) {
         ret = avcodec_receive_frame(avctx, frame);
         if (ret >= 0) return 0;
-        
+
         if (ret == AVERROR_EOF) {
             avcodec_flush_buffers(avctx);
             return AVERROR_EOF;
         }
-        
+
         if (ret == AVERROR(EAGAIN)) {
             // 使用带超时的阻塞出队，替代忙轮询
             // 队列有数据时立即返回，无数据时阻塞等待（零 CPU）
             // flush() 会 broadcast 唤醒，超时则继续等待
             WLNode *node = [queue deQueueWithTimeout:30]; // 30ms 超时
-            
+
             if (!node) {
                 // 超时，继续等待
                 continue;
             }
-            
+
             ret = avcodec_send_packet(avctx, node.packet);
-            
+
             [node flush]; // 无论成功失败都释放
             node = nil;
-            
+
             if (ret < 0 && ret != AVERROR(EAGAIN) && ret != AVERROR_EOF) {
                 return ret;
             }
@@ -274,29 +293,35 @@
     [NSThread currentThread].name = @"com.wl-render-video.thread";
     while (self.isVideoRendering) {
         Float64 current_time = CFAbsoluteTimeGetCurrent() * 1000;
-        
+
         if (self.baseTime == 0) {
             self.baseTime = current_time;
             NSLog(@"[Video] BaseTime set: %.3f", self.baseTime);
         }
-        
+
         WLNode *node = [self.videoFrameQueue peek];
         if (!node) {
             usleep(10 * 1000);
             continue;
         }
-                
+
         Float64 abs_pts = node.pts * 1000 + self.baseTime;
-                
+
         if (abs_pts + self.videoPtsOffset < current_time) {
             node = [self.videoFrameQueue deQueueWithBlock:NO];
             if (!node) continue;
-            if (node.frame->format == AV_PIX_FMT_VIDEOTOOLBOX) {
-                // TODO: 接入 WLPipelineManager
-                [node flush];
-            } else {
-                [node flush];
+
+            AVFrame *frame = node.frame;
+            Float64 pts = node.pts;
+
+            CVPixelBufferRef pixelBuffer = [self convertVideoFrame:frame];
+            if (pixelBuffer && _frameOutput) {
+                _frameOutput(pixelBuffer, pts);
+            } else if (pixelBuffer) {
+                CVPixelBufferRelease(pixelBuffer);
             }
+
+            [node flush];
         } else {
             Float64 waitMs = abs_pts + self.videoPtsOffset - current_time;
             if (waitMs > 50) waitMs = 50;
@@ -306,6 +331,7 @@
         }
     }
     [self.videoFrameQueue flush];
+    [self cleanupVideoConverter];
     [self releaseFFmpegResources];
 }
 
@@ -314,24 +340,32 @@
 
     while (self.isAudioRendering) {
         Float64 current_time = CFAbsoluteTimeGetCurrent() * 1000;
-        
+
         if (self.baseTime == 0) {
             usleep(10 * 1000);
             continue;
         }
-        
+
         WLNode *node = [self.audioFrameQueue peek];
         if (!node) {
             usleep(10 * 1000);
             continue;
         }
-        
+
         Float64 abs_pts = node.pts * 1000 + self.baseTime;
-        
+
         if (abs_pts + self.audioPtsOffset < current_time) {
             node = [self.audioFrameQueue deQueueWithBlock:NO];
             if (!node) continue;
-            // TODO: 接入 WLPipelineManager
+
+            AVFrame *frame = node.frame;
+            CMSampleBufferRef sampleBuffer = [self convertAudioFrame:frame];
+            if (sampleBuffer && _sampleOutput) {
+                _sampleOutput(sampleBuffer);
+            } else if (sampleBuffer) {
+                CFRelease(sampleBuffer);
+            }
+
             [node flush];
         } else {
             Float64 waitMs = abs_pts + self.audioPtsOffset - current_time;
@@ -343,34 +377,185 @@
     }
 
     [self.audioFrameQueue flush];
+    [self cleanupAudioConverter];
     [self releaseFFmpegResources];
 }
+#pragma mark - Video Frame Conversion (AVFrame → CVPixelBufferRef)
+- (CVPixelBufferRef)convertVideoFrame:(AVFrame *)frame {
+    if (!frame) return NULL;
+
+    // VideoToolbox 硬解: data[3] 直接持有 CVPixelBufferRef
+    if (frame->format == AV_PIX_FMT_VIDEOTOOLBOX) {
+        CVPixelBufferRef vtBuf = (CVPixelBufferRef)frame->data[3];
+        if (vtBuf) {
+            CVPixelBufferRetain(vtBuf);
+            return vtBuf;
+        }
+    }
+
+    // 软解: swscale 转换到 BGRA → CVPixelBufferRef
+    int w = frame->width;
+    int h = frame->height;
+    enum AVPixelFormat fmt = (enum AVPixelFormat)frame->format;
+
+    if (!_swsCtx || _swsSrcW != w || _swsSrcH != h || _swsSrcFmt != fmt) {
+        if (_swsCtx) sws_freeContext(_swsCtx);
+        _swsCtx = sws_getContext(w, h, fmt,
+                                 w, h, AV_PIX_FMT_BGRA,
+                                 SWS_BILINEAR, NULL, NULL, NULL);
+        _swsSrcW = w;
+        _swsSrcH = h;
+        _swsSrcFmt = fmt;
+    }
+    if (!_swsCtx) return NULL;
+
+    CVPixelBufferRef pixelBuffer = NULL;
+    CVReturn cvRet = CVPixelBufferCreate(kCFAllocatorDefault, w, h,
+                                          kCVPixelFormatType_32BGRA,
+                                          NULL, &pixelBuffer);
+    if (cvRet != kCVReturnSuccess) return NULL;
+
+    CVPixelBufferLockBaseAddress(pixelBuffer, 0);
+    uint8_t *dst = CVPixelBufferGetBaseAddress(pixelBuffer);
+    int dstStride = (int)CVPixelBufferGetBytesPerRow(pixelBuffer);
+    uint8_t *dstSlice[1] = { dst };
+    int dstStrideArr[1] = { dstStride };
+
+    sws_scale(_swsCtx, (const uint8_t *const *)frame->data, frame->linesize,
+              0, h, dstSlice, dstStrideArr);
+
+    CVPixelBufferUnlockBaseAddress(pixelBuffer, 0);
+    return pixelBuffer;
+}
+
+#pragma mark - Audio Frame Conversion (AVFrame → CMSampleBufferRef)
+- (CMSampleBufferRef)convertAudioFrame:(AVFrame *)frame {
+    if (!frame) return NULL;
+
+    int srcRate = frame->sample_rate;
+    int srcChannels = frame->ch_layout.nb_channels;
+    enum AVSampleFormat srcFmt = (enum AVSampleFormat)frame->format;
+    int nbSamples = frame->nb_samples;
+
+    // 配置或复用 SwrContext
+    if (!_swrCtx || _swrSrcRate != srcRate || _swrSrcChannels != srcChannels || _swrSrcFmt != srcFmt) {
+        if (_swrCtx) swr_free(&_swrCtx);
+
+        AVChannelLayout outLayout = (srcChannels == 1)
+            ? (AVChannelLayout)AV_CHANNEL_LAYOUT_MONO
+            : (AVChannelLayout)AV_CHANNEL_LAYOUT_STEREO;
+
+        swr_alloc_set_opts2(&_swrCtx,
+                            &outLayout, AV_SAMPLE_FMT_FLT, srcRate,
+                            &frame->ch_layout, srcFmt, srcRate,
+                            0, NULL);
+        if (!_swrCtx) return NULL;
+        if (swr_init(_swrCtx) < 0) {
+            swr_free(&_swrCtx);
+            return NULL;
+        }
+        _swrSrcRate = srcRate;
+        _swrSrcChannels = srcChannels;
+        _swrSrcFmt = srcFmt;
+    }
+
+    int outChannels = (srcChannels == 1) ? 1 : 2;
+    int outBytesPerSample = sizeof(float);
+    int dstNbSamples = (int)av_rescale_rnd(swr_get_out_samples(_swrCtx, nbSamples),
+                                            srcRate, srcRate, AV_ROUND_UP);
+
+    // 分配转换缓冲区
+    int dstDataSize = dstNbSamples * outChannels * outBytesPerSample;
+    uint8_t *dstData = (uint8_t *)av_malloc(dstDataSize);
+    if (!dstData) return NULL;
+
+    uint8_t *dstSlice[1] = { dstData };
+    int converted = swr_convert(_swrCtx, dstSlice, dstNbSamples,
+                                (const uint8_t **)frame->extended_data, nbSamples);
+    if (converted <= 0) {
+        av_free(dstData);
+        return NULL;
+    }
+
+    int actualDataSize = converted * outChannels * outBytesPerSample;
+
+    // 创建 CMSampleBufferRef
+    AudioStreamBasicDescription asbd = {0};
+    asbd.mSampleRate = srcRate;
+    asbd.mFormatID = kAudioFormatLinearPCM;
+    asbd.mFormatFlags = kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked;
+    asbd.mChannelsPerFrame = outChannels;
+    asbd.mBitsPerChannel = 32;
+    asbd.mFramesPerPacket = 1;
+    asbd.mBytesPerFrame = outChannels * outBytesPerSample;
+    asbd.mBytesPerPacket = asbd.mBytesPerFrame;
+
+    CMFormatDescriptionRef fmtDesc = NULL;
+    OSStatus osRet = CMAudioFormatDescriptionCreate(kCFAllocatorDefault, &asbd, 0, NULL, 0, NULL, NULL, &fmtDesc);
+    if (osRet != noErr) {
+        av_free(dstData);
+        return NULL;
+    }
+
+    CMBlockBufferRef blockBuffer = NULL;
+    osRet = CMBlockBufferCreateWithMemoryBlock(kCFAllocatorDefault, dstData, actualDataSize,
+                                                kCFAllocatorMalloc, NULL, 0, actualDataSize, 0, &blockBuffer);
+    if (osRet != kCMBlockBufferNoErr) {
+        CFRelease(fmtDesc);
+        return NULL;
+    }
+
+    CMSampleBufferRef sampleBuffer = NULL;
+    CMSampleTimingInfo timing = { kCMTimeInvalid, kCMTimeInvalid, kCMTimeInvalid };
+    osRet = CMSampleBufferCreate(kCFAllocatorDefault, blockBuffer, YES, NULL, NULL,
+                                  fmtDesc, converted, 1, &timing, 0, NULL, &sampleBuffer);
+
+    CFRelease(fmtDesc);
+    CFRelease(blockBuffer);
+
+    return (osRet == noErr) ? sampleBuffer : NULL;
+}
+
+- (void)cleanupVideoConverter {
+    if (_swsCtx) {
+        sws_freeContext(_swsCtx);
+        _swsCtx = NULL;
+    }
+}
+
+- (void)cleanupAudioConverter {
+    if (_swrCtx) {
+        swr_free(&_swrCtx);
+        _swrCtx = NULL;
+    }
+}
+
 #pragma mark - initial FFmpeg
 - (NSString *)configureFFmpeg {
     NSString *errorMsg = nil;
     int err = 0;
-    
+
     // 1. 打开文件
     err = [self openFileWithErrorMessage:&errorMsg];
     if (err != 0) {
         // openFile 内部失败会自动清理 partial 资源，此处直接返回
         return errorMsg;
     }
-    
+
     // 2. 打开视频流
     err = [self openVideoStreamWithError:&errorMsg];
     if (err != 0) {
         [self releaseFFmpegResources];
         return errorMsg;
     }
-    
+
     // 3. 打开音频流
     err = [self openAudioStreamWithError:&errorMsg];
     if (err != 0) {
         [self releaseFFmpegResources];
         return errorMsg;
     }
-    
+
     return nil;
 }
 
@@ -380,7 +565,7 @@
 
     AVFormatContext *tempCtx = NULL;
     AVDictionary *opts = NULL;
-    
+
     int ret = avformat_open_input(&tempCtx, self.path.UTF8String, NULL, &opts);
     if (opts) av_dict_free(&opts);
 
@@ -403,7 +588,7 @@
 - (int)openVideoStreamWithError:(NSString **)errorMsg {
     // 1. 重置并清理旧资源
     [self closeVideoStream];
-    
+
     const AVCodec *codec = NULL;
     int ret = 0;
 
@@ -457,7 +642,7 @@ fail:
     // 直接指定 VideoToolbox，这是 Apple 平台的标准硬解方式
     int err = av_hwdevice_ctx_create(&hw_device_ctx, AV_HWDEVICE_TYPE_VIDEOTOOLBOX, NULL, NULL, 0);
     if (err < 0) return err;
-    
+
     ctx->hw_device_ctx = av_buffer_ref(hw_device_ctx);
     av_buffer_unref(&hw_device_ctx);
     return 0;
@@ -523,25 +708,28 @@ fail:
 - (void)releaseFFmpegResources {
     NSInteger remaining = atomic_fetch_sub_explicit(&_activeRenderThreads, 1, memory_order_acq_rel) - 1;
     if (remaining > 0) return;
-    
+
+    [self cleanupVideoConverter];
+    [self cleanupAudioConverter];
+
     if (_videoCodecContext) {
         avcodec_free_context(&_videoCodecContext);
         _videoCodecContext = NULL;
     }
-    
+
     if (_audioCodecContext) {
         avcodec_free_context(&_audioCodecContext);
         _audioCodecContext = NULL;
     }
-    
+
     if (_formatContext) {
         avformat_close_input(&_formatContext);
         _formatContext = NULL;
     }
-    
+
     self.videoStreamIndex = -1;
     self.audioStreamIndex = -1;
-    
+
     NSLog(@"FFmpeg resources cleaned up safely.");
 }
 #pragma mark - tools
