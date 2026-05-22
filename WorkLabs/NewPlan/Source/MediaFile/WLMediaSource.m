@@ -55,9 +55,6 @@
 
 // WLSourceProtocol 协议属性
 @property (nonatomic, assign, readwrite) WLFromType fromType;
-@property (nonatomic, copy, nullable) void (^frameOutput)(CVPixelBufferRef pixelBuffer, Float64 pts);
-@property (nonatomic, copy, nullable) void (^sampleOutput)(CMSampleBufferRef sampleBuffer);
-
 @end
 
 @implementation WLMediaSource {

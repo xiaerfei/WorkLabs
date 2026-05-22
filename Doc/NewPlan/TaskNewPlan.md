@@ -177,14 +177,14 @@ flowchart LR
 
 **接口**：
 ```objc
-@interface WLMediaSource : NSObject
+@interface WLMediaSource : NSObject <WLStreamSourceProtocol>
 - (void)openFile:(NSString *)filePath;
 - (void)start;
 - (void)stop; // 待完善
-- (void)setVideoOutput:(id<WLMediaVideoOutput>)output;
-- (void)setAudioOutput:(id<WLMediaAudioOutput>)output;
 @end
 ```
+
+> WLMediaSource 遵循 `WLStreamSourceProtocol`，`streamType` 根据实际输出声明（`WLNodeTypeVideo` + `WLNodeTypeAudio`），`fromType` 为 `WLFromTypeMedia`。通过 delegate 回调将解码后的帧推送给 WLStreamsManager。
 
 ### 3.2 WLCameraSource（待实现）
 
@@ -201,13 +201,7 @@ flowchart LR
 
 **伪代码**：
 ```objc
-@protocol WLCameraSourceDelegate <NSObject>
-- (void)cameraSource:(WLCameraSource *)source didOutputVideoFrame:(CVPixelBufferRef)pixelBuffer;
-- (void)cameraSourceDidEncounterError:(WLCameraSource *)source error:(NSError *)error;
-@end
-
-@interface WLCameraSource : NSObject
-@property (nonatomic, weak) id<WLCameraSourceDelegate> delegate;
+@interface WLCameraSource : NSObject <WLStreamSourceProtocol>
 @property (nonatomic, assign) CGSize captureResolution;
 @property (nonatomic, assign) NSInteger frameRate;
 
@@ -217,380 +211,39 @@ flowchart LR
 @end
 ```
 
+> WLCameraSource 遵循 `WLStreamSourceProtocol`，`streamType` 为 `WLNodeTypeVideo`，`fromType` 为 `WLFromTypeCamera`。通过 delegate 回调将采集的帧推送给 WLStreamsManager。
+
 ### 3.3 Audio 输入源详细实施方案
 
-#### 📊 **现状分析**
+#### 现状
 
-| 音频输入源 | 实现状态 | 代码位置 | 优先级 |
-|-----------|---------|----------|--------|
-| **本地视频流音频** (WLMediaSource) | ✅ 已完成 | [WLMediaSource.m:320-354](../WorkLabs/Core/MediaSource/WLMediaSource.m#L320-L354) | - |
-| **本地麦克风** (TVUAudioManager) | ❌ 空壳实现 | [TVUAudioManager.h/m](../WorkLabs/Core/Audio/TVUAudioManager.h) | 🔴 **最高** |
-| **网络拉流音频** (WLNetWorkSource) | ❌ 未开始 | 待创建 | 🟡 Phase 3 |
-
-**现有音频处理框架**：
-- [WLAudioMixStreams](../WorkLabs/Core/Streams/WLAudioMixStreams.h)：音频混合管理器（部分实现）
-- [WLAudioMixer](../WorkLabs/Core/Scene/WLAudioMixer.h)：场景化音频混合器（空壳）
-- [WLResample](../WorkLabs/Core/Audio/WLResample.h)：重采样工具（已实现基础功能）
-
-**核心阻塞点**：`TVUAudioManager` 是空的，需要实现麦克风采集功能才能跑通音频链路。
+| 音频输入源 | 状态 | 优先级 |
+|-----------|------|--------|
+| 本地视频流音频 (WLMediaSource) | ✅ 已完成 | - |
+| 本地麦克风 | ❌ 待实现 | 🔴 最高 |
+| 网络拉流音频 (WLNetWorkSource) | ❌ 未开始 | 🟡 Phase 3 |
 
 ---
 
-#### 📁 **文件结构规划**
+#### 🎤 **WLMicSource 实现**
 
-所有新代码放置在 `WorkLabs/NewPlan/Audio/` 目录下：
+**技术方案**：`AVCaptureSession` + `AVCaptureAudioDataOutput`
 
-```
-WorkLabs/NewPlan/
-├── Audio/
-│   ├── WLAudioSourceProtocol.h      # 统一音频源协议（定义接口规范）
-│   ├── WLMicSource.h                # 麦克风采集模块头文件
-│   ├── WLMicSource.m                # 麦克风采集模块实现
-│   ├── WLAudioTypes.h               # 音频相关类型定义和枚举
-│   └── README.md                    # 模块说明文档
-```
-
-**需要改进的现有文件**：
-- [WLAudioMixStreams.m](../WorkLabs/Core/Streams/WLAudioMixStreams.m)：完善 Mix 模式实现
-
----
-
-#### 🎯 **Phase 1: 协议与接口定义（当前阶段）**
-
-##### **1.1 WLAudioTypes.h - 类型定义**
-
+**伪代码**：
 ```objc
-#import <Foundation/Foundation.h>
-
-NS_ASSUME_NONNULL_BEGIN
-
-typedef NS_ENUM(NSInteger, WLAudioSourceType) {
-    WLAudioSourceTypeMic = 0,        // 本地麦克风
-    WLAudioSourceTypeMediaFile,      // 媒体文件音轨
-    WLAudioSourceTypeNetwork         // 网络拉流音频
-};
-
-typedef NS_ENUM(NSInteger, WLAudioSourceState) {
-    WLAudioSourceStateIdle = 0,      // 空闲
-    WLAudioSourceStatePreparing,     // 准备中（请求权限、初始化设备）
-    WLAudioSourceStateRunning,       // 运行中
-    WLAudioSourceStatePaused,        // 已暂停
-    WLAudioSourceStateError          // 错误状态
-};
-
-typedef struct {
-    Float64 sampleRate;              // 采样率 (Hz)
-    NSInteger channels;              // 声道数 (1=单声道, 2=立体声)
-    NSInteger bitsPerChannel;        // 位深度 (16/32)
-} WLAudioFormat;
-
-NS_ASSUME_NONNULL_END
-```
-
-##### **1.2 WLAudioSourceProtocol.h - 统一音频源协议**
-
-```objc
-#import <Foundation/Foundation.h>
-#import <AVFoundation/AVFoundation.h>
-#import "WLAudioTypes.h"
-
-NS_ASSUME_NONNULL_BEGIN
-
-#pragma mark - 音频源代理协议
-
-@protocol WLAudioSourceDelegate <NSObject>
-
-@required
-
-/// 音频数据回调（核心输出接口）
-/// @param source 音频源实例
-/// @param sampleBuffer 音频样本缓冲区（CMSampleBufferRef 格式）
-- (void)audioSource:(id<WLAudioSource>)source 
-didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer;
-
-/// 错误回调
-/// @param source 音频源实例
-/// @param error 错误信息
-- (void)audioSource:(id<WLAudioSource>)source 
-didEncounterError:(NSError *)error;
-
-@optional
-
-/// 音频源启动成功回调
-- (void)audioSourceDidStart:(id<WLAudioSource>)source;
-
-/// 音频源停止回调
-- (void)audioSourceDidStop:(id<WLAudioSource>)source;
-
-/// 音频量级回调（用于 UI 显示音量条）
-/// @param level 归一化的音量等级 (0.0 - 1.0)
-- (void)audioSource:(id<WLAudioSource>)source didUpdateLevel:(float)level;
-
-@end
-
-#pragma mark - 音频源协议（统一接口）
-
-@protocol WLAudioSource <NSObject>
-
-#pragma mark 属性
-
-/// 音频源类型（只读）
-@property (nonatomic, assign, readonly) WLAudioSourceType sourceType;
-
-/// 当前状态（只读）
-@property (nonatomic, assign, readonly) WLAudioSourceState state;
-
-/// 代理对象
-@property (nonatomic, weak, nullable) id<WLAudioSourceDelegate> delegate;
-
-/// 输出音频格式配置（可选，nil 则使用默认值）
-@property (nonatomic, assign, nullable) WLAudioFormat outputFormat;
-
-/// 是否正在运行
-@property (nonatomic, assign, getter=isRunning) BOOL running;
-
-#pragma mark 生命周期管理
-
-/// 启动音频采集
-/// @return 是否成功启动
-- (BOOL)start;
-
-/// 停止音频采集
-- (void)stop;
-
-/// 暂停采集（保留资源）
-- (void)pause;
-
-/// 恢复采集
-- (void)resume;
-
-#pragma mark 配置方法
-
-/// 设置音量 (0.0 - 1.0)
-/// @param volume 音量值
-- (void)setVolume:(float)volume;
-
-/// 获取当前音量
-- (float)volume;
-
-#pragma mark 设备管理（仅适用于 Mic 类型）
-
-/// 获取可用设备列表（仅 Mic 类型有效）
-- (NSArray<AVCaptureDevice *> *)availableDevices;
-
-/// 切换设备（仅 Mic 类型有效）
-/// @param device 目标设备
-- (BOOL)switchToDevice:(AVCaptureDevice *)device;
-
-@end
-
-NS_ASSUME_NONNULL_END
-```
-
-**设计原则**：
-1. **协议抽象**：所有音频源（Mic/Media/Network）都遵循同一接口
-2. **CMSampleBufferRef 统一输出**：与现有 WLMediaSource 和 AVFoundation 兼容
-3. **状态机管理**：明确的生命周期状态转换
-4. **代理模式**：通过 delegate 回调输出数据，解耦生产者和消费者
-5. **可扩展性**：预留了音量控制、设备切换等接口
-
----
-
-#### 🎤 **Phase 2: WLMicSource 实现（下一步）**
-
-##### **技术选型对比**
-
-| 方案 | 优点 | 缺点 | 推荐度 |
-|------|------|------|--------|
-| **AVCaptureSession** | 与 WLVideoManager 架构统一；输出 CMSampleBufferRef；系统原生支持 | 相对底层 | ⭐⭐⭐⭐⭐ **推荐** |
-| **AVAudioEngine** | 更现代 API；支持实时音频处理；灵活的音频图 | 输出 AVAudioPCMBuffer，需要转换格式 | ⭐⭐⭐⭐ |
-| **AudioUnit** | 最低延迟；完全可控 | 过于复杂；代码量大 | ⭐⭐ |
-
-**最终选择**：`AVCaptureSession` + `AVCaptureAudioDataOutput`
-- ✅ 与现有架构完美兼容
-- ✅ 直接输出 CMSampleBufferRef，无需转换
-- ✅ 可以复用现有的 WLNode 包装逻辑
-- ✅ macOS 原生支持，性能稳定
-
-##### **WLMicSource.h 接口设计**
-
-```objc
-#import <Foundation/Foundation.h>
-#import "WLAudioSourceProtocol.h"
-
-NS_ASSUME_NONNULL_BEGIN
-
-@interface WLMicSource : NSObject <WLAudioSource, AVCaptureAudioDataOutputSampleBufferDelegate>
-
-#pragma mark 初始化方法
-
-/// 使用默认麦克风设备初始化
-- (instancetype)init;
-
-/// 指定麦克风设备初始化
-/// @param device 麦克风设备（nil 则使用系统默认设备）
-- (instancetype)initWithDevice:(nullable AVCaptureDevice *)device;
-
-#pragma mark 配置属性
-
-/// 当前使用的麦克风设备（只读）
-@property (nonatomic, strong, readonly, nullable) AVCaptureDevice *currentDevice;
-
-/// 音量 (0.0 - 1.0，默认 1.0)
+@interface WLMicSource : NSObject <WLStreamSourceProtocol, AVCaptureAudioDataOutputSampleBufferDelegate>
+// streamType = WLNodeTypeAudio, fromType = WLFromTypeMic
 @property (nonatomic, assign) float volume;
-
-/// 是否启用自动增益控制（默认 YES）
 @property (nonatomic, assign) BOOL enableAutomaticGainControl;
-
-/// 是否抑制回声（默认 NO）
-@property (nonatomic, assign) BOOL enableEchoCancellation;
-
-/// 是否降噪（默认 NO）
-@property (nonatomic, assign) BOOL enableNoiseSuppression;
-
-#pragma mark 设备查询
-
-/// 获取所有可用的麦克风设备
-+ (NSArray<AVCaptureDevice *> *)availableMicrophones;
-
-/// 获取推荐的默认麦克风设备
-+ (nullable AVCaptureDevice *)defaultMicrophone;
-
+- (instancetype)initWithDevice:(nullable AVCaptureDevice *)device;
 @end
 
-NS_ASSUME_NONNULL_END
+// start: 检查权限 → 配置 AVCaptureSession → startRunning
+// stop: stopRunning → delegate sourceDidStop:
+// captureOutput:didOutputSampleBuffer: → CFRetain → dispatch_async(main) → delegate didOutputAudioBuffer: → CFRelease
 ```
 
-##### **WLMicSource.m 核心实现要点**
-
-```objc
-@implementation WLMicSource {
-    AVCaptureSession *_session;
-    AVCaptureDeviceInput *_micInput;
-    AVCaptureAudioDataOutput *_audioOutput;
-    dispatch_queue_t _audioQueue;
-    Float64 _baseTime;
-}
-
-#pragma mark - 初始化
-
-- (instancetype)initWithDevice:(nullable AVCaptureDevice *)device {
-    self = [super init];
-    if (self) {
-        _sourceType = WLAudioSourceTypeMic;
-        _state = WLAudioSourceStateIdle;
-        _volume = 1.0f;
-        _enableAutomaticGainControl = YES;
-        
-        if (device) {
-            _currentDevice = device;
-        } else {
-            _currentDevice = [WLMicSource defaultMicrophone];
-        }
-        
-        _audioQueue = dispatch_queue_create("com.wl-micsource.audio", DISPATCH_QUEUE_SERIAL);
-    }
-    return self;
-}
-
-#pragma mark - 生命周期
-
-- (BOOL)start {
-    if (_state == WLAudioSourceStateRunning) {
-        return YES;
-    }
-    
-    _state = WLAudioSourceStatePreparing;
-    
-    // 1. 检查权限
-    AVAuthorizationStatus status = [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeAudio];
-    if (status == AVAuthorizationStatusNotDetermined) {
-        // TODO: 请求权限
-    } else if (status == AVAuthorizationStatusDenied) {
-        NSError *error = [NSError errorWithDomain:@"WLMicSource" 
-                                             code:-1 
-                                         userInfo:@{NSLocalizedDescriptionKey: @"麦克风权限被拒绝"}];
-        [self.delegate audioSource:self didEncounterError:error];
-        return NO;
-    }
-    
-    // 2. 配置 AVCaptureSession
-    [self configureCaptureSession];
-    
-    // 3. 启动 Session
-    [_session startRunning];
-    
-    _state = WLAudioSourceStateRunning;
-    _running = YES;
-    _baseTime = CFAbsoluteTimeGetCurrent() * 1000; // 记录起始时间戳
-    
-    [self.delegate audioSourceDidStart:self];
-    return YES;
-}
-
-- (void)stop {
-    [_session stopRunning];
-    _state = WLAudioSourceStateIdle;
-    _running = NO;
-    [self.delegate audioSourceDidStop:self];
-}
-
-#pragma mark - AVCaptureAudioDataOutputSampleBufferDelegate
-
-- (void)captureOutput:(AVCaptureOutput *)output 
-didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer 
-       fromConnection:(AVCaptureConnection *)connection {
-    
-    if (_state != WLAudioSourceStateRunning) {
-        return;
-    }
-    
-    // 保留 sampleBuffer，防止被释放
-    CFRetain(sampleBuffer);
-    
-    // 在主线程或指定队列通知代理
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [self.delegate audioSource:self didOutputSampleBuffer:sampleBuffer];
-        CFRelease(sampleBuffer);
-    });
-}
-
-#pragma mark - 私有方法
-
-- (void)configureCaptureSession {
-    _session = [[AVCaptureSession alloc] init];
-    _session.sessionPreset = AVCaptureSessionPresetHigh;
-    
-    // 配置麦克风输入
-    NSError *error = nil;
-    _micInput = [[AVCaptureDeviceInput alloc] initWithDevice:_currentDevice error:&error];
-    if (error) {
-        [self.delegate audioSource:self didEncounterError:error];
-        return;
-    }
-    
-    if ([_session canAddInput:_micInput]) {
-        [_session addInput:_micInput];
-    }
-    
-    // 配置音频输出
-    _audioOutput = [[AVCaptureAudioDataOutput alloc] init];
-    [_audioOutput setSampleBufferDelegate:self queue:_audioQueue];
-    
-    if ([_session canAddOutput:_audioOutput]) {
-        [_session addOutput:_audioOutput];
-    }
-}
-
-@end
-```
-
-**关键实现细节**：
-1. **线程安全**：使用串行队列 `_audioQueue` 处理回调
-2. **内存管理**：对 CMSampleBufferRef 进行 retain/release，防止过早释放
-3. **时间戳记录**：在 start 时记录 `_baseTime`，用于后续时间戳同步
-4. **错误处理**：权限检查、设备配置失败等场景都有处理
-5. **代理通知**：在主线程通知代理，方便 UI 更新
+**关键点**：串行队列处理回调、CMSampleBufferRef retain/release、权限检查
 
 ---
 
@@ -600,195 +253,67 @@ didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
 
 ```mermaid
 flowchart LR
-    subgraph Sources["音频输入源"]
-        Mic["WLMicSource<br/>(麦克风采集)"]
-        Media["WLMediaSource<br/>(文件解码)"]
-    end
-    
-    subgraph Convert["格式转换"]
-        Node_Mic["包装为 WLNode<br/>fromType=Camera"]
-        Node_Media["包装为 WLNode<br/>fromType=Media"]
+    subgraph Sources["输入源（遵循 WLStreamSourceProtocol）"]
+        Mic["WLMicSource<br/>streamType=Audio<br/>fromType=Mic"]
+        Media["WLMediaSource<br/>streamType=Video+Audio<br/>fromType=Media"]
     end
     
     subgraph Manager["WLStreamsManager"]
-        AddAudio["addAudioNode:"]
+        AddSource["addSource:"]
         Queue["WLNodeQueue<br/>(线程安全队列)"]
+        Filter["Filter 处理"]
+        Mix["混合/切换"]
     end
     
-    subgraph Mix["WLAudioMixStreams"]
-        ModeSelect{"判断 audioRenderType"}
-        MicMode["Mic 模式<br/>只取 Camera 队列"]
-        MediaMode["Media 模式<br/>只取 Media 队列"]
-        MixMode["Mix 模态<br/>混合两路"]
+    subgraph Output["输出（遵循 WLStreamOutputProtocol）"]
+        Preview["WLPreviewOutput<br/>(预览)"]
+        Encoder["WLEncoder<br/>(编码)"]
     end
     
-    subgraph Output["下游消费"]
-        Encoder["编码器 / 推流器 / 播放器"]
-    end
+    Mic -- "delegate: didOutputAudioBuffer" --> AddSource --> Queue --> Filter --> Mix
+    Media -- "delegate: didOutputVideoFrame / didOutputAudioBuffer" --> AddSource
     
-    Mic --> Node_Mic --> AddAudio --> Queue --> ModeSelect
-    Media --> Node_Media --> AddAudio --> Queue
-    
-    ModeSelect --> MicMode --> Encoder
-    ModeSelect --> MediaMode --> Encoder
-    ModeSelect --> MixMode --> Encoder
+    Mix --> Preview
+    Mix --> Encoder
     
     style Sources fill:#e3f2fd,stroke:#1565c0
     style Manager fill:#fff3e0,stroke:#e65100
-    style Mix fill:#fff9c4,stroke:#f9a825
     style Output fill:#e8f5e9,stroke:#2e7d32
 ```
 
-##### **集成代码示例**
+##### **集成伪代码**
 
-**1. WLMediaSource 的 audioRenderThread（已有实现）**
 ```objc
-// 位于 WLMediaSource.m 第 320-354 行
-- (void)audioRenderThread {
-    while (self.isAudioRendering) {
-        // 从 FFmpeg 解码队列获取帧
-        WLNode *node = [self.audioFrameQueue deQueueWithBlock:NO];
-        if (!node) {
-            usleep(10 * 1000); // 10ms
-            continue;
-        }
-        
-        // 时间戳处理
-        Float64 abs_pts = node.pts * 1000 + self.baseTime;
-        
-        // 发送到 WLStreamsManager
-        [[WLStreamsManager manager] addAudioNode:node];
+// WLStreamsManager 核心流程
+- (void)addSource:(id<WLStreamSourceProtocol>)source {
+    source.delegate = self;
+    [self.sources addObject:source];
+}
+
+// delegate 回调 → 包装为 WLNode → 入队
+- (void)source:(id<WLStreamSourceProtocol>)source
+    didOutputVideoFrame:(CVPixelBufferRef)pixelBuffer pts:(Float64)pts {
+    WLNode *node = /* 包装 pixelBuffer, pts, source.fromType */;
+    [self.videoQueue enQueue:node];
+}
+
+// 内部消费线程：出队 → Filter → Mix → Output
+- (void)mixThread {
+    WLNode *node = [self.videoQueue deQueue];
+    CVPixelBufferRef processed = [self.videoFilter processVideoFrame:node.data pts:node.pts];
+    for (id<WLVideoOutputProtocol> output in self.videoOutputs) {
+        [output receiveVideoFrame:processed pts:node.pts];
     }
 }
 ```
 
-**2. WLMicSource 的回调处理（新增）**
-```objc
-// 在 Delegate 实现中
-- (void)audioSource:(id<WLAudioSource>)source 
-didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer {
-    
-    // 将 CMSampleBufferRef 包装为 WLNode
-    WLNode *node = [[WLNode alloc] init];
-    node.sampleBuffer = sampleBuffer; // 需要扩展 WLNode 支持 CMSampleBuffer
-    node.fromType = WLFromTypeCamera; // 标记为麦克风来源
-    node.type = WLNodeTypeAudio;
-    node.pts = CMTimeGetSeconds(CMSampleBufferGetPresentationTimeStamp(sampleBuffer)) * 1000;
-    
-    // 发送到 WLStreamsManager
-    [[WLStreamsManager manager] addAudioNode:node];
-}
-```
-
-**3. WLAudioMixStreams 的 Mix 模式改进（待完善）**
-```objc
-// 位于 WLAudioMixStreams.m encoderThread 方法
-case WLAudioRenderTypeMix:
-{
-    // 从 Mic 队列取帧
-    WLNode *micNode = [self.queueDict[@(WLFromTypeCamera)] deQueueWithBlock:NO];
-    
-    // 从 Media 队列取帧
-    WLNode *mediaNode = [self.queueDict[@(WLFromTypeMedia)] deQueueWithBlock:NO];
-    
-    if (micNode || mediaNode) {
-        // TODO: 实现混音算法
-        // 方案 A: 简单切换（根据优先级选择一路）
-        // 方案 B: 加权混音（两路 PCM 数据叠加）
-        
-        WLNode *outputNode = nil;
-        if (micNode && !mediaNode) {
-            outputNode = micNode; // 只有麦克风
-        } else if (!micNode && mediaNode) {
-            outputNode = mediaNode; // 只有媒体文件
-        } else {
-            outputNode = [self mixAudioNode:micNode withNode:mediaNode]; // 混合
-        }
-        
-        // 发送给下游（编码器/推流器）
-        if (outputNode) {
-            // TODO: 调用 WLPushStreamsManager 或 WLEncoder 的接口
-            // [[WLPushStreamsManager shared] pushAudioFrame:outputNode.frame];
-        }
-        
-        // 释放节点
-        [micNode flush];
-        [mediaNode flush];
-    }
-    
-    break;
-}
-```
-
 ---
 
-#### ✅ **验收标准**
+#### 注意事项
 
-完成 Audio 输入源实施后，应满足以下条件：
-
-##### **功能完整性**
-- [ ] WLMicSource 能够成功启动并采集麦克风音频
-- [ ] WLMicSource 能够正确停止并释放资源
-- [ ] 音频数据能够以 CMSampleBufferRef 格式输出
-- [ ] WLStreamsManager 能够接收来自 Mic 和 Media 两路的音频数据
-- [ ] WLAudioMixStreams 的三种模式都能正常工作：
-  - [ ] `WLAudioRenderTypeMic`: 只输出麦克风音频
-  - [ ] `WLAudioRenderTypeMeida`: 只输出媒体文件音频
-  - [ ] `WLAudioRenderTypeMix`: 混合两路音频
-
-##### **性能指标**
-- **延迟**: 麦克风采集到输出的延迟 < 50ms
-- **CPU 占用**: 音频采集和处理占用 < 5%
-- **内存稳定**: 长时间运行无内存泄漏
-- **线程安全**: 无竞态条件和死锁
-
-##### **兼容性**
-- [ ] 支持内置麦克风（MacBook Pro/Mac mini）
-- [ ] 支持外接 USB 麦克风
-- [ ] 支持多麦克风设备切换
-- [ ] 正确处理权限请求和拒绝场景
-
----
-
-#### 📋 **实施步骤总结**
-
-| 步骤 | 任务 | 文件 | 依赖 | 状态 |
-|------|------|------|------|------|
-| **1** | 创建 `WLAudioTypes.h` | NewPlan/Audio/ | 无 | ⏳ 待开始 |
-| **2** | 创建 `WLAudioSourceProtocol.h` | NewPlan/Audio/ | Step 1 | ⏳ 待开始 |
-| **3** | 创建 `WLMicSource.h` | NewPlan/Audio/ | Step 2 | ⏳ 待开始 |
-| **4** | 创建 `WLMicSource.m` | NewPlan/Audio/ | Step 3 | ⏳ 待开始 |
-| **5** | 扩展 WLNode 支持 CMSampleBuffer | Core/ | Step 4 | ⏳ 待开始 |
-| **6** | 改进 WLAudioMixStreams.m | Core/Streams/ | Step 5 | ⏳ 待开始 |
-| **7** | 集成测试验证 | Test/ | All | ⏳ 待开始 |
-
----
-
-#### ⚠️ **注意事项与风险提示**
-
-1. **macOS 权限问题**
-   - macOS 需要在 Info.plist 中添加 `NSMicrophoneUsageDescription`
-   - 首次调用会弹出权限请求对话框
-   - 用户拒绝后需要在系统设置中手动开启
-
-2. **线程模型注意**
-   - AVCaptureSession 的回调在 `_audioQueue`（后台线程）
-   - delegate 通知切换到主线程（dispatch_get_main_queue）
-   - WLStreamsManager.addAudioNode: 可能会被多线程调用，需确保线程安全
-
-3. **时间戳同步**
-   - WLMicSource 使用系统时间作为基准
-   - WLMediaSource 使用 FFmpeg 的 pts
-   - 两路音频在 Mix 时需要进行时间戳对齐（后续优化点）
-
-4. **性能优化建议**
-   - Phase 1 先保证功能正确性
-   - 后续可考虑使用环形缓冲区减少内存分配
-   - 可考虑直接使用 AVAudioPCMBuffer（避免 CMSampleBuffer 转换开销）
-
-5. **向后兼容**
-   - 新增的协议不影响现有 WLMediaSource 的正常工作
-   - WLAudioMixStreams 保持原有接口不变，只是完善内部实现
+1. macOS 需要在 Info.plist 中添加 `NSMicrophoneUsageDescription`
+2. AVCaptureSession 回调在后台串行队列，delegate 回调切主线程
+3. WLMicSource（系统时间）和 WLMediaSource（FFmpeg pts）的 Mix 时间戳对齐
 
 ### 3.4 WLNetWorkSource（待实现）
 
@@ -805,63 +330,187 @@ case WLAudioRenderTypeMix:
 
 **伪代码**：
 ```objc
-@protocol WLNetWorkSourceDelegate <NSObject>
-- (void)networkSource:(WLNetWorkSource *)source didOutputVideoFrame:(CVPixelBufferRef)frame;
-- (void)networkSource:(WLNetWorkSource *)source didOutputAudioBuffer:(AVAudioPCMBuffer *)buffer;
-- (void)networkSourceDidDisconnect:(WLNetWorkSource *)source;
-@end
-
-@interface WLNetWorkSource : NSObject
-@property (nonatomic, weak) id<WLNetWorkSourceDelegate> delegate;
+@interface WLNetWorkSource : NSObject <WLStreamSourceProtocol>
 - (void)connectWithURL:(NSString *)url;
 - (void)disconnect;
 @end
 ```
 
+> WLNetWorkSource 遵循 `WLStreamSourceProtocol`，`streamType` 根据实际输出声明，`fromType` 为 `WLFromTypeNetwork`。通过 delegate 回调将拉流解码后的帧推送给 WLStreamsManager。
+
 ### 3.5 WLStreamsManager（核心模块）
 
-**职责**：接收所有音视频流，进行混合/选择
+**职责**：所有流的控制中心，接收音视频流、进行混合/选择、分发给输出
 
 **核心功能**：
-1. **输入管理**：注册/注销 Video/Audio Source
+1. **输入管理**：注册/注销 Source
 2. **混合策略**：
    - 视频切换（同一时间只输出一路）
    - 音频混音（多路音频混合）
 3. **时间戳同步**：统一时钟域
 4. **线程安全**：跨线程数据传递
 
+#### 3.5.1 数据流模式
+
+采用 **Push + Queue** 模式：
+- 源（Source）生产帧后**推入** Manager 的内部队列
+- Manager 从队列**拉取**帧，经过 Filter 处理，再推给 Output
+
+这样源保持简单（只需调 delegate），Manager 控制消费节奏。
+
+```
+Source → [delegate: didOutputVideoFrame / didOutputAudioBuffer]
+    → Manager 内部 WLNodeQueue
+    → [Filter per-stream 处理]
+    → [Mix 混合/切换]
+    → [Filter post-mix 处理]
+    → Output.receiveVideoFrame / receiveAudioBuffer
+```
+
+#### 3.5.2 三个核心 Protocol
+
 **接口设计**：
 ```objc
-@protocol WLStreamsManagerVideoOutput <NSObject>
-- (void)streamsManager:(WLStreamsManager *)manager didOutputVideoFrame:(CVPixelBufferRef)frame pts:(Float64)pts;
-@end
-
-@protocol WLStreamsManagerAudioOutput <NSObject>
-- (void)streamsManager:(WLStreamsManager *)manager didOutputAudioBuffer:(AVAudioPCMBuffer *)buffer pts:(Float64)pts;
-@end
-
 @interface WLStreamsManager : NSObject
 + (instancetype)sharedManager;
 
 // 输入源管理
-- (void)addVideoSource:(id<WLVideoSource>)source;
-- (void)addAudioSource:(id<WLAudioSource>)source;
-- (void)removeVideoSource:(id<WLVideoSource>)source;
-- (void)removeAudioSource:(id<WLAudioSource>)source;
+- (void)addSource:(id<WLStreamSourceProtocol>)source;
+- (void)removeSource:(id<WLStreamSourceProtocol>)source;
 
-// 输出设置
-- (void)setVideoOutput:(id<WLStreamsManagerVideoOutput>)output;
-- (void)setAudioOutput:(id<WLStreamsManagerAudioOutput>)output;
+// 输出管理
+- (void)addOutput:(id<WLStreamOutputProtocol>)output;
+- (void)removeOutput:(id<WLStreamOutputProtocol>)output;
 
-// 混合控制
-- (void)selectVideoSource:(id<WLVideoSource>)source; // 切换主视频源
-- (void)setAudioMixingConfig:(WLAudioMixConfig *)config; // 音频混合配置
+// Filter 管理
+- (void)addFilter:(id<WLStreamFilterProtocol>)filter;
+- (void)removeFilter:(id<WLStreamFilterProtocol>)filter;
 
 // 生命周期
 - (void)start;
 - (void)stop;
 @end
 ```
+
+---
+
+##### **Protocol 1: WLStreamSourceProtocol（输入源）**
+
+源告诉 Manager "我是什么"和"我推数据给你"。统一替代现有 `WLSource` + `WLVideoSource` + `WLAudioSource`。
+
+使用 delegate 进行回调（替代 block），增加流类型和流来源类型。
+
+```objc
+// WLDefines.h — 补充 Network
+typedef NS_ENUM(NSInteger, WLFromType) {
+    WLFromTypeCamera,
+    WLFromTypeMic,
+    WLFromTypeMedia,
+    WLFromTypeNetwork,  // 新增
+};
+```
+
+```objc
+// WLStreamSourceProtocol.h
+
+#pragma mark - Source Delegate
+
+@protocol WLStreamSourceDelegate <NSObject>
+@required
+- (void)source:(id<WLStreamSourceProtocol>)source
+    didOutputVideoFrame:(CVPixelBufferRef)pixelBuffer
+                    pts:(Float64)pts;
+
+- (void)source:(id<WLStreamSourceProtocol>)source
+    didOutputAudioBuffer:(CMSampleBufferRef)sampleBuffer;
+
+@optional
+- (void)source:(id<WLStreamSourceProtocol>)source didEncounterError:(NSError *)error;
+- (void)sourceDidStart:(id<WLStreamSourceProtocol>)source;
+- (void)sourceDidStop:(id<WLStreamSourceProtocol>)source;
+@end
+
+#pragma mark - Source Protocol
+
+@protocol WLStreamSourceProtocol <NSObject>
+
+// 流类型：Video / Audio（复用 WLNodeType）
+@property (nonatomic, assign, readonly) WLNodeType streamType;
+
+// 流来源：Camera / Mic / Media / Network（复用 WLFromType）
+@property (nonatomic, assign, readonly) WLFromType fromType;
+
+// 生命周期
+@property (nonatomic, assign, readonly, getter=isRunning) BOOL running;
+- (BOOL)start:(NSError **)error;
+- (void)stop;
+
+// delegate 回调
+@property (nonatomic, weak, nullable) id<WLStreamSourceDelegate> delegate;
+
+@end
+```
+
+**和现有 `WLSourceProtocol.h` 的关系**：
+- `WLSource` 的 `fromType` / `running` / `start` / `stop` → 保留
+- `WLVideoSource.frameOutput` / `WLAudioSource.sampleOutput` → 统一为 delegate 方法
+- `WLStreamSourceProtocol` 统一替代 `WLSource` + `WLVideoSource` + `WLAudioSource`
+- 新增 `streamType` 区分流类型，`fromType` 新增 `WLFromTypeNetwork`
+
+---
+
+##### **Protocol 2: WLStreamOutputProtocol（输出目标）**
+
+Output 是数据的终点。Manager 把混合后的数据推给它。只需区分 video / audio。
+
+```objc
+@protocol WLStreamOutputProtocol <NSObject>
+
+@property (nonatomic, assign, readonly) WLNodeType outputType; // WLNodeTypeVideo / WLNodeTypeAudio
+
+@end
+
+// 视频输出
+@protocol WLVideoOutputProtocol <WLStreamOutputProtocol>
+- (void)receiveVideoFrame:(CVPixelBufferRef)pixelBuffer pts:(Float64)pts;
+@end
+
+// 音频输出
+@protocol WLAudioOutputProtocol <WLStreamOutputProtocol>
+- (void)receiveAudioBuffer:(CMSampleBufferRef)sampleBuffer pts:(Float64)pts;
+@end
+```
+
+**对应现有实现**：
+- `WLPreviewOutput` 实现 `WLVideoOutputProtocol`
+- `WLAudioOutput` 实现 `WLAudioOutputProtocol`
+- 未来的 Encoder / PushStream 同时实现两个
+
+---
+
+##### **Protocol 3: WLStreamFilterProtocol（处理节点）**
+
+Filter 是中间处理节点，接收帧、处理、输出帧。只需区分 video / audio。
+
+```objc
+@protocol WLStreamFilterProtocol <NSObject>
+
+@property (nonatomic, assign, readonly) WLNodeType filterType; // WLNodeTypeVideo / WLNodeTypeAudio
+
+@end
+
+// 视频 Filter
+@protocol WLVideoFilterProtocol <WLStreamFilterProtocol>
+- (CVPixelBufferRef)processVideoFrame:(CVPixelBufferRef)pixelBuffer pts:(Float64)pts;
+@end
+
+// 音频 Filter
+@protocol WLAudioFilterProtocol <WLStreamFilterProtocol>
+- (CMSampleBufferRef)processAudioBuffer:(CMSampleBufferRef)sampleBuffer pts:(Float64)pts;
+@end
+```
+
+**Manager 调用逻辑**：根据 `filterType` 判断，只调用对应类型的 process 方法。
 
 **内部实现要点**：
 - 使用 `WLNodeQueue` 进行线程安全的数据传递
@@ -882,12 +531,12 @@ case WLAudioRenderTypeMix:
 
 **Phase 1 实现**（推荐）：
 ```objc
-@interface WLVideoFilter : NSObject
+@interface WLVideoFilter : NSObject <WLVideoFilterProtocol>
 @property (nonatomic, assign) CGSize outputResolution; // 输出分辨率
 @property (nonatomic, assign) BOOL enableMirror;        // 镜像
 @property (nonatomic, assign) CGRect cropRect;          // 裁剪区域
 
-- (CVPixelBufferRef)processFrame:(CVPixelBufferRef)inputFrame;
+- (CVPixelBufferRef)processVideoFrame:(CVPixelBufferRef)pixelBuffer pts:(Float64)pts;
 @end
 ```
 
@@ -902,65 +551,25 @@ case WLAudioRenderTypeMix:
 
 **伪代码**：
 ```objc
-@interface WLAudioMixer : NSObject
-- (void)addAudioSource:(id<WLAudioSource>)source volume:(float)volume;
-- (void)removeAudioSource:(id<WLAudioSource>)source;
-- (void)setVolume:(float)volume forSource:(id<WLAudioSource>)source;
-- (AVAudioPCMBuffer *)mixFrames:(NSArray<AVAudioPCMBuffer *> *)buffers;
+@interface WLAudioMixer : NSObject <WLAudioFilterProtocol>
+- (void)addSourceFromType:(WLFromType)fromType volume:(float)volume;
+- (void)removeSourceFromType:(WLFromType)fromType;
+- (void)setVolume:(float)volume forSourceFromType:(WLFromType)fromType;
+- (CMSampleBufferRef)processAudioBuffer:(CMSampleBufferRef)sampleBuffer pts:(Float64)pts;
 @end
 ```
 
 ### 3.8 WLEncoder（编码器）
 
-**职责**：将原始音视频数据编码为 H264/AAC
+**职责**：将原始音视频数据编码为 H264/AAC，遵循 `WLVideoOutputProtocol` + `WLAudioOutputProtocol`
 
-**技术方案**：
-- **Video**: VideoToolbox (H264/H265 硬件编码)
-- **Audio**: AudioToolbox (AAC 编码)
-
-**关键参数**：
-```objc
-typedef struct {
-    int bitrate;        // 码率 (bps)
-    int keyframeInterval; // 关键帧间隔
-    int frameRate;      // 帧率
-    int profileLevel;   // 编码等级
-} WLVideoEncoderConfig;
-
-typedef struct {
-    int bitrate;        // 音频码率
-    int sampleRate;     // 采样率
-    int channels;       // 声道数
-} WLAudioEncoderConfig;
-```
+**技术方案**：VideoToolbox (H264) + AudioToolbox (AAC)
 
 ### 3.9 WLPushStreamer（推流器）
 
-**职责**：将编码后的数据推送到服务器
+**职责**：将编码后的数据推送到服务器，遵循 `WLVideoOutputProtocol` + `WLAudioOutputProtocol`
 
-**支持的协议**：
-- RTMP（主流社交平台）
-- RTSP（监控系统）
-- HLS（直播 CDN）
-
-**伪代码**：
-```objc
-@protocol WLPushStreamerDelegate <NSObject>
-- (void)pushStreamerDidConnect:(WLPushStreamer *)streamer;
-- (void)pushStreamerDidDisconnect:(WLPushStreamer *)streamer error:(NSError *)error;
-- (void)pushStreamer:(WLPushStreamer *)streamer didUpdateStats:(WLStreamStats *)stats;
-@end
-
-@interface WLPushStreamer : NSObject
-@property (nonatomic, weak) id<WLPushStreamerDelegate> delegate;
-@property (nonatomic, assign) ConnectionState connectionState;
-
-- (void)startWithURL:(NSString *)rtmpURL;
-- (void)stop;
-- (void)sendVideoData:(NSData *)data timestamp:(CMTime)timestamp;
-- (void)sendAudioData:(NSData *)data timestamp:(CMTime)timestamp;
-@end
-```
+**支持的协议**：RTMP / RTSP / HLS
 
 ### 3.10 WLRendering（预览渲染）
 
@@ -1032,12 +641,11 @@ Float64 newpts = node.pts * 1000 + base_time;
 ### 5.2 线程间通信
 
 ```objc
-// 生产者-消费者模式（基于 WLNodeQueue）
-// Camera Thread → [WLNodeQueue] → Mix Thread
-// Decode Thread → [WLNodeQueue] → Mix Thread
-// Mix Thread → [WLNodeQueue] → Filter Thread
-// Filter Thread → [WLNodeQueue] → Encode Thread
-// Encode Thread → [WLNodeQueue] → Network Thread
+// 生产者-消费者模式（基于 WLNodeQueue + delegate 回调）
+// Source Thread → [delegate: didOutputVideoFrame/didOutputAudioBuffer] → WLStreamsManager
+// WLStreamsManager → [WLNodeQueue] → Filter Thread
+// Filter Thread → [WLNodeQueue] → Mix Thread
+// Mix Thread → [WLNodeQueue] → Output (Preview / Encoder / PushStream)
 ```
 
 ### 5.3 线程安全保证
@@ -1099,112 +707,7 @@ typedef NS_ENUM(NSInteger, WLStreamState) {
 
 ## 7. 实施计划与时间节点
 
-### Phase 1: 基础链路验证（预计 1 周）
-
-**目标**：实现 Camera + Mic 单路推流到 RTMP
-
-**任务清单**：
-- [ ] **Day 1-2**: 实现 WLCameraSource
-  - [ ] 封装 AVCaptureSession
-  - [ ] 输出 CVPixelBufferRef
-  - [ ] 处理摄像头权限请求
-  
-- [ ] **Day 2-3**: 实现 WLMicSource
-  - [ ] 封装 AVAudioEngine
-  - [ ] 输出 AVAudioPCMBuffer
-  - [ ] 配置音频参数（44100Hz, stereo）
-
-- [ ] **Day 3-4**: 实现 WLStreamsManager（基础版）
-  - [ ] 接收单路 Video/Audio 输入
-  - [ ] 时间戳转换（基础版）
-  - [ ] 线程安全的数据传递
-
-- [ ] **Day 4-5**: 实现 WLVideoFilter（基础版）
-  - [ ] 固定分辨率缩放（如 720p）
-  - [ ] CoreImage 实现
-
-- [ ] **Day 5-6**: 实现 WLEncoder
-  - [ ] VideoToolbox H264 编码
-  - [ ] AudioToolbox AAC 编码
-  - [ ] 配置编码参数
-
-- [ ] **Day 6-7**: 实现 WLPushStreamer
-  - [ ] RTMP 协议握手
-  - [ ] FLV 封装
-  - [ ] 发送音视频数据
-  - [ ] 断线重连机制
-
-**验收标准**：
-- ✅ 能够打开摄像头并推流到 RTMP 服务器
-- ✅ 音频正常传输
-- ✅ 延迟 < 3 秒
-- ✅ 能够停止推流
-
-### Phase 2: 多源支持与预览（预计 1 周）
-
-**目标**：集成 MediaSource，添加预览功能
-
-**任务清单**：
-- [ ] **Day 1-2**: 完善 WLMediaSource 输出接口
-  - [ ] 适配 WLStreamsManager 的输入协议
-  - [ ] 修复 stop() 方法
-  - [ ] 优化解码性能
-
-- [ ] **Day 2-3**: WLStreamsManager 升级
-  - [ ] 支持多路 Video 输入
-  - [ ] 实现视频源切换逻辑
-  - [ ] 支持多路 Audio 输入
-
-- [ ] **Day 3-4**: WLAudioMixer 实现
-  - [ ] 多路音频混音算法
-  - [ ] 音量独立控制
-  - [ ] 重采样（libswresample）
-
-- [ ] **Day 4-5**: WLRendering 预览
-  - [ ] 集成 AVSampleBufferDisplayLayer
-  - [ ] 实时预览 Filter 后的画面
-  - [ ] 低延迟渲染优化
-
-- [ ] **Day 5-7**: 测试与调优
-  - [ ] Camera + MediaFile 切换测试
-  - [ ] 长时间稳定性测试
-  - [ ] 内存泄漏检测
-  - [ ] 性能 profiling
-
-**验收标准**：
-- ✅ 支持 Camera 和 MediaFile 作为视频源
-- ✅ 可以在运行时切换视频源
-- ✅ 本地预览正常显示
-- ✅ 音频混音无爆音/杂音
-
-### Phase 3: 网络拉流与高级特性（预计 1-2 周）
-
-**目标**：支持网络拉流，增加高级功能
-
-**任务清单**：
-- [ ] **Week 1**: WLNetWorkSource 实现
-  - [ ] RTMP/RTSP/HLS 拉流
-  - [ ] 解码与输出
-  - [ ] 断线重连
-  - [ ] 缓冲区管理
-
-- [ ] **Week 1-2**: 高级 Filter 功能
-  - [ ] 美颜滤镜（可选）
-  - [ ] 水印叠加
-  - [ ] 画中画（PIP）
-  - [ ] 自定义布局
-
-- [ ] **Week 2**: 完善错误处理
-  - [ ] 全面的错误日志
-  - [ ] 自动降级策略
-  - [ ] 用户友好的错误提示
-  - [ ] 监控统计（码率、帧率、丢帧率）
-
-**验收标准**：
-- ✅ 支持网络拉流作为输入源
-- ✅ 三路视频源可以共存
-- ✅ 具备基本的容错能力
-- ✅ 有完整的日志和监控
+> 详见 [TaskPlanAndCriteria.md](TaskPlanAndCriteria.md)
 
 ---
 
@@ -1351,33 +854,7 @@ typedef NS_ENUM(NSInteger, WLStreamState) {
 
 ## 11. 成功标准与验收指标
 
-### 11.1 功能完整性
-- [ ] 支持 Camera + Mic 推流（Phase 1）
-- [ ] 支持 MediaFile 作为备选源（Phase 2）
-- [ ] 支持网络拉流（Phase 3）
-- [ ] 本地预览功能正常
-- [ ] 运行时切换视频源
-- [ ] 音视频同步（唇同步 < 100ms）
-
-### 11.2 性能指标
-- **CPU 占用** < 50% (Mac mini M1)
-- **内存占用** < 500MB
-- **端到端延迟** < 3 秒（可配置优化到 < 1s）
-- **推流稳定性** 连续推流 2 小时不中断
-- **帧率** ≥ 25 fps（720p）
-
-### 11.3 代码质量
-- [ ] 无明显内存泄漏（Instruments 验证）
-- [ ] 无线程安全 bug
-- [ ] 代码注释清晰（中文注释）
-- [ ] 符合项目代码规范（参考 AGENTS.md）
-- [ ] 关键流程有日志记录
-
-### 11.4 用户体验
-- [ ] 启动速度快 (< 3s)
-- [ ] 操作响应及时
-- [ ] 错误提示友好清晰
-- [ ] 支持热插拔摄像头/麦克风
+> 详见 [TaskPlanAndCriteria.md](TaskPlanAndCriteria.md)
 
 ---
 
@@ -1440,150 +917,36 @@ typedef NS_ENUM(NSInteger, WLStreamState) {
 
 ---
 
-## 附录 B: 现有代码分析与补充计划（2026-05-20）
-
-> 基于对全部源码的实际阅读，补充计划与现有实现的差距分析。
+## 附录 B: 现有代码分析
 
 ### B.1 现状盘点
 
-| 模块 | 代码位置 | 状态 | 关键发现 |
-|------|----------|------|----------|
-| **WLStreamsManager** (单例) | Core/Streams/ | 框架搭好 | 路由 addVideoNode:/addAudioNode: 到子模块，但没有 start/stop 生命周期方法（实际在 WLMediaSource 内部自行调用） |
-| **WLVideoModeStreams** | Core/Streams/ | 框架搭好，混合逻辑空 | `encoderThread` 的 while 循环体为空，从未实际取帧处理 |
-| **WLAudioMixStreams** | Core/Streams/ | 部分实现 | `WLAudioRenderTypeMeida` 模式有基础逻辑但只 flush 节点不输出；`Mix` 模式完全为空 |
-| **WLCameraSource** | Core/CameraSource/ | **已实现** | 通过 AVCaptureSession 采集，输出 CVPixelBufferRef，同时走 `frameOutput` block 和直接 `addVideoNode:` 注入 WLStreamsManager |
-| **WLMediaSource** | Core/MediaSource/ | **已实现（有 bug）** | 内部创建了自己的 `WLVideoModeStreams` 和 `WLAudioMixStreams` **私有实例**，没有走单例 WLStreamsManager。Camera 和 Media 的数据永远不会交汇 |
-| **WLSceneManager** (Scene 层) | Core/Scene/ | 新架构框架 | 已有源管理（增删改查）、分辨率配置、事件通知。但 `WLSceneRenderer` 和 `WLAudioMixer` 都是空壳 |
-| **WLMediaSourceItem** | Core/Scene/ | 已实现 | 统一的源包装层，支持 Camera/Video/Audio 三种类型，有 position/size/zOrder/rotation/volume 等布局属性 |
-| **WLRenderingManager** | Core/Rendering/ | 部分实现 | 有 CVPixelBufferRef → CMSampleBufferRef → AVSampleBufferDisplayLayer 的预览链路 |
-| **WLEncoder** (WLVideoEncode + WLAudioEncode) | Core/Encodes/ | **空壳** | 只有空的 @interface 声明，无任何实现 |
-| **WLPushStreamsManager** | Core/PushStreams/ | **空壳** | 只有 pixelBuffer:pts: 方法声明，无实现 |
-| **WLResample** | Core/Audio/ | **已实现** | 完整的 libswresample 封装，支持多种重采样策略和时间同步模式 |
-| **WLNodeQueue** | Core/Queue/ | **已实现** | 基于 pthread 的线程安全队列，支持阻塞/非阻塞入队、超时出队、abort 机制 |
-| **WLNode** | Core/Queue/ | **已实现（需扩展）** | 支持 AVPacket*/AVFrame*/CVPixelBufferRef，不支持 CMSampleBufferRef |
+| 模块 | 状态 | 关键发现 |
+|------|------|----------|
+| **WLStreamsManager** | 重新设计 | 新接口：`addSource:` / `addOutput:` / `addFilter:` + delegate |
+| **WLStreamSourceProtocol** | 待实现 | 统一输入源协议 |
+| **WLStreamOutputProtocol** | 待实现 | 统一输出协议（`WLVideoOutputProtocol` / `WLAudioOutputProtocol`） |
+| **WLStreamFilterProtocol** | 待实现 | 统一处理协议（`WLVideoFilterProtocol` / `WLAudioFilterProtocol`） |
+| **WLCameraSource** | 已实现 | 需适配 `WLStreamSourceProtocol` |
+| **WLMediaSource** | 已实现（有 bug） | 需修复私有实例问题，统一走 WLStreamsManager 单例 |
+| **WLEncoder / WLPushStreamer** | 空壳 | 需实现 |
+| **WLNode** | 已实现（需扩展） | 不支持 CMSampleBufferRef，需新增字段 |
+| **WLSceneManager** | 将删除 | 所有职责统一由 WLStreamsManager 承担 |
 
-### B.2 核心问题
+### B.2 待解决问题
 
-#### 问题 1：两套架构并存，数据流无法交汇
+1. **WLNode 不支持 CMSampleBufferRef** — 需新增 `CMSampleBufferRef sampleBuffer` 字段并扩展 flush 方法
+2. **WLMediaSource 的 stop() 未实现** — 适配 `WLStreamSourceProtocol` 时一并修复
+3. **编码器选型** — 优先 VideoToolbox（macOS 原生），备选 FFmpeg libx264
 
-项目实际存在 **两套架构**：
-
-- **架构 A（Streams 层）**：`WLStreamsManager` → `WLVideoModeStreams` + `WLAudioMixStreams`
-  - Camera 走这套：`WLCameraSource` → `[WLStreamsManager manager] addVideoNode:`
-  - Media 也走这套但用的是私有实例：`WLMediaSource` 内部 `self.streams = [[WLVideoModeStreams alloc] init]`
-
-- **架构 B（Scene 层）**：`WLSceneManager` → `WLMediaSourceItem` → `WLSceneRenderer` + `WLAudioMixer`
-  - 新设计的上层管理架构，但渲染和混音都是空壳
-
-**核心矛盾**：WLMediaSource 创建了私有的 WLVideoModeStreams 实例，而非使用 WLStreamsManager 单例。导致 Camera 和 Media 的数据永远不会交汇，无法实现混合。
-
-**决策点**：
-
-| 方案 | 描述 | 优点 | 缺点 |
-|------|------|------|------|
-| **A：统一走 StreamsManager** | 废弃 Scene 层的渲染/混音，所有 Source 统一注入 WLStreamsManager | 改动最小，已有 Camera 和队列基础设施 | 缺少源的布局管理能力 |
-| **B：统一走 SceneManager** | 废弃 StreamsManager，所有 Source 统一走 WLSceneManager | 有完整的源管理和布局系统 | 需要重写数据路由层 |
-| **C：两层合并（推荐）** | WLSceneManager 管理源列表和 UI 布局，底层数据流走 WLStreamsManager | 兼顾管理能力和数据路由 | 需要明确两层的职责边界 |
-
-#### 问题 2：WLNode 不支持 CMSampleBufferRef
-
-当前 WLNode 只支持三种数据类型：
-
-```objc
-@property (nonatomic, assign) AVPacket *packet;    // FFmpeg 编码包
-@property (nonatomic, assign) AVFrame *frame;      // FFmpeg 解码帧
-@property (nonatomic, assign) CVPixelBufferRef data; // 视频像素缓冲区
-```
-
-麦克风采集输出的是 `CMSampleBufferRef`（包含音频 PCM 数据），WLNode 无法承载。需要新增字段并扩展 flush 方法。
-
-#### 问题 3：Encoder + PushStream 完全缺失
-
-从"采集/解码"到"推出去"之间，编码器和推流器都是空壳。这是实现 Phase 1（Camera + Mic → RTMP）的最大缺口。
-
-### B.3 补充实施步骤
-
-基于现有代码分析，将原始计划细化为以下执行顺序：
-
-| 步骤 | 任务 | 依赖 | 影响文件 |
-|------|------|------|----------|
-| **Step 0** | 统一架构决策：修复 WLMediaSource 使用单例 WLStreamsManager | 决策确认 | WLMediaSource.m, 可能涉及 WLStreamsManager.m |
-| **Step 1** | 扩展 WLNode 支持 CMSampleBufferRef | 无 | WLNode.h/m |
-| **Step 2** | 实现 WLMicSource（麦克风采集） | Step 1 | 新建 NewPlan/Audio/ 目录 |
-| **Step 3** | 补全 WLVideoModeStreams.encoderThread 混合逻辑 | Step 0 | WLVideoModeStreams.m |
-| **Step 4** | 补全 WLAudioMixStreams.encoderThread 混音逻辑 | Step 1, Step 2 | WLAudioMixStreams.m |
-| **Step 5** | 实现 WLEncoder（VideoToolbox H264 + AudioToolbox AAC） | Step 3/4 | Core/Encodes/ 下的空壳文件 |
-| **Step 6** | 实现 WLPushStreamsManager（RTMP 推流） | Step 5 | Core/PushStreams/ 下的空壳文件 |
-| **Step 7** | 链路串通测试：Camera → Mix → Encode → RTMP | 全部 | — |
-
-**Step 0 是阻塞项**：不解决架构统一问题，后续步骤的数据无法正确流转。
-
-### B.4 补充后的 Phase 1 详细任务
-
-#### Phase 1.0：架构统一（0.5 天）
-
-- 选定架构方案（推荐方案 C：两层合并）
-- 修改 WLMediaSource.m，将内部的私有 `WLVideoModeStreams` 和 `WLAudioMixStreams` 替换为 `[WLStreamsManager manager]` 的引用
-- 确认 Camera 和 Media 的数据能进入同一个处理管道
-
-#### Phase 1.1：WLNode 扩展 + WLMicSource（1 天）
-
-- WLNode 新增 `CMSampleBufferRef sampleBuffer` 属性
-- flush 方法中增加 `CFRelease(_sampleBuffer)` 逻辑
-- 实现 WLMicSource：AVCaptureSession + AVCaptureAudioDataOutput
-- 通过 `[WLStreamsManager manager] addAudioNode:]` 注入音频数据
-
-#### Phase 1.2：混合逻辑补全（1 天）
-
-- WLVideoModeStreams.encoderThread：根据 videoRenderType 从队列取帧，做简单切换或合成
-- WLAudioMixStreams.encoderThread：补全三种模式的实际输出逻辑
-- 统一时间戳基准（建议使用 mach_absolute_time）
-
-#### Phase 1.3：编码器实现（1-2 天）
-
-- WLVideoEncode：VideoToolbox H264 硬件编码
-  - 接收 CVPixelBufferRef
-  - 输出 CMBlockBufferRef（编码后的 NALU）
-- WLAudioEncode：AudioToolbox AAC 编码
-  - 接收 PCM 数据
-  - 输出 AAC 编码帧
-
-#### Phase 1.4：推流器实现（1-2 天）
-
-- WLPushStreamsManager：基于 FFmpeg avformat 实现 RTMP 推流
-  - 或考虑使用 LFLiveKit 等成熟开源库降低风险
-  - FLV 封装
-  - 断线重连
-
-#### Phase 1.5：串通测试（0.5-1 天）
-
-- Camera + Mic → WLStreamsManager → Encoder → RTMP
-- 验证延迟、音视频同步、稳定性
-
-### B.5 关于 WLSceneManager 的定位建议
-
-`WLSceneManager` 是一个设计良好的上层管理器，但它和 `WLStreamsManager` 的职责需要明确划分：
-
-| 职责 | 建议归属 |
-|------|----------|
-| 源的增删改查、选择、排序 | `WLSceneManager` |
-| UI 布局（position/size/zOrder/rotation） | `WLSceneManager` |
-| 输出分辨率配置 | `WLSceneManager` |
-| 数据路由、混合、编码 | `WLStreamsManager` |
-| 预览渲染 | `WLRenderingManager` |
-| RTMP 推流 | `WLPushStreamsManager` |
-
-`WLSceneManager` 作为"场景管理器"负责管什么源、怎么排布；`WLStreamsManager` 作为"流管理器"负责数据怎么流。
-
-### B.6 新增风险项
+### B.3 风险项
 
 | 风险项 | 概率 | 影响 | 应对措施 |
 |--------|------|------|----------|
-| **架构统一改动引入回归** | 中 | 高 | 先写集成测试验证现有功能不受影响 |
-| **WLMediaSource 的 stop() 未实现** | 已知 | 中 | 架构统一时一并修复 |
-| **WLNode 扩展影响所有 flush 路径** | 中 | 中 | 审计所有调用 flush 的地方，确保新字段被正确释放 |
-| **编码器选型不确定** | 低 | 高 | 优先 VideoToolbox（macOS 原生），备选 FFmpeg libx264 |
+| Source 适配改动引入回归 | 中 | 高 | 先写集成测试验证现有功能不受影响 |
+| WLNode 扩展影响所有 flush 路径 | 中 | 中 | 审计所有调用 flush 的地方，确保新字段被正确释放 |
+| 编码器选型不确定 | 低 | 高 | 优先 VideoToolbox |
 
 ---
 
-**最后更新时间**：2026-05-20（附录 B 补充）
+**最后更新时间**：2026-05-22（协议设计重构：统一 Source/Output/Filter Protocol）

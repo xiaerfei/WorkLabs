@@ -288,6 +288,7 @@
 		1D08E2B2F589F7118B3A4E85 /* NewPlan */ = {
 			isa = PBXGroup;
 			children = (
+				9C86AB8F2FBF3DF2002B6357 /* Core */,
 				37F9C9175F5260081489D125 /* Common */,
 				06CE7010CD523D5AC7CE157B /* Output */,
 				109292C740F4EA28442FE4F3 /* Pipeline */,
@@ -301,8 +302,6 @@
 			children = (
 				0CB3CC3BC4E0D2D7634FDBCB /* WLAudioMixStreams.h */,
 				A3EBF9C1A90B27685DC46ED0 /* WLAudioMixStreams.m */,
-				DB8DFF4031248751A9D1E33F /* WLStreamsManager.h */,
-				0A27D8858C6F03E1467C5E1F /* WLStreamsManager.m */,
 				FB067CDB48745F7E3F7EF5F8 /* WLVideoModeStreams.h */,
 				2122942BB92F97147034BB0A /* WLVideoModeStreams.m */,
 			);
@@ -468,13 +467,21 @@
 			path = Video;
 			sourceTree = "<group>";
 		};
+		9C86AB8F2FBF3DF2002B6357 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				DB8DFF4031248751A9D1E33F /* WLStreamsManager.h */,
+				0A27D8858C6F03E1467C5E1F /* WLStreamsManager.m */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
 		9D8741A4A69B86536077F7A0 /* Pods */ = {
 			isa = PBXGroup;
 			children = (
 				77D33B1D10DFBA49BF6696F4 /* Pods-WorkLabs.debug.xcconfig */,
 				F3C774F5C0665291743D5C77 /* Pods-WorkLabs.release.xcconfig */,
 			);
-			name = Pods;
 			path = Pods;
 			sourceTree = "<group>";
 		};
@@ -664,8 +671,6 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
-				TargetAttributes = {
-				};
 			};
 			buildConfigurationList = 4528318AFB6A034B614A4115 /* Build configuration list for PBXProject "WorkLabs" */;
 			developmentRegion = en;
@@ -729,9 +734,13 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-WorkLabs/Pods-WorkLabs-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
+			inputPaths = (
+			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-WorkLabs/Pods-WorkLabs-frameworks-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
