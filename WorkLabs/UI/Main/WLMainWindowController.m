@@ -16,7 +16,7 @@
 
 - (void)windowDidLoad {
     [super windowDidLoad];
-
+    self.window.restorationClass = nil;
 }
 
 - (void)setupHideBarSignal {

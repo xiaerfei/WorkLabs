@@ -14,9 +14,10 @@
 ### 1.2 输入源定义
 
 #### Video 输入源（最多 2 路，其中一路必为 Camera）：
-- **Camera 流**：实时摄像头采集
-- **本地视频流**：通过 FFmpeg 解码本地媒体文件
-- **网络拉取流**：从网络拉取的 RTMP/RTSP/HLS 流
+- **Camera 流**：实时摄像头采集（WLCameraSource）
+- **本地视频流**：通过 FFmpeg 解码本地媒体文件（WLMediaSource）
+- **网络拉取流**：从网络拉取的 RTMP/RTSP/HLS 流（WLNetWorkSource）
+- **屏幕采集流**：系统屏幕采集（WLScreenCaptureSource，后续扩展）
 
 #### Audio 输入源（最多 2 路，其中一路必为 Mic）：
 - **本地麦克风**：实时音频采集
@@ -160,31 +161,33 @@ flowchart LR
 
 ## 3. 详细模块设计
 
-### 3.1 WLMediaSource（已实现）
+### 3.1 WLMediaSource（✅ 已适配新协议）
 
 **职责**：FFmpeg 媒体文件解码器
 
-**现有实现**：
-- 从 `videoRenderThread` 输出 Video Node（WLDecodeNode）
-- 从 `audioRenderThread` 输出 Audio Node（WLDecodeNode）
-
-**线程模型**（已实现）：
+**线程模型**：
 - Parse Thread：读取 packets
 - Video Decode Thread：解码视频帧
 - Audio Decode Thread：解码音频帧
-- Video Render Thread：输出视频帧
-- Audio Render Thread：输出音频帧
+- Video Render Thread：通过 delegate 输出视频帧（CVPixelBufferRef + pts）
+- Audio Render Thread：通过 delegate 输出音频帧（CMSampleBufferRef）
 
 **接口**：
 ```objc
 @interface WLMediaSource : NSObject <WLStreamSourceProtocol>
-- (void)openFile:(NSString *)filePath;
-- (void)start;
-- (void)stop; // 待完善
+- (instancetype)initWithPath:(NSString *)path;
+// streamType = WLNodeTypeVideo
+// fromType = WLFromTypeMedia
 @end
 ```
 
-> WLMediaSource 遵循 `WLStreamSourceProtocol`，`streamType` 根据实际输出声明（`WLNodeTypeVideo` + `WLNodeTypeAudio`），`fromType` 为 `WLFromTypeMedia`。通过 delegate 回调将解码后的帧推送给 WLStreamsManager。
+**数据流**：
+```
+parseThread → videoPacketQueue → videoDecodeThread → videoFrameQueue → videoRenderThread → delegate didOutputVideoFrame:
+parseThread → audioPacketQueue → audioDecodeThread → audioFrameQueue → audioRenderThread → delegate didOutputAudioBuffer:
+```
+
+> WLMediaSource 已遵循 `WLStreamSourceProtocol`，可通过 delegate 独立输出帧数据，无需依赖 WLStreamsManager。
 
 ### 3.2 WLCameraSource（待实现）
 
@@ -349,6 +352,7 @@ flowchart LR
    - 音频混音（多路音频混合）
 3. **时间戳同步**：统一时钟域
 4. **线程安全**：跨线程数据传递
+5. **组件生命周期管理**：统一管理所有已注册组件的 start / stop（按 Source → Filter → Output 顺序启动，反序停止）
 
 #### 3.5.1 数据流模式
 
@@ -578,6 +582,56 @@ Filter 是中间处理节点，接收帧、处理、输出帧。只需区分 vid
 **技术方案**：
 - 使用 `AVSampleBufferDisplayLayer` 或 Metal 渲染
 - 可复用现有 `WLViedoPreview` 组件
+
+### 3.12 WLStreamViewController（主界面，✅ 已创建）
+
+**职责**：推流主界面，包含预览区域、进度条、工具栏
+
+**布局**：
+```
+┌─────────────────────────┐
+│                         │
+│      预览区域            │
+│    (WLPreviewOutput)     │
+│                         │
+├─────────────────────────┤
+│ ━━━━━━━━●━━━━━━━━━━━━━━ │ ← Slider（隐藏，本地视频时显示）
+├─────────────────────────┤
+│  🔴      ▶     ＋      ⚙️ │
+└─────────────────────────┘
+```
+
+**文件**：`NewPlan/UI/WLStreamViewController.h/m`
+
+**状态**：基础 UI 已创建，按钮 action 待接入逻辑
+
+### 3.13 WLTestSourceController（测试，✅ 已创建）
+
+**职责**：通用 Source 测试控制器，用于独立测试各 Source 模块
+
+**功能**：
+- 遵循 `WLStreamSourceDelegate`，接收视频/音频帧
+- 视频通过 `WLPreviewOutput` 显示，音频通过 `WLAudioOutput` 播放
+- 实时显示状态、FPS、帧计数
+
+**文件**：`NewPlan/Test/WLTestSourceController.h/m`
+
+**使用方式**：
+```objc
+WLTestSourceController *testVC = [[WLTestSourceController alloc] init];
+WLMediaSource *mediaSource = [[WLMediaSource alloc] initWithPath:@"/path/to/video.mp4"];
+[testVC testWithSource:mediaSource];
+```
+
+---
+
+### 3.11 待讨论事项
+
+| 事项 | 状态 | 说明 |
+|------|------|------|
+| **时钟同步（WLClock）** | 待讨论 | 多路流时间戳对齐（Camera 实时时间 vs MediaFile FFmpeg pts vs Network 延迟） |
+| **背压/流控策略** | 待讨论 | 队列满时的丢帧策略、内存上限控制 |
+| **组件配置** | 已确定 | 每个模块使用对应的 Config 对象配置参数 |
 
 ---
 
@@ -924,13 +978,15 @@ typedef NS_ENUM(NSInteger, WLStreamState) {
 | 模块 | 状态 | 关键发现 |
 |------|------|----------|
 | **WLStreamsManager** | 重新设计 | 新接口：`addSource:` / `addOutput:` / `addFilter:` + delegate |
-| **WLStreamSourceProtocol** | 待实现 | 统一输入源协议 |
+| **WLStreamSourceProtocol** | ✅ 已定义 | 统一输入源协议（delegate 回调） |
 | **WLStreamOutputProtocol** | 待实现 | 统一输出协议（`WLVideoOutputProtocol` / `WLAudioOutputProtocol`） |
 | **WLStreamFilterProtocol** | 待实现 | 统一处理协议（`WLVideoFilterProtocol` / `WLAudioFilterProtocol`） |
 | **WLCameraSource** | 已实现 | 需适配 `WLStreamSourceProtocol` |
-| **WLMediaSource** | 已实现（有 bug） | 需修复私有实例问题，统一走 WLStreamsManager 单例 |
+| **WLMediaSource** | ✅ 已适配新协议 | 遵循 `WLStreamSourceProtocol`，delegate 回调 |
+| **WLStreamViewController** | ✅ 已创建 | 主界面，预览 + 工具栏 |
+| **WLTestSourceController** | ✅ 已创建 | 通用 Source 测试控制器 |
 | **WLEncoder / WLPushStreamer** | 空壳 | 需实现 |
-| **WLNode** | 已实现（需扩展） | 不支持 CMSampleBufferRef，需新增字段 |
+| **WLNode** | 已实现 | 已支持 CMSampleBufferRef |
 | **WLSceneManager** | 将删除 | 所有职责统一由 WLStreamsManager 承担 |
 
 ### B.2 待解决问题
@@ -949,4 +1005,4 @@ typedef NS_ENUM(NSInteger, WLStreamState) {
 
 ---
 
-**最后更新时间**：2026-05-22（协议设计重构：统一 Source/Output/Filter Protocol）
+**最后更新时间**：2026-05-23（WLMediaSource 适配新协议、创建 WLStreamViewController、WLTestSourceController）

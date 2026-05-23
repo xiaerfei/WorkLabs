@@ -14,7 +14,12 @@ targets:
       - WorkLabs
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.tvunetworks.partyline
+      DEVELOPMENT_TEAM: YDEVQQ22JR
+      CODE_SIGN_STYLE: Automatic
+      CODE_SIGN_IDENTITY: Apple Development
     info:
       path: WorkLabs/Info.plist
+      properties:
+        NSMainStoryboardFile: Main
     entitlements:
       path: WorkLabs/WorkLabs.entitlements

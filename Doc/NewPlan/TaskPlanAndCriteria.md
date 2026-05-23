@@ -54,22 +54,23 @@ Step 5: WLStreamsManager 串联所有组件
 
 | 任务 | 文件 | 状态 |
 |------|------|------|
-| `WLStreamSourceProtocol` + `WLStreamSourceDelegate` | NewPlan/Common/ | ⏳ |
+| `WLStreamSourceProtocol` + `WLStreamSourceDelegate` | NewPlan/Common/ | ✅ |
 | `WLStreamOutputProtocol` + 子协议 | NewPlan/Common/ | ⏳ |
 | `WLStreamFilterProtocol` + 子协议 | NewPlan/Common/ | ⏳ |
-| `WLDefines.h` 补充 `WLFromTypeNetwork` | NewPlan/Common/ | ⏳ |
-| `WLNode` 扩展支持 `CMSampleBufferRef` | NewPlan/Common/ | ⏳ |
+| `WLDefines.h` 补充 `WLFromTypeNetwork` | NewPlan/Common/ | ✅ |
+| `WLNode` 扩展支持 `CMSampleBufferRef` | NewPlan/Common/ | ✅ |
 
 ### Step 2: Source 组件
 
 每个 Source 独立实现，遵循 `WLStreamSourceProtocol`，通过 delegate 输出数据。
 
-| 组件 | 技术方案 | 输出 | 状态 |
-|------|----------|------|------|
-| **WLCameraSource** | AVCaptureSession | CVPixelBufferRef | ⏳ |
-| **WLMicSource** | AVCaptureSession + AVCaptureAudioDataOutput | CMSampleBufferRef | ⏳ |
-| **WLMediaSource** | FFmpeg（已有，需适配） | CVPixelBufferRef + CMSampleBufferRef | ⏳ |
-| **WLNetWorkSource** | FFmpeg avformat_open_input | CVPixelBufferRef + CMSampleBufferRef | ⏳ |
+| 组件 | 技术方案 | 输出 | Config | 状态 |
+|------|----------|------|--------|------|
+| **WLCameraSource** | AVCaptureSession | CVPixelBufferRef | `WLCameraSourceConfig` | ⏳ |
+| **WLMicSource** | AVCaptureSession + AVCaptureAudioDataOutput | CMSampleBufferRef | `WLMicSourceConfig` | ⏳ |
+| **WLMediaSource** | FFmpeg（已适配新协议） | CVPixelBufferRef + CMSampleBufferRef | — | ✅ |
+| **WLNetWorkSource** | FFmpeg avformat_open_input | CVPixelBufferRef + CMSampleBufferRef | — | ⏳ |
+| **WLScreenCaptureSource** | CGDisplayStream / ScreenCaptureKit | CVPixelBufferRef | — | 后续扩展 |
 
 **验收**：每个 Source 能独立运行，通过 delegate 正确输出帧数据。
 
@@ -79,10 +80,12 @@ Step 5: WLStreamsManager 串联所有组件
 
 | 组件 | Protocol | 功能 | 状态 |
 |------|----------|------|------|
-| **WLVideoFilter** | `WLVideoFilterProtocol` | 缩放、裁剪、镜像 | ⏳ |
-| **WLAudioFilter** | `WLAudioFilterProtocol` | 重采样、增益、降噪 | ⏳ |
+| **WLVideoFilter** | `WLVideoFilterProtocol` | 缩放、裁剪、镜像、像素格式转换 | ⏳ |
+| **WLAudioFilter** | `WLAudioFilterProtocol` | 重采样、增益、降噪、音频格式转换 | ⏳ |
 | **WLAudioMixer** | `WLAudioFilterProtocol` | 多路音频混音、音量控制 | ⏳ |
 | **WLVideoConcat** | `WLVideoFilterProtocol` | 多路视频切换/画中画 | ⏳ |
+
+> **格式转换**：不同 Source 输出的像素格式（BGRA / YUV）和音频格式（采样率 / 声道数）差异，由 Filter 组件统一处理。
 
 **验收**：每个组件能独立处理帧数据，输入和输出格式正确。
 
@@ -96,6 +99,13 @@ Step 5: WLStreamsManager 串联所有组件
 | **WLPreviewOutput** | `WLVideoOutputProtocol` | AVSampleBufferDisplayLayer 预览 | ⏳ |
 | **WLAudioOutput** | `WLAudioOutputProtocol` | 系统音频播放 | ⏳ |
 | **WLPushStreamer** | `WLVideoOutputProtocol` + `WLAudioOutputProtocol` | RTMP 推流 | ⏳ |
+
+### Step 5: WLStreamsManager 串联
+
+**组件生命周期**：`start` 按 Source → Filter → Output 顺序启动，`stop` 反序停止。
+
+```objc
+// 示例：Camera + Mic → Filter → Mix → Encoder + Preview + RTMP
 
 **验收**：每个 Output 能独立接收帧数据并完成输出。
 

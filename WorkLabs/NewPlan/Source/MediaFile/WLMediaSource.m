@@ -21,7 +21,6 @@
 @interface WLMediaSource ()
 @property (nonatomic,   copy, readwrite) NSString *path;
 @property (nonatomic, assign, readwrite) WLMediaSourceState state;
-@property (nonatomic, assign, readwrite, getter=isRunning) BOOL running;
 
 @property (atomic, assign, getter=isVideoDecoding) BOOL videoDecoding;
 @property (atomic, assign, getter=isAudioDecoding) BOOL audioDecoding;
@@ -53,8 +52,9 @@
 
 @property (nonatomic, strong, readwrite) WLMediaSourcePreview *preview;
 
-// WLSourceProtocol 协议属性
+// WLStreamSourceProtocol 协议属性
 @property (nonatomic, assign, readwrite) WLFromType fromType;
+@property (nonatomic, assign, readwrite, getter=isRunning) BOOL running;
 @end
 
 @implementation WLMediaSource {
@@ -72,9 +72,8 @@
 }
 
 @synthesize fromType = _fromType;
-@synthesize frameOutput = _frameOutput;
-@synthesize sampleOutput = _sampleOutput;
 @synthesize running = _running;
+@synthesize delegate = _delegate;
 
 - (void)dealloc {
     [self stop];
@@ -95,14 +94,23 @@
     }
     return self;
 }
-- (void)start {
+- (BOOL)start:(NSError **)error {
+    if (self.isRunning) return YES;
     self.running = YES;
     [NSThread detachNewThreadSelector:@selector(parseThread) toTarget:self withObject:nil];
+    return YES;
 }
 
 - (void)stop {
-    if (!self.running) return;
+    if (!self.isRunning) return;
     self.running = NO;
+    if ([self.delegate respondsToSelector:@selector(sourceDidStop:)]) {
+        [self.delegate sourceDidStop:self];
+    }
+}
+
+- (WLNodeType)streamType {
+    return WLNodeTypeVideo;
 }
 
 #pragma mark - Parse Thread
@@ -312,8 +320,8 @@
             Float64 pts = node.pts;
 
             CVPixelBufferRef pixelBuffer = [self convertVideoFrame:frame];
-            if (pixelBuffer && _frameOutput) {
-                _frameOutput(pixelBuffer, pts);
+            if (pixelBuffer && _delegate) {
+                [_delegate source:self didOutputVideoFrame:pixelBuffer pts:pts];
             } else if (pixelBuffer) {
                 CVPixelBufferRelease(pixelBuffer);
             }
@@ -357,8 +365,8 @@
 
             AVFrame *frame = node.frame;
             CMSampleBufferRef sampleBuffer = [self convertAudioFrame:frame];
-            if (sampleBuffer && _sampleOutput) {
-                _sampleOutput(sampleBuffer);
+            if (sampleBuffer && _delegate) {
+                [_delegate source:self didOutputAudioBuffer:sampleBuffer];
             } else if (sampleBuffer) {
                 CFRelease(sampleBuffer);
             }

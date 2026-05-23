@@ -21,4 +21,5 @@ typedef NS_ENUM(NSInteger, WLFromType) {
     WLFromTypeCamera,
     WLFromTypeMic,
     WLFromTypeMedia,
+    WLFromTypeNetwork,
 };
