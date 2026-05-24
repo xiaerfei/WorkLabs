@@ -57,7 +57,7 @@ flowchart TB
         subgraph VideoPipeline["Video Pipeline"]
             VideoFilter1["VideoFilter (流1)<br/>Scale/Crop/Mirror"]
             VideoFilter2["VideoFilter (流2)<br/>Scale/Crop/Mirror"]
-            VideoMix["VideoMix<br/>画面切换/合成"]
+            VideoMix["VideoMix<br/>画面切换/合成<br/>在固定画布(1080p等)上<br/>渲染 Preview1 和 Preview2"]
         end
         subgraph AudioPipeline["Audio Pipeline"]
             AudioFilter1["AudioFilter (流1)<br/>Resample/Gain/NoiseSuppression"]
@@ -68,9 +68,15 @@ flowchart TB
     end
 
     subgraph Output["输出层"]
-        Rendering["Rendering<br/>(Preview)"]
-        Encoder["Encoder<br/>(Encode Thread)<br/>H264/AAC"]
-        PushStream["PushStream<br/>(Mux + Network)<br/>RTMP 推流"]
+        direction LR
+        subgraph Preview["预览层"]
+            Preview1["Rendering<br/>(Preview1)"]
+            Preview2["Rendering<br/>(Preview2)"]
+        end
+        subgraph Push["推流层"]
+            Encoder["Encoder<br/>(Encode Thread)<br/>H264/AAC"]
+            PushStream["PushStream<br/>(Mux + Network)<br/>RTMP 推流"]
+        end
     end
 
     UI_Control --> Sources
@@ -79,12 +85,15 @@ flowchart TB
     ASrc1 --> AudioFilter1
     ASrc2 --> AudioFilter2
 
+    VideoFilter1 --> Preview1
+    VideoFilter2 --> Preview2
     VideoFilter1 --> VideoMix
     VideoFilter2 --> VideoMix
+    Preview1 -- "位置/尺寸参数" --> VideoMix
+    Preview2 -- "位置/尺寸参数" --> VideoMix
     AudioFilter1 --> AudioMixer
     AudioFilter2 --> AudioMixer
 
-    VideoMix --> Rendering
     VideoMix --> Encoder
     AudioMixer --> Encoder
     Encoder --> PushStream
@@ -97,14 +106,15 @@ flowchart TB
     style VideoPipeline fill:#e3f2fd,stroke:#1565c0,stroke-width:1px
     style AudioPipeline fill:#e3f2fd,stroke:#1565c0,stroke-width:1px
     style Output fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
-    style Rendering fill:#c8e6c9,stroke:#388e3c,stroke-width:1px
+    style Preview fill:#c8e6c9,stroke:#388e3c,stroke-width:1px
+    style Push fill:#c8e6c9,stroke:#388e3c,stroke-width:1px
     style PushStream fill:#c8e6c9,stroke:#388e3c,stroke-width:1px
 ```
 
 ### 2.2 数据流向说明
 
 ```mermaid
-flowchart LR
+flowchart TB
     subgraph Input["输入源"]
         subgraph VSrc["Video (最多2路)"]
             Camera["Camera"]
@@ -119,7 +129,7 @@ flowchart LR
     subgraph VideoPipeline["Video Pipeline"]
         VideoFilter1["VideoFilter (流1)<br/>Scale/Crop/Mirror"]
         VideoFilter2["VideoFilter (流2)<br/>Scale/Crop/Mirror"]
-        VideoMix["VideoMix<br/>画面切换/合成"]
+        VideoMix["VideoMix<br/>画面切换/合成<br/>在固定画布上渲染<br/>Preview1 和 Preview2"]
     end
 
     subgraph AudioPipeline["Audio Pipeline"]
@@ -128,34 +138,140 @@ flowchart LR
         AudioMixer["AudioMixer<br/>混音/音量控制"]
     end
 
-    Encoder["Encoder<br/>(H264/AAC 编码)"]
-    PushStream["PushStream<br/>(Mux + RTMP 推流)"]
-    Rendering["Rendering<br/>(本地预览)"]
+    subgraph Output["输出层"]
+        direction LR
+        subgraph Preview["预览层"]
+            Preview1["Rendering<br/>(Preview1 本地预览)"]
+            Preview2["Rendering<br/>(Preview2 本地预览)"]
+        end
+        subgraph Push["推流层"]
+            Encoder["Encoder<br/>(H264/AAC 编码)"]
+            PushStream["PushStream<br/>(Mux + RTMP 推流)"]
+        end
+    end
 
     Camera --> VideoFilter1
     MediaOrNet_V --> VideoFilter2
     Mic --> AudioFilter1
     MediaOrNet_A --> AudioFilter2
 
+    VideoFilter1 --> Preview1
+    VideoFilter2 --> Preview2
     VideoFilter1 --> VideoMix
     VideoFilter2 --> VideoMix
+    Preview1 -- "位置/尺寸参数" --> VideoMix
+    Preview2 -- "位置/尺寸参数" --> VideoMix
     AudioFilter1 --> AudioMixer
     AudioFilter2 --> AudioMixer
 
     VideoMix --> Encoder
     AudioMixer --> Encoder
     Encoder --> PushStream
-    VideoMix -.-> Rendering
 
     style Input fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
     style VSrc fill:#e3f2fd,stroke:#1565c0,stroke-width:1px
     style ASrc fill:#e3f2fd,stroke:#1565c0,stroke-width:1px
     style VideoPipeline fill:#fff9c4,stroke:#f9a825,stroke-width:2px
     style AudioPipeline fill:#fff9c4,stroke:#f9a825,stroke-width:2px
-    style Encoder fill:#fce4ec,stroke:#c62828,stroke-width:2px
-    style PushStream fill:#c8e6c9,stroke:#388e3c,stroke-width:2px
-    style Rendering fill:#b2dfdb,stroke:#00796b,stroke-width:2px,stroke-dasharray: 5 5
+    style Output fill:#fce4ec,stroke:#c62828,stroke-width:2px
+    style Preview fill:#b2dfdb,stroke:#00796b,stroke-width:1px
+    style Push fill:#c8e6c9,stroke:#388e3c,stroke-width:1px
+    style PushStream fill:#c8e6c9,stroke:#388e3c,stroke-width:1px
 ```
+
+### 2.3 Preview 渲染管线
+下图展示了从输入源到最终推流的完整数据流架构，包含双路视频预览、画面合成、编码和推流的全链路：
+
+```mermaid
+flowchart LR
+    subgraph Sources["输入源"]
+        direction TB
+        MediaSource["MediaSource<br/>(FFmpeg解码)"]
+        CameraSource["CameraSource<br/>(实时采集)"]
+    end
+
+    subgraph Filters["Filter 预处理层"]
+        direction TB
+        Filter1["filter<br/>(缩放/裁剪/镜像)"]
+        Filter2["filter<br/>(缩放/裁剪/镜像)"]
+    end
+
+    subgraph Controller["WLStreamViewController<br/>(流视觉控制器)"]
+        direction TB
+        DisplayArea["显示画面"]
+        Preview1["Preview1<br/>(Stream 1)"]
+        Preview2["Preview2<br/>(Stream 2)"]
+        MainPreview["Main Preview<br/>(Main Stream)"]
+    end
+
+    subgraph MixProcess["画面合成"]
+        MixFilter["filter<br/>(画面合并)"]
+    end
+
+    subgraph PostFilter["后处理 filter"]
+        FinalFilter["filter<br/>(最终处理)"]
+    end
+
+    subgraph EncodePush["编码与推流"]
+        Encoder["Encoder<br/>(H264/HEVC编码)"]
+        PushStream["PushStream<br/>(RTMP推流)"]
+    end
+
+    MediaSource --> Filter1
+    CameraSource --> Filter2
+    
+    Filter1 -- "Stream 1" --> MixProcess
+    Filter2 -- "Stream 2" --> MixProcess
+    
+    Filter1 -. "Stream 1" .-> Controller
+    Filter2 -. "Stream 2" .-> Controller
+    
+    MixFilter --> FinalFilter
+    FinalFilter -. "Main Stream" .-> Controller
+    FinalFilter --> Encoder
+    Encoder --> PushStream
+    
+    Controller -. "位置/尺寸参数" .-> MixProcess
+
+    style Sources fill:#4fc3f7,stroke:#0277bd,stroke-width:2px,color:#000
+    style MediaSource fill:#4fc3f7,stroke:#0277bd,stroke-width:1px,color:#000
+    style CameraSource fill:#4fc3f7,stroke:#0277bd,stroke-width:1px,color:#000
+    style Filters fill:#ffa726,stroke:#e65100,stroke-width:2px,color:#000
+    style Filter1 fill:#ffa726,stroke:#e65100,stroke-width:1px,color:#000
+    style Filter2 fill:#ffa726,stroke:#e65100,stroke-width:1px,color:#000
+    style Controller fill:#ffee58,stroke:#f9a825,stroke-width:2px,color:#000
+    style DisplayArea fill:#fff59d,stroke:#f9a825,stroke-width:1px,color:#000
+    style Preview1 fill:#fff59d,stroke:#f9a825,stroke-width:1px,color:#000
+    style Preview2 fill:#fff59d,stroke:#f9a825,stroke-width:1px,color:#000
+    style MixProcess fill:#ffa726,stroke:#e65100,stroke-width:2px,color:#000
+    style MixFilter fill:#ffa726,stroke:#e65100,stroke-width:1px,color:#000
+    style PostFilter fill:#ffa726,stroke:#e65100,stroke-width:2px,color:#000
+    style FinalFilter fill:#ffa726,stroke:#e65100,stroke-width:1px,color:#000
+    style EncodePush fill:#f06292,stroke:#c2185b,stroke-width:2px,color:#000
+    style Encoder fill:#f06292,stroke:#c2185b,stroke-width:1px,color:#000
+    style PushStream fill:#66bb6a,stroke:#2e7d32,stroke-width:2px,color:#000
+```
+
+**流程说明**：
+
+| 阶段 | 组件 | 功能 | 数据格式 |
+|------|------|------|----------|
+| **输入源** | MediaSource / CameraSource | 提供原始视频帧 | `CVPixelBufferRef` |
+| **预处理** | filter (×2) | 对每路流独立进行缩放、裁剪、镜像等处理，处理后的流同时输出到预览和合成 | `CVPixelBufferRef` |
+| **预览显示** | WLStreamViewController | 接收 Filter 处理后的 Stream 1 和 Stream 2，实时显示给用户预览（Preview1 / Preview2），支持切换显示 Main Preview | `CMSampleBufferRef` |
+| **画面合成** | filter (画面合并) | 接收两路 Filter 输出的 Stream 1 和 Stream 2，根据 WLStreamViewController 反馈的位置/尺寸参数进行合成（画中画/分屏等布局） | `CVPixelBufferRef` |
+| **后处理** | filter (最终处理) | 对合成后的画面进行最终处理（如美颜、水印等），输出 Main Stream | `CVPixelBufferRef` |
+| **编码** | Encoder | 将最终处理后的帧编码为 H264 视频 + AAC 音频 | 压缩码流 |
+| **推流** | PushStream | 封装为 RTMP/flv 格式并推送到服务器 | 网络包 |
+
+**关键设计点**：
+- ✅ **双路并行处理**：MediaSource 和 CameraSource 各自经过独立的 Filter 预处理
+- ✅ **分流输出**：Filter 处理后的 Stream 同时输出到两路——① WLStreamViewController 预览显示 ② filter(画面合并) 合成推流
+- ✅ **三画面预览**：WLStreamViewController 提供 Preview1（Stream 1）、Preview2（Stream 2）、Main Preview（Main Stream），用户可自由切换
+- ✅ **交互反馈**：用户在 WLStreamViewController 中拖动/缩放 Preview1/Preview2 时，位置/尺寸参数实时反馈给 filter(画面合并)，确保合成布局与预览一致
+- ✅ **后处理链路**：合成后的画面经过最终 filter 处理（美颜、水印等），同时输出到 Main Preview 预览和 Encoder 编码
+- ✅ **统一合成输出**：两路 Stream 在 `filter(画面合并)` 节点进行合成，确保推流内容的一致性
+- ✅ **流水线架构**：清晰的数据流向，便于调试和性能优化
 
 ---
 

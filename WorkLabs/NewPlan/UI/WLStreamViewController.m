@@ -74,12 +74,14 @@ static const CGFloat kIconBgAlpha = 0.05;
 
 @end
 
+#pragma mark - WLStreamViewController
+
 @interface WLStreamViewController ()
 
-// 预览区域
-@property (nonatomic, strong) WLStreamPreview *streamPreview;
+// 画布容器（尺寸与 output 分辨率一致）
+@property (nonatomic, strong) NSView *canvasView;
 
-// 进度条（仅本地视频时显示）
+// 进度条
 @property (nonatomic, strong) NSSlider *progressSlider;
 @property (nonatomic, assign) BOOL sliderVisible;
 
@@ -101,7 +103,7 @@ static const CGFloat kIconBgAlpha = 0.05;
     self.view.wantsLayer = YES;
     self.view.layer.backgroundColor = [NSColor blackColor].CGColor;
 
-    [self setupPreview];
+    [self setupCanvas];
     [self setupSlider];
     [self setupToolbar];
     [self layoutUI];
@@ -109,10 +111,12 @@ static const CGFloat kIconBgAlpha = 0.05;
 
 #pragma mark - Setup
 
-- (void)setupPreview {
-    self.streamPreview = [[WLStreamPreview alloc] init];
-    self.streamPreview.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.view addSubview:self.streamPreview];
+- (void)setupCanvas {
+    self.canvasView = [[NSView alloc] init];
+    self.canvasView.wantsLayer = YES;
+    self.canvasView.layer.backgroundColor = [NSColor colorWithWhite:0.1 alpha:1.0].CGColor;
+    self.canvasView.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:self.canvasView];
 }
 
 - (void)setupSlider {
@@ -175,9 +179,7 @@ static const CGFloat kIconBgAlpha = 0.05;
 #pragma mark - Layout
 
 - (void)layoutUI {
-    WLStreamPreview *preview = self.streamPreview;
-
-    [preview mas_makeConstraints:^(MASConstraintMaker *make) {
+    [self.canvasView mas_makeConstraints:^(MASConstraintMaker *make) {
         make.top.left.right.equalTo(self.view);
         make.bottom.equalTo(self.progressSlider.mas_top);
     }];
@@ -197,6 +199,17 @@ static const CGFloat kIconBgAlpha = 0.05;
 }
 
 #pragma mark - Public
+
+- (void)addPreview:(WLStreamPreview *)preview {
+    preview.translatesAutoresizingMaskIntoConstraints = YES;
+    [self.canvasView addSubview:preview];
+}
+
+- (void)removePreview:(WLStreamPreview *)preview {
+    if (preview.superview == self.canvasView) {
+        [preview removeFromSuperview];
+    }
+}
 
 - (void)showSlider:(BOOL)show animated:(BOOL)animated {
     if (self.sliderVisible == show) return;
@@ -233,16 +246,6 @@ static const CGFloat kIconBgAlpha = 0.05;
 
 - (void)sliderValueChanged:(id)sender {
     NSLog(@"[WLStreamViewController] slider: %.2f", self.progressSlider.doubleValue);
-}
-
-#pragma mark - WLVideoOutputProtocol
-
-- (WLNodeType)outputType {
-    return WLNodeTypeVideo;
-}
-
-- (void)receiveVideoFrame:(CVPixelBufferRef)pixelBuffer pts:(Float64)pts {
-    [self.streamPreview enqueuePixelBuffer:pixelBuffer pts:pts];
 }
 
 #pragma mark - Private

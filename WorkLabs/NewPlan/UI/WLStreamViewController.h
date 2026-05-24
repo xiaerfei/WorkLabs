@@ -6,11 +6,15 @@
 //
 
 #import <Cocoa/Cocoa.h>
-#import "WLStreamOutputProtocol.h"
+
+@class WLStreamPreview;
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface WLStreamViewController : NSViewController <WLVideoOutputProtocol>
+@interface WLStreamViewController : NSViewController
+
+- (void)addPreview:(WLStreamPreview *)preview;
+- (void)removePreview:(WLStreamPreview *)preview;
 
 @end
 
