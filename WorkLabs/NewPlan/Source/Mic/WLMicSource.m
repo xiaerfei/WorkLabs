@@ -19,6 +19,16 @@
 
 - (void)dealloc { [self stop]; }
 - (WLFromType)fromType { return WLFromTypeMic; }
+- (WLNodeType)streamType { return WLNodeTypeAudio; }
+
+- (BOOL)start:(NSError * _Nullable __autoreleasing *)error {
+    BOOL ok = [self start];
+    if (!ok && error) {
+        *error = [NSError errorWithDomain:@"WLMicSource" code:-1
+                                 userInfo:@{NSLocalizedDescriptionKey: @"mic start failed"}];
+    }
+    return ok;
+}
 
 - (instancetype)initWithConfig:(WLMicSourceConfig *)config {
     self = [super init];
@@ -80,7 +90,12 @@
 - (void)captureOutput:(AVCaptureOutput *)output didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer fromConnection:(AVCaptureConnection *)connection {
     if (!self.isRunning) return;
     CFRetain(sampleBuffer);
-    if (self.sampleOutput) {
+
+    // 新协议优先
+    id<WLStreamSourceDelegate> delegate = self.delegate;
+    if (delegate) {
+        [delegate source:self didOutputAudioBuffer:sampleBuffer];
+    } else if (self.sampleOutput) {
         self.sampleOutput(sampleBuffer);
     } else {
         CFRelease(sampleBuffer);

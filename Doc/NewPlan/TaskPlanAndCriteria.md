@@ -55,8 +55,9 @@ Step 5: WLStreamsManager 串联所有组件
 | 任务 | 文件 | 状态 |
 |------|------|------|
 | `WLStreamSourceProtocol` + `WLStreamSourceDelegate` | NewPlan/Common/ | ✅ |
-| `WLStreamOutputProtocol` + 子协议 | NewPlan/Common/ | ⏳ |
-| `WLStreamFilterProtocol` + 子协议 | NewPlan/Common/ | ⏳ |
+| `WLStreamOutputProtocol` + 子协议 | NewPlan/Common/ | ✅ |
+| `WLStreamFilterProtocol` + 子协议 | NewPlan/Common/ | ✅ |
+| `WLStreamRenderingProtocol`（Preview frame 反馈） | NewPlan/Common/ | ✅ |
 | `WLDefines.h` 补充 `WLFromTypeNetwork` | NewPlan/Common/ | ✅ |
 | `WLNode` 扩展支持 `CMSampleBufferRef` | NewPlan/Common/ | ✅ |
 
@@ -66,8 +67,8 @@ Step 5: WLStreamsManager 串联所有组件
 
 | 组件 | 技术方案 | 输出 | Config | 状态 |
 |------|----------|------|--------|------|
-| **WLCameraSource** | AVCaptureSession | CVPixelBufferRef | `WLCameraSourceConfig` | ⏳ |
-| **WLMicSource** | AVCaptureSession + AVCaptureAudioDataOutput | CMSampleBufferRef | `WLMicSourceConfig` | ⏳ |
+| **WLCameraSource** | AVCaptureSession | CVPixelBufferRef | `WLCameraSourceConfig` | ✅ 兼容新协议（同时保留旧 block 回调） |
+| **WLMicSource** | AVCaptureSession + AVCaptureAudioDataOutput | CMSampleBufferRef | `WLMicSourceConfig` | ✅ 兼容新协议（同时保留旧 block 回调） |
 | **WLMediaSource** | FFmpeg（已适配新协议） | CVPixelBufferRef + CMSampleBufferRef | — | ✅ |
 | **WLNetWorkSource** | FFmpeg avformat_open_input | CVPixelBufferRef + CMSampleBufferRef | — | ⏳ |
 | **WLScreenCaptureSource** | CGDisplayStream / ScreenCaptureKit | CVPixelBufferRef | — | 后续扩展 |
@@ -80,10 +81,10 @@ Step 5: WLStreamsManager 串联所有组件
 
 | 组件 | Protocol | 功能 | 状态 |
 |------|----------|------|------|
-| **WLVideoFilter** | `WLVideoFilterProtocol` | 缩放、裁剪、镜像、像素格式转换 | ⏳ |
+| **WLVideoFilter** | `WLVideoFilterProtocol` | 缩放、裁剪、镜像（CoreImage 实现，CVPixelBufferPool 复用） | ✅ |
 | **WLAudioFilter** | `WLAudioFilterProtocol` | 重采样、增益、降噪、音频格式转换 | ⏳ |
 | **WLAudioMixer** | `WLAudioFilterProtocol` | 多路音频混音、音量控制 | ⏳ |
-| **WLVideoConcat** | `WLVideoFilterProtocol` | 多路视频切换/画中画 | ⏳ |
+| **WLVideoMix** | —（带 layoutFrame 的合成器，非 Filter） | 固定画布上多路视频按 layoutFrame 合成（CoreImage） | ✅ |
 
 > **格式转换**：不同 Source 输出的像素格式（BGRA / YUV）和音频格式（采样率 / 声道数）差异，由 Filter 组件统一处理。
 
@@ -96,8 +97,8 @@ Step 5: WLStreamsManager 串联所有组件
 | 组件 | Protocol | 功能 | 状态 |
 |------|----------|------|------|
 | **WLEncoder** | `WLVideoOutputProtocol` + `WLAudioOutputProtocol` | VideoToolbox H264 + AudioToolbox AAC | ⏳ |
-| **WLPreviewOutput** | `WLVideoOutputProtocol` | AVSampleBufferDisplayLayer 预览 | ⏳ |
-| **WLAudioOutput** | `WLAudioOutputProtocol` | 系统音频播放 | ⏳ |
+| **WLStreamPreview** | `WLStreamRenderingProtocol`（继承 `WLVideoOutputProtocol`） | AVSampleBufferDisplayLayer 渲染 + 拖动/缩放交互 + interactive 开关 | ✅ |
+| **WLAudioOutput** | `WLAudioOutputProtocol` | 系统音频播放 | ✅ |
 | **WLPushStreamer** | `WLVideoOutputProtocol` + `WLAudioOutputProtocol` | RTMP 推流 | ⏳ |
 
 ### Step 5: WLStreamsManager 串联
@@ -135,6 +136,64 @@ WLStreamsManager *mgr = [WLStreamsManager sharedManager];
 ```
 
 **验收**：Camera + Mic → Filter → Mix → Encoder → RTMP 全链路跑通。
+
+---
+
+## 3.X 已落地：Preview 管线（2026-05-26）
+
+对应 [TaskNewPlan.md §2.3 Preview 渲染管线](TaskNewPlan.md#23-preview-渲染管线)，本次实现了从 Source 到 MainPreview 的完整可视化链路（不含 Encoder / PushStream）：
+
+```
+Source ─delegate→ WLStreamsManager
+                    │
+            perStreamFilter (可选, WLVideoFilter)
+                    │
+        ┌──────────┴──────────┐
+        ▼                     ▼
+  Overlay Preview         WLVideoMix（固定画布 1920×1080，CoreImage）
+  (WLStreamPreview, 浮层)       │
+        │                      ▼
+        └──frame反馈──→  layoutFrame
+                               │
+                               ▼
+                       PostFilter (可选, WLVideoFilter)
+                               │
+                               ▼
+                    MainPreview（WLStreamPreview, 铺满 canvas、不拦截鼠标）
+```
+
+### 落地清单
+
+| 文件 | 角色 | 备注 |
+|------|------|------|
+| `NewPlan/Common/WLStreamFilterProtocol.h` | 新增 | Filter 协议（video/audio），返回值标注 `CF_RETURNS_RETAINED` |
+| `NewPlan/Filter/WLVideoFilter.{h,m}` | 新增 | CoreImage Filter：scale / crop / mirror；CVPixelBufferPool 复用；Metal-backed CIContext |
+| `NewPlan/Mix/WLVideoMix.{h,m}` | 新增 | 固定画布合成器；串行 dispatch queue；streamID → 缓存帧 + layoutFrame 字典；维持插入顺序作为图层顺序 |
+| `NewPlan/Core/WLStreamsManager.{h,m}` | 重写 | 编排器：`addSource:previewOutput:` / `setFilter:forSource:` / `setLayoutFrame:forSource:` / `start` / `stop`；实现 `WLStreamSourceDelegate` + `WLStreamRenderingDelegate`（浮层 Preview 拖拽自动同步 layout 到 Mix） |
+| `NewPlan/UI/WLStreamPreview.{h,m}` | 修改 | 增加 `interactive` 属性 + `hitTest:` 重写，MainPreview 设为 `NO` 不拦截鼠标 |
+| `NewPlan/UI/WLStreamViewController.{h,m}` | 修改 | 暴露 `mainPreview`（铺满 canvas，底层）；`addOverlayPreview:` / `removeOverlayPreview:` 浮层叠加在 mainPreview 之上 |
+| `NewPlan/Source/Camera/WLCameraSource.{h,m}` | 修改 | 同时遵循 `WLStreamSourceProtocol`；新增 `streamType` / `delegate` / `start:(NSError**)`；回调时 delegate 优先于旧 `frameOutput` block |
+| `NewPlan/Source/Mic/WLMicSource.{h,m}` | 修改 | 同上（音频路径） |
+| `Core/Streams/`、`Core/Utils/` | **删除** | 旧 `WLVideoModeStreams` / `WLAudioMixStreams` / `WLCoreUtils` 三个死代码模块整体清理 |
+
+### 关键设计决策
+
+- **技术栈**：CoreImage（Phase 1，单源/合成均够用），后续可 swap 为 Metal Performance Shaders 优化。
+- **画布**：固定 1920×1080（可配置），`WLStreamPreview` 浮层的 frame 直接作为 `WLVideoMix` 的 `layoutFrame`（macOS NSView 默认左下角坐标，与 CoreImage 一致）。
+- **MainPreview 布局**：`MainPreview` 铺满画布底层，`Preview₁/Preview₂` 作为浮层叠加 —— 类似 OBS / 海报类 App 的"画布即合成结果"风格。
+- **CVPixelBuffer 所有权**：统一遵循 Create Rule。`processVideoFrame:pts:` 返回值与 Source delegate 回调中的 buffer 所有权一律转移给调用方，`StreamsManager` 内 fork 时显式 `CVPixelBufferRetain/Release` 配平。
+- **双协议过渡**：Camera/Mic 同时支持旧 `WLSourceProtocol`（block 回调，被 `WLPipelineManager` / `WLSceneManager` 使用）和新 `WLStreamSourceProtocol`（delegate 回调）。delegate 非空时只走 delegate，避免双重 release。
+
+### 已验证
+
+- ✅ `xcodegen generate` + `pod install` + `xcodebuild ... -configuration Debug` 整个工程 **BUILD SUCCEEDED**。
+- ❌ Runtime 未验证（需要在调用方完成 `addSource:previewOutput:` + `manager.mainPreviewOutput = controller.mainPreview` 的接线后才能跑起来）。
+
+### 未做（Preview 管线相关）
+
+1. **管线接线示例**：尚未在 `WLStreamViewController` 或 `WLTestSourceController` 中编写"创建 Source + addOverlayPreview + addSource"的入口代码。
+2. **旧体系清理**：`WLPipelineManager` / `WLSceneManager` / 旧 `WLSourceProtocol` 仍被 `WLMenuPanelViewController` / `WLSourcePanel` 引用，未删除。等待后续将旧 UI 迁移到新 manager 后再清理。
+3. **Audio 链路**：`WLStreamsManager` 收到音频 delegate 回调后直接 release，未接入 `WLAudioMixer`。
 
 ---
 

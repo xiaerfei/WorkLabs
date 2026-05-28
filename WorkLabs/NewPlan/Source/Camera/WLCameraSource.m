@@ -19,6 +19,16 @@
 
 - (void)dealloc { [self stop]; }
 - (WLFromType)fromType { return WLFromTypeCamera; }
+- (WLNodeType)streamType { return WLNodeTypeVideo; }
+
+- (BOOL)start:(NSError * _Nullable __autoreleasing *)error {
+    BOOL ok = [self start];
+    if (!ok && error) {
+        *error = [NSError errorWithDomain:@"WLCameraSource" code:-1
+                                 userInfo:@{NSLocalizedDescriptionKey: @"camera start failed"}];
+    }
+    return ok;
+}
 
 - (instancetype)initWithConfig:(WLCameraSourceConfig *)config {
     self = [super init];
@@ -82,7 +92,12 @@
     CVPixelBufferRetain(pixelBuffer);
     CMTime presentationTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer);
     Float64 pts = CMTimeGetSeconds(presentationTime);
-    if (self.frameOutput) {
+
+    // 新协议优先
+    id<WLStreamSourceDelegate> delegate = self.delegate;
+    if (delegate) {
+        [delegate source:self didOutputVideoFrame:pixelBuffer pts:pts];
+    } else if (self.frameOutput) {
         self.frameOutput(pixelBuffer, pts);
     } else {
         CVPixelBufferRelease(pixelBuffer);

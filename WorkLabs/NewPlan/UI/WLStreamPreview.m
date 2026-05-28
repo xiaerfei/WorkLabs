@@ -47,6 +47,12 @@ typedef NS_OPTIONS(NSUInteger, WLResizeEdge) {
     self.layer.backgroundColor = [NSColor blackColor].CGColor;
     self.layer.borderWidth = 1.0;
     self.layer.borderColor = [NSColor colorWithWhite:1.0 alpha:0.2].CGColor;
+    _interactive = YES;
+}
+
+- (NSView *)hitTest:(NSPoint)point {
+    if (!self.interactive) return nil; // 不拦截鼠标事件
+    return [super hitTest:point];
 }
 
 - (CALayer *)makeBackingLayer {

@@ -1056,6 +1056,7 @@ typedef NS_ENUM(NSInteger, WLStreamState) {
 | 版本 | 日期 | 作者 | 变更内容 |
 |------|------|------|----------|
 | v0.1 | 2026-05-19 | AI Assistant | 初稿，基于 TaskNewPlan.md 和架构图整理 |
+| v0.2 | 2026-05-26 | AI Assistant | 实现 §2.3 Preview 渲染管线：Filter / Mix / 重写 StreamsManager / MainPreview 布局；Camera/Mic 兼容新协议；删除旧 Core/Streams + Core/Utils 死代码。`xcodebuild Debug` 通过。详见 [TaskPlanAndCriteria.md §3.X](TaskPlanAndCriteria.md#3x-已落地preview-管线2026-05-26) |
 
 ---
 
@@ -1093,17 +1094,25 @@ typedef NS_ENUM(NSInteger, WLStreamState) {
 
 | 模块 | 状态 | 关键发现 |
 |------|------|----------|
-| **WLStreamsManager** | 重新设计 | 新接口：`addSource:` / `addOutput:` / `addFilter:` + delegate |
+| **WLStreamsManager** | ✅ 已重写（Preview 管线版本） | 新接口：`addSource:previewOutput:` / `setFilter:forSource:` / `setLayoutFrame:forSource:`；实现 `WLStreamSourceDelegate` + `WLStreamRenderingDelegate`。Audio / Encoder 接入待续 |
 | **WLStreamSourceProtocol** | ✅ 已定义 | 统一输入源协议（delegate 回调） |
-| **WLStreamOutputProtocol** | 待实现 | 统一输出协议（`WLVideoOutputProtocol` / `WLAudioOutputProtocol`） |
-| **WLStreamFilterProtocol** | 待实现 | 统一处理协议（`WLVideoFilterProtocol` / `WLAudioFilterProtocol`） |
-| **WLCameraSource** | 已实现 | 需适配 `WLStreamSourceProtocol` |
+| **WLStreamOutputProtocol** | ✅ 已定义 | `WLVideoOutputProtocol` / `WLAudioOutputProtocol` |
+| **WLStreamFilterProtocol** | ✅ 已定义 | `WLVideoFilterProtocol` / `WLAudioFilterProtocol`，所有权遵循 Create Rule |
+| **WLStreamRenderingProtocol** | ✅ 已定义 | Preview 拖拽/缩放时通过 `didUpdateFrame:` 反馈给 Mix |
+| **WLCameraSource** | ✅ 兼容新协议 | 同时遵循 `WLStreamSourceProtocol`（delegate 优先）和旧 `WLVideoSource`（block 兜底） |
+| **WLMicSource** | ✅ 兼容新协议 | 同上（音频路径） |
 | **WLMediaSource** | ✅ 已适配新协议 | 遵循 `WLStreamSourceProtocol`，delegate 回调 |
-| **WLStreamViewController** | ✅ 已创建 | 主界面，预览 + 工具栏 |
+| **WLVideoFilter** | ✅ 已实现 | CoreImage scale/crop/mirror，CVPixelBufferPool 复用 |
+| **WLVideoMix** | ✅ 已实现 | 固定画布合成器，按 streamID 维护 layoutFrame，CoreImage |
+| **WLStreamPreview** | ✅ 已实现 | AVSampleBufferDisplayLayer 渲染 + 拖拽/缩放交互 + `interactive` 开关 |
+| **WLStreamViewController** | ✅ 已扩展 | `mainPreview`（铺满 canvas、底层、不拦截鼠标） + `addOverlayPreview:` 浮层叠加 |
 | **WLTestSourceController** | ✅ 已创建 | 通用 Source 测试控制器 |
-| **WLEncoder / WLPushStreamer** | 空壳 | 需实现 |
-| **WLNode** | 已实现 | 已支持 CMSampleBufferRef |
-| **WLSceneManager** | 将删除 | 所有职责统一由 WLStreamsManager 承担 |
+| **WLEncoder / WLPushStreamer** | ⏳ 空壳 | 待实现 |
+| **WLAudioMixer** | ⏳ 待实现 | Preview 管线未接 Audio，回调中直接 release |
+| **WLNode** | ✅ 已实现 | 已支持 CMSampleBufferRef |
+| **旧 Core/Streams + Core/Utils** | ✅ 已删除 | `WLVideoModeStreams` / `WLAudioMixStreams` / `WLCoreUtils` 三个死代码模块清理 |
+| **WLPipelineManager + 旧 WLSourceProtocol** | ⏳ 暂留 | 仍被 `WLSceneManager → WLMenuPanelViewController / WLSourcePanel` 使用；待旧 UI 迁移后再删 |
+| **WLSceneManager** | ⏳ 将删除 | 所有职责统一由 WLStreamsManager 承担（待旧 UI 迁移） |
 
 ### B.2 待解决问题
 
@@ -1121,4 +1130,4 @@ typedef NS_ENUM(NSInteger, WLStreamState) {
 
 ---
 
-**最后更新时间**：2026-05-23（WLMediaSource 适配新协议、创建 WLStreamViewController、WLTestSourceController）
+**最后更新时间**：2026-05-26（实现 §2.3 Preview 渲染管线：WLStreamFilterProtocol / WLVideoFilter / WLVideoMix；重写 WLStreamsManager；Camera/Mic 兼容新协议；MainPreview 布局；删除旧 Core/Streams + Core/Utils 死代码；Debug 构建通过）

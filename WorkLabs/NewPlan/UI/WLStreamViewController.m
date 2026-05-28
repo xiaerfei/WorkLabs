@@ -81,6 +81,9 @@ static const CGFloat kIconBgAlpha = 0.05;
 // 画布容器（尺寸与 output 分辨率一致）
 @property (nonatomic, strong) NSView *canvasView;
 
+// 主预览（合成结果），铺满 canvasView 底层
+@property (nonatomic, strong, readwrite) WLStreamPreview *mainPreview;
+
 // 进度条
 @property (nonatomic, strong) NSSlider *progressSlider;
 @property (nonatomic, assign) BOOL sliderVisible;
@@ -117,6 +120,12 @@ static const CGFloat kIconBgAlpha = 0.05;
     self.canvasView.layer.backgroundColor = [NSColor colorWithWhite:0.1 alpha:1.0].CGColor;
     self.canvasView.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:self.canvasView];
+
+    // MainPreview 铺满 canvasView，底层，不拦截鼠标
+    self.mainPreview = [[WLStreamPreview alloc] initWithFrame:self.canvasView.bounds];
+    self.mainPreview.interactive = NO;
+    self.mainPreview.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    [self.canvasView addSubview:self.mainPreview];
 }
 
 - (void)setupSlider {
@@ -200,12 +209,14 @@ static const CGFloat kIconBgAlpha = 0.05;
 
 #pragma mark - Public
 
-- (void)addPreview:(WLStreamPreview *)preview {
+- (void)addOverlayPreview:(WLStreamPreview *)preview {
+    if (!preview) return;
     preview.translatesAutoresizingMaskIntoConstraints = YES;
-    [self.canvasView addSubview:preview];
+    // 叠加在 mainPreview 之上
+    [self.canvasView addSubview:preview positioned:NSWindowAbove relativeTo:self.mainPreview];
 }
 
-- (void)removePreview:(WLStreamPreview *)preview {
+- (void)removeOverlayPreview:(WLStreamPreview *)preview {
     if (preview.superview == self.canvasView) {
         [preview removeFromSuperview];
     }
