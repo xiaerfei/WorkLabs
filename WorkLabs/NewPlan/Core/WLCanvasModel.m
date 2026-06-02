@@ -49,4 +49,28 @@
     [self.layouts removeObjectForKey:streamID];
 }
 
+- (void)bringStreamIDToFront:(NSString *)streamID {
+    if (![self.mutableOrder containsObject:streamID]) return;
+    [self.mutableOrder removeObject:streamID];
+    [self.mutableOrder addObject:streamID];
+}
+
+- (void)sendStreamIDToBack:(NSString *)streamID {
+    if (![self.mutableOrder containsObject:streamID]) return;
+    [self.mutableOrder removeObject:streamID];
+    [self.mutableOrder insertObject:streamID atIndex:0];
+}
+
+- (void)moveStreamIDUp:(NSString *)streamID {
+    NSUInteger i = [self.mutableOrder indexOfObject:streamID];
+    if (i == NSNotFound || i + 1 >= self.mutableOrder.count) return;
+    [self.mutableOrder exchangeObjectAtIndex:i withObjectAtIndex:i + 1];
+}
+
+- (void)moveStreamIDDown:(NSString *)streamID {
+    NSUInteger i = [self.mutableOrder indexOfObject:streamID];
+    if (i == NSNotFound || i == 0) return;
+    [self.mutableOrder exchangeObjectAtIndex:i withObjectAtIndex:i - 1];
+}
+
 @end

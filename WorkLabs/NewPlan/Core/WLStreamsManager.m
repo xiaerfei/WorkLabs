@@ -83,6 +83,7 @@
         [self.canvas setLayoutFrame:layout forStreamID:sid];
     }
     [self.mix setLayoutFrame:layout forStreamID:sid];
+    [self.mix setStreamOrder:self.canvas.streamOrder];
     return sid;
 }
 
@@ -95,6 +96,7 @@
     [self.previewOutputs removeObjectForKey:sid];
     [self.canvas removeStreamID:sid];
     [self.mix removeStreamID:sid];
+    [self.mix setStreamOrder:self.canvas.streamOrder];
 
     if (source.delegate == self) {
         source.delegate = nil;
@@ -129,6 +131,32 @@
 - (void)setBackgroundImage:(nullable NSImage *)image {
     self.canvas.backgroundImage = image;
     [self.mix setBackgroundImage:image];
+}
+
+#pragma mark - Z-order（同步 canvas + mix）
+
+- (void)bringStreamToFront:(NSString *)streamID {
+    if (streamID.length == 0) return;
+    [self.canvas bringStreamIDToFront:streamID];
+    [self.mix setStreamOrder:self.canvas.streamOrder];
+}
+
+- (void)sendStreamToBack:(NSString *)streamID {
+    if (streamID.length == 0) return;
+    [self.canvas sendStreamIDToBack:streamID];
+    [self.mix setStreamOrder:self.canvas.streamOrder];
+}
+
+- (void)moveStreamUp:(NSString *)streamID {
+    if (streamID.length == 0) return;
+    [self.canvas moveStreamIDUp:streamID];
+    [self.mix setStreamOrder:self.canvas.streamOrder];
+}
+
+- (void)moveStreamDown:(NSString *)streamID {
+    if (streamID.length == 0) return;
+    [self.canvas moveStreamIDDown:streamID];
+    [self.mix setStreamOrder:self.canvas.streamOrder];
 }
 
 #pragma mark - Lifecycle

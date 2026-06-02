@@ -18,6 +18,8 @@
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>NSCameraUsageDescription</key>
+	<string>WorkLabs 需要访问摄像头以采集视频画面用于预览与推流。</string>
 	<key>NSMainStoryboardFile</key>
 	<string>Main</string>
 </dict>

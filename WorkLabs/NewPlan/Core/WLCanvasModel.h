@@ -30,6 +30,12 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)addStreamID:(NSString *)streamID;   // 追加到顶层（已存在则忽略）
 - (void)removeStreamID:(NSString *)streamID;
 
+// z-order 调整（数组末尾=顶层）
+- (void)bringStreamIDToFront:(NSString *)streamID;
+- (void)sendStreamIDToBack:(NSString *)streamID;
+- (void)moveStreamIDUp:(NSString *)streamID;    // 上移一层（往顶）
+- (void)moveStreamIDDown:(NSString *)streamID;  // 下移一层（往底）
+
 @end
 
 NS_ASSUME_NONNULL_END

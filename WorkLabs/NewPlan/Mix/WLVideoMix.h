@@ -40,6 +40,9 @@ NS_ASSUME_NONNULL_BEGIN
 // 移除某路 stream（同时清掉缓存帧）
 - (void)removeStreamID:(NSString *)streamID;
 
+// 设置合成 z-order（数组顺序=从底到顶）；由编排层依据 WLCanvasModel 同步
+- (void)setStreamOrder:(NSArray<NSString *> *)streamOrder;
+
 @end
 
 NS_ASSUME_NONNULL_END

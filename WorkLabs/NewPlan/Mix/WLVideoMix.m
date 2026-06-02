@@ -125,6 +125,15 @@
     });
 }
 
+- (void)setStreamOrder:(NSArray<NSString *> *)streamOrder {
+    NSArray *copy = [streamOrder copy];
+    dispatch_async(self.serialQueue, ^{
+        [self.streamOrder removeAllObjects];
+        if (copy.count) [self.streamOrder addObjectsFromArray:copy];
+        [self renderWithPts:self.lastPts];
+    });
+}
+
 #pragma mark - Render
 
 - (void)renderWithPts:(Float64)pts {

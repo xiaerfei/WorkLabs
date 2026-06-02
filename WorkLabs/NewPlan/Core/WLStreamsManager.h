@@ -49,6 +49,12 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setBackgroundColor:(nullable NSColor *)color;
 - (void)setBackgroundImage:(nullable NSImage *)image;
 
+// z-order 调整（同步 canvas + mix；调用方负责同步预览 subview 顺序）
+- (void)bringStreamToFront:(NSString *)streamID;
+- (void)sendStreamToBack:(NSString *)streamID;
+- (void)moveStreamUp:(NSString *)streamID;
+- (void)moveStreamDown:(NSString *)streamID;
+
 #pragma mark - Lifecycle
 
 @property (nonatomic, assign, readonly, getter=isRunning) BOOL running;

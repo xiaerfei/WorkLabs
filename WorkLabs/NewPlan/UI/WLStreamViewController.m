@@ -11,6 +11,9 @@
 #import "WLStreamsManager.h"
 #import "WLCanvasModel.h"
 #import "WLMediaSource.h"
+#import "WLCameraSource.h"
+#import "WLCameraSourceConfig.h"
+#import "WLDevicesManager.h"
 
 static const CGFloat kIconBgAlpha = 0.05;
 
@@ -292,6 +295,50 @@ static const CGFloat kIconBgAlpha = 0.05;
     }
 }
 
+#pragma mark - 添加摄像头源
+
+- (void)addCameraSourceWithDevice:(AVCaptureDevice *)device {
+    if (!device) return;
+
+    // 去重：同一摄像头不重复添加（避免争用同一 AVCaptureDevice）
+    for (id<WLStreamSourceProtocol> s in self.sidToSource.allValues) {
+        if ([s isKindOfClass:[WLCameraSource class]]) {
+            AVCaptureDevice *d = [(WLCameraSource *)s config].device;
+            if ([d.uniqueID isEqualToString:device.uniqueID]) {
+                NSLog(@"[WLStreamViewController] 摄像头已添加: %@", device.localizedName);
+                return;
+            }
+        }
+    }
+
+    WLCameraSourceConfig *config = [WLCameraSourceConfig configWithDevice:device];
+    WLCameraSource *source = [[WLCameraSource alloc] initWithConfig:config];
+
+    // 初始布局：画布中央，占画布一半（首帧到达后按真实比例自适应）
+    CGSize cs = self.canvas.canvasSize;
+    CGRect canvasLayout = CGRectMake(cs.width * 0.25, cs.height * 0.25,
+                                     cs.width * 0.5,  cs.height * 0.5);
+    CGRect uiFrame = [self viewRectFromCanvasRect:canvasLayout];
+
+    WLStreamPreview *preview = [[WLStreamPreview alloc] initWithFrame:uiFrame];
+    preview.delegate = self;
+    preview.translatesAutoresizingMaskIntoConstraints = YES;
+
+    NSString *sid = [self.manager addSource:source previewOutput:preview];
+    if (sid.length == 0) return;
+    [self.manager setLayoutFrame:canvasLayout forStreamID:sid];
+
+    [self.previewToSID setObject:sid forKey:preview];
+    self.sidToSource[sid] = source;
+
+    [self.canvasView addSubview:preview];
+
+    NSError *err = nil;
+    if (![source start:&err]) {
+        NSLog(@"[WLStreamViewController] CameraSource start failed: %@", err);
+    }
+}
+
 #pragma mark - WLStreamRenderingDelegate（浮层拖拽/缩放 → 同步画布坐标）
 
 - (void)rendering:(id<WLStreamRenderingProtocol>)rendering didUpdateFrame:(CGRect)frame {
@@ -313,6 +360,36 @@ static const CGFloat kIconBgAlpha = 0.05;
     for (WLStreamPreview *p in [[self.previewToSID keyEnumerator] allObjects]) {
         p.selected = NO;
     }
+}
+
+- (void)rendering:(id<WLStreamRenderingProtocol>)rendering
+    didRequestZOrderAction:(WLZOrderAction)action {
+    if (![rendering isKindOfClass:[WLStreamPreview class]]) return;
+    NSString *sid = [self.previewToSID objectForKey:(WLStreamPreview *)rendering];
+    if (sid.length == 0) return;
+
+    switch (action) {
+        case WLZOrderActionFront: [self.manager bringStreamToFront:sid]; break;
+        case WLZOrderActionBack:  [self.manager sendStreamToBack:sid];   break;
+        case WLZOrderActionUp:    [self.manager moveStreamUp:sid];       break;
+        case WLZOrderActionDown:  [self.manager moveStreamDown:sid];     break;
+    }
+    [self syncPreviewZOrder];
+}
+
+// 按 canvas.streamOrder(从底到顶) 重排画布上的浮层，使预览叠放 = 合成 z-order
+- (void)syncPreviewZOrder {
+    for (NSString *sid in self.canvas.streamOrder) {
+        WLStreamPreview *p = [self previewForStreamID:sid];
+        if (p) [self.canvasView addSubview:p]; // 重新 addSubview = 移到最上
+    }
+}
+
+- (WLStreamPreview *)previewForStreamID:(NSString *)sid {
+    for (WLStreamPreview *p in [[self.previewToSID keyEnumerator] allObjects]) {
+        if ([[self.previewToSID objectForKey:p] isEqualToString:sid]) return p;
+    }
+    return nil;
 }
 
 #pragma mark - 背景设置
@@ -377,6 +454,38 @@ static const CGFloat kIconBgAlpha = 0.05;
 }
 
 - (void)addClicked:(id)sender {
+    NSMenu *menu = [[NSMenu alloc] init];
+
+    NSMenuItem *fileItem = [menu addItemWithTitle:@"添加视频文件…"
+                                           action:@selector(addVideoFileClicked:)
+                                    keyEquivalent:@""];
+    fileItem.target = self;
+
+    // 「添加摄像头」子菜单：动态列出当前视频采集设备
+    NSMenuItem *camItem = [menu addItemWithTitle:@"添加摄像头" action:nil keyEquivalent:@""];
+    NSMenu *camMenu = [[NSMenu alloc] init];
+    NSArray<WLDeviceItem *> *devices = [[WLDevicesManager manager] currentVideoDevices];
+    if (devices.count == 0) {
+        NSMenuItem *empty = [camMenu addItemWithTitle:@"未检测到摄像头" action:nil keyEquivalent:@""];
+        empty.enabled = NO;
+    } else {
+        for (WLDeviceItem *item in devices) {
+            NSMenuItem *di = [camMenu addItemWithTitle:(item.localizedName ?: @"未知设备")
+                                                action:@selector(cameraDeviceSelected:)
+                                         keyEquivalent:@""];
+            di.target = self;
+            di.representedObject = item.device;
+        }
+    }
+    [menu setSubmenu:camMenu forItem:camItem];
+
+    NSView *btn = [sender isKindOfClass:[NSView class]] ? (NSView *)sender : self.addButton;
+    [menu popUpMenuPositioningItem:nil
+                        atLocation:NSMakePoint(0, NSHeight(btn.bounds))
+                            inView:btn];
+}
+
+- (void)addVideoFileClicked:(id)sender {
     NSOpenPanel *panel = [NSOpenPanel openPanel];
     panel.allowedFileTypes = @[@"mp4", @"mov", @"m4v", @"mkv", @"flv", @"ts", @"avi"];
     panel.allowsMultipleSelection = NO;
@@ -385,6 +494,35 @@ static const CGFloat kIconBgAlpha = 0.05;
         if (result != NSModalResponseOK || panel.URLs.count == 0) return;
         [wself addMediaSourceWithPath:panel.URLs.firstObject.path];
     }];
+}
+
+- (void)cameraDeviceSelected:(NSMenuItem *)sender {
+    AVCaptureDevice *device = sender.representedObject;
+    if (!device) return;
+
+    AVAuthorizationStatus status = [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeVideo];
+    if (status == AVAuthorizationStatusAuthorized) {
+        [self addCameraSourceWithDevice:device];
+    } else if (status == AVAuthorizationStatusNotDetermined) {
+        __weak typeof(self) wself = self;
+        [AVCaptureDevice requestAccessForMediaType:AVMediaTypeVideo
+                                 completionHandler:^(BOOL granted) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (granted) [wself addCameraSourceWithDevice:device];
+                else [wself showCameraAccessDeniedAlert];
+            });
+        }];
+    } else {
+        [self showCameraAccessDeniedAlert];
+    }
+}
+
+- (void)showCameraAccessDeniedAlert {
+    NSAlert *alert = [[NSAlert alloc] init];
+    alert.messageText = @"无法访问摄像头";
+    alert.informativeText = @"请在「系统设置 ▸ 隐私与安全性 ▸ 摄像头」中允许 WorkLabs 访问摄像头。";
+    [alert addButtonWithTitle:@"好"];
+    [alert runModal];
 }
 
 - (void)sliderValueChanged:(id)sender {

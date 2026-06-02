@@ -1,7 +1,7 @@
 # WorkLabs 多路流推流系统 - 实施计划（简化版）
 
 > 本文档聚焦**当前简化设计与本阶段范围**。
-> **本阶段**：`MediaSource` 单路 → Filter → Render 画布（背景色/图 + 预览）→ `WLVideoMix` 合成；**不含** Encoder/推流，音频管线另行讨论，Camera/Network 等多路源为后续阶段。
+> **本阶段**：`MediaSource` / `Camera` 多路 → Filter → Render 画布（背景色/图 + 预览）→ `WLVideoMix` 合成；**不含** Encoder/推流，音频管线另行讨论，Network 拉流为后续阶段。
 
 ## 1. 项目背景与目标
 
@@ -17,7 +17,7 @@
 ### 1.2 输入源定义
 
 #### Video 输入源（最多 2 路，其中一路必为 Camera）：
-- **Camera 流**：实时摄像头采集（`WLCameraSource`，后续阶段）
+- **Camera 流**：实时摄像头采集（`WLCameraSource`，**本阶段已接入**）
 - **本地视频流**：FFmpeg 解码本地媒体文件（`WLMediaSource`，**本阶段**）
 - **网络拉取流**：RTMP/RTSP/HLS（`WLNetWorkSource`，后续阶段）
 
@@ -44,7 +44,7 @@ flowchart LR
     subgraph Sources["输入源"]
         direction TB
         MediaSource["MediaSource<br/>(FFmpeg解码 · 本阶段)"]
-        CameraSource["CameraSource<br/>(实时采集 · 后续)"]
+        CameraSource["CameraSource<br/>(实时采集 · 本阶段)"]
     end
 
     subgraph Filters["Filter 滤镜(每路独立)"]
@@ -89,7 +89,7 @@ flowchart LR
 
     style Sources fill:#4fc3f7,stroke:#0277bd,color:#000
     style MediaSource fill:#4fc3f7,stroke:#0277bd,color:#000
-    style CameraSource fill:#b0bec5,stroke:#546e7a,color:#000
+    style CameraSource fill:#4fc3f7,stroke:#0277bd,color:#000
     style Filters fill:#ffa726,stroke:#e65100,color:#000
     style Filter1 fill:#ffa726,stroke:#e65100,color:#000
     style Filter2 fill:#ffa726,stroke:#e65100,color:#000
@@ -109,7 +109,7 @@ flowchart LR
 
 | 阶段 | 组件 | 功能 | 数据格式 |
 |------|------|------|----------|
-| **输入源** | MediaSource（本阶段）/ CameraSource（后续） | 提供原始视频帧 | `CVPixelBufferRef` |
+| **输入源** | MediaSource / CameraSource（均本阶段） | 提供原始视频帧 | `CVPixelBufferRef` |
 | **滤镜** | filter (每路独立) | 缩放/裁剪/镜像；输出同时供「预览」和「合并」两路 | `CVPixelBufferRef` |
 | **画布数据** | WLCanvasModel | 背景色、整张背景图、各路 layoutFrame/z-order 的单一数据源 | 配置对象 |
 | **预览** | Render 画布 | UI 层呈现：背景层 + 两路 Stream 浮层（可拖拽/缩放）；拖拽即改 layoutFrame | `CMSampleBufferRef`（各路） |
@@ -312,11 +312,11 @@ Source → [delegate: didOutputVideoFrame]
 | 处置 | 文件 |
 |------|------|
 | **保留不动** | `WLMediaSource`(解耦 preview)、`WLNode`、`WLNodeQueue`、`WLStreamSourceProtocol`、`WLStreamRenderingProtocol`、`WLDefines` |
-| **保留 + 重写** | `WLStreamViewController`(入口→Render 画布)、`WLVideoMix`(加背景色/图、删 postFilter)、`WLStreamsManager`(简化编排 + 接入 CanvasModel)、`WLStreamPreview`(复用拖拽、去 mainPreview)、`WLVideoFilter`(复用 scale/crop/mirror) |
+| **保留 + 重写** | `WLStreamViewController`(入口→Render 画布；「+」加视频文件/摄像头)、`WLVideoMix`(加背景色/图、删 postFilter)、`WLStreamsManager`(简化编排 + 接入 CanvasModel)、`WLStreamPreview`(复用拖拽、去 mainPreview)、`WLVideoFilter`(复用 scale/crop/mirror) |
 | **新建** | `WLCanvasModel`；`WLEncoder`、`WLPushStreamer`（后续阶段） |
 | **✅ 已删除(本阶段)** | `WLMicSource`(+Config)、`WLTestSourceController`；`WLVideoMix.postFilter` 逻辑（合成后直出，不再有后处理节点） |
 | **原计划删、实际保留** | `WLAudioOutput`、`WLPreviewOutput`（被旧 `WLPipelineManager` 依赖）、`WLMediaSourcePreview`（被 `WLSceneManager`/`WLSceneViewController` 依赖）、`WLStreamOutputProtocol`（被 `WLStreamRenderingProtocol` 依赖） |
-| **旧 UI 不动** | `WLSceneManager`、`WLPipelineManager`、旧 `WLSourceProtocol`、`WLCameraSource`(+Config)、`WLMenuPanelViewController`、`WLSourcePanel`、`WLSceneViewController` |
+| **旧 UI 不动** | `WLSceneManager`、`WLPipelineManager`、旧 `WLSourceProtocol`、`WLCameraSource`(+Config，已同时遵循新协议，**本阶段新管线直接复用、未改其代码**)、`WLMenuPanelViewController`、`WLSourcePanel`、`WLSceneViewController` |
 
 > 实际删除范围按「旧 UI 不动」原则收窄：仅删除无外部引用的 `WLMicSource` / `WLTestSourceController`；其余原计划删除项因被旧 UI / 旧管线 / 渲染协议依赖而保留。
 >
@@ -339,3 +339,5 @@ xcodebuild -workspace WorkLabs.xcworkspace -scheme WorkLabs -configuration Debug
 | v0.3 | 2026-06-02 | §2 重构为简化版 Render 渲染管线（路线 A 所见即所得画布）：移除「后处理 Filter」与「MainPreview」；画布背景(纯色/整张背景图)纳入合并；新增 WLCanvasModel 单一数据源 |
 | v0.4 | 2026-06-02 | **文档精简**：删除后续阶段模块(Camera/Audio/Network/Encoder/Push/AudioMixer)、推流相关章节(状态机/资源/风险/疑问点/下一步/线程模型/时间戳)、重复的早期架构图(原 §2.1/2.2)、历史盘点(原附录 B.1-3)、术语表/参考链接；重组为聚焦当前简化设计与本阶段范围，新增 WLVideoMix 独立小节 |
 | v0.5 | 2026-06-02 | **代码落地(本阶段)**：新增 `WLCanvasModel`；`WLVideoMix` 加背景色/背景图合成；`WLStreamsManager` 简化（去 mainPreview/postFilter，接入 CanvasModel）；`WLStreamViewController` 重写为 Render 所见即所得画布（添加视频源 / 拖拽缩放 / 改背景）；删除 `WLMicSource`(+Config) / `WLTestSourceController`。xcodegen + pod install + Debug 编译通过 |
+| v0.6 | 2026-06-02 | **Camera 接入(本阶段)**：`WLStreamViewController` 工具栏「+」改为弹出菜单（添加视频文件 / 添加摄像头▸设备列表）；新增 `addCameraSourceWithDevice:`（请求摄像头授权 + 同设备去重，复用 `WLMediaSource` 同款预览/合成接入路径）；复用既有 `WLCameraSource`（已遵循新协议、旧 UI 共用、未改其代码）与 `WLDevicesManager` 设备枚举；`project.yml` 增加 `NSCameraUsageDescription`（TCC 授权）。xcodegen + pod install + Debug 编译通过 |
+| v0.7 | 2026-06-02 | **层级(z-order)调整**：z-order 收敛为以 `WLCanvasModel.streamOrder` 为单一数据源（新增 置顶/置底/上移/下移 接口）；`WLVideoMix` 改为按外部 `setStreamOrder:` 合成（不再按到帧先后自排），`WLStreamsManager` 在增删源/层级操作时同步 mix；`WLStreamRenderingDelegate` 加 `WLZOrderAction`，`WLStreamPreview` **右键弹出菜单**（置顶/上移一层/下移一层/置底），`WLStreamViewController` 执行后按 `streamOrder` 重排画布浮层 subview（预览叠放 = 合成 z-order）。Debug 编译通过 |

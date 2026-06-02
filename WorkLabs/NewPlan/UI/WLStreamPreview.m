@@ -231,6 +231,36 @@ typedef NS_ENUM(NSInteger, WLHandle) {
     [self notifyFrameUpdate];
 }
 
+#pragma mark - 右键菜单（层级调整）
+
+- (void)rightMouseDown:(NSEvent *)event {
+    if (!self.interactive) { [super rightMouseDown:event]; return; }
+
+    // 右键先选中本浮层
+    if (!self.selected &&
+        [self.delegate respondsToSelector:@selector(renderingDidRequestSelect:)]) {
+        [self.delegate renderingDidRequestSelect:self];
+    }
+
+    NSMenu *menu = [[NSMenu alloc] init];
+    [[menu addItemWithTitle:@"置顶"     action:@selector(zOrderFront:) keyEquivalent:@""] setTarget:self];
+    [[menu addItemWithTitle:@"上移一层" action:@selector(zOrderUp:)    keyEquivalent:@""] setTarget:self];
+    [[menu addItemWithTitle:@"下移一层" action:@selector(zOrderDown:)  keyEquivalent:@""] setTarget:self];
+    [[menu addItemWithTitle:@"置底"     action:@selector(zOrderBack:)  keyEquivalent:@""] setTarget:self];
+    [NSMenu popUpContextMenu:menu withEvent:event forView:self];
+}
+
+- (void)zOrderFront:(id)sender { [self emitZOrderAction:WLZOrderActionFront]; }
+- (void)zOrderBack:(id)sender  { [self emitZOrderAction:WLZOrderActionBack]; }
+- (void)zOrderUp:(id)sender    { [self emitZOrderAction:WLZOrderActionUp]; }
+- (void)zOrderDown:(id)sender  { [self emitZOrderAction:WLZOrderActionDown]; }
+
+- (void)emitZOrderAction:(WLZOrderAction)action {
+    if ([self.delegate respondsToSelector:@selector(rendering:didRequestZOrderAction:)]) {
+        [self.delegate rendering:self didRequestZOrderAction:action];
+    }
+}
+
 #pragma mark - Drag / Resize
 
 - (void)handleDrag:(NSEvent *)event {
