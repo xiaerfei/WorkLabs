@@ -5,6 +5,7 @@
 
 #import "WLStreamsManager.h"
 #import "WLVideoMix.h"
+#import "WLAudioRenderer.h"
 
 @interface WLStreamsManager ()
 
@@ -14,6 +15,7 @@
 @property (nonatomic, strong) NSMutableDictionary<NSString *, id<WLVideoOutputProtocol>> *previewOutputs;
 
 @property (nonatomic, strong) WLVideoMix *mix;
+@property (nonatomic, strong) WLAudioRenderer *audioRenderer;
 @property (nonatomic, assign, readwrite, getter=isRunning) BOOL running;
 
 @end
@@ -54,6 +56,13 @@
         };
     }
     return _mix;
+}
+
+- (WLAudioRenderer *)audioRenderer {
+    if (!_audioRenderer) {
+        _audioRenderer = [[WLAudioRenderer alloc] init];
+    }
+    return _audioRenderer;
 }
 
 #pragma mark - Source mgmt
@@ -180,6 +189,7 @@
     for (id<WLStreamSourceProtocol> source in self.sources) {
         if (source.isRunning) [source stop];
     }
+    [_audioRenderer stop];
     self.running = NO;
 }
 
@@ -219,12 +229,13 @@
     CVPixelBufferRelease(toFork);
 }
 
-#pragma mark - WLStreamSourceDelegate (audio, 本阶段不接)
+#pragma mark - WLStreamSourceDelegate (audio, 本阶段单路播放)
 
 - (void)source:(id<WLStreamSourceProtocol>)source
     didOutputAudioBuffer:(CMSampleBufferRef)sampleBuffer {
-    // 音频管线另行讨论
-    if (sampleBuffer) CFRelease(sampleBuffer);
+    if (!sampleBuffer) return;
+    [self.audioRenderer enqueueSampleBuffer:sampleBuffer];
+    CFRelease(sampleBuffer);
 }
 
 @end

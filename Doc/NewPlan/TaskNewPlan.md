@@ -1,7 +1,7 @@
 # WorkLabs 多路流推流系统 - 实施计划（简化版）
 
 > 本文档聚焦**当前简化设计与本阶段范围**。
-> **本阶段**：`MediaSource` / `Camera` 多路 → Filter → Render 画布（背景色/图 + 预览）→ `WLVideoMix` 合成；**不含** Encoder/推流，音频管线另行讨论，Network 拉流为后续阶段。
+> **本阶段**：`MediaSource` / `Camera` 多路 → Filter → Render 画布（背景色/图 + 预览）→ `WLVideoMix` 合成；音频已打通「媒体音轨 → 播放」单路（`WLAudioRenderer`）；**不含** Encoder/推流，Mic 采集 / 多路混音 / AAC 编码与 Network 拉流为后续阶段。
 
 ## 1. 项目背景与目标
 
@@ -22,10 +22,10 @@
 - **网络拉取流**：RTMP/RTSP/HLS（`WLNetWorkSource`，后续阶段）
 
 #### Audio 输入源（最多 2 路，其中一路必为 Mic）：
-- **本地麦克风**：实时音频采集
-- **本地视频流中的音频**：媒体文件的音轨
+- **本地麦克风**：实时音频采集（Mic 采集，后续阶段）
+- **本地视频流中的音频**：媒体文件的音轨（**本阶段已可播放**）
 
-> 音频管线本阶段不实现，另行讨论。
+> 音频管线本阶段先打通「媒体音轨 → 播放」单路链路（`WLAudioRenderer`）；Mic 采集、多路混音、AAC 编码为后续阶段。
 
 ### 1.3 核心约束条件
 - 若同时存在两路 Video 流，**其中一路必须为 Camera 流**
@@ -341,3 +341,4 @@ xcodebuild -workspace WorkLabs.xcworkspace -scheme WorkLabs -configuration Debug
 | v0.5 | 2026-06-02 | **代码落地(本阶段)**：新增 `WLCanvasModel`；`WLVideoMix` 加背景色/背景图合成；`WLStreamsManager` 简化（去 mainPreview/postFilter，接入 CanvasModel）；`WLStreamViewController` 重写为 Render 所见即所得画布（添加视频源 / 拖拽缩放 / 改背景）；删除 `WLMicSource`(+Config) / `WLTestSourceController`。xcodegen + pod install + Debug 编译通过 |
 | v0.6 | 2026-06-02 | **Camera 接入(本阶段)**：`WLStreamViewController` 工具栏「+」改为弹出菜单（添加视频文件 / 添加摄像头▸设备列表）；新增 `addCameraSourceWithDevice:`（请求摄像头授权 + 同设备去重，复用 `WLMediaSource` 同款预览/合成接入路径）；复用既有 `WLCameraSource`（已遵循新协议、旧 UI 共用、未改其代码）与 `WLDevicesManager` 设备枚举；`project.yml` 增加 `NSCameraUsageDescription`（TCC 授权）。xcodegen + pod install + Debug 编译通过 |
 | v0.7 | 2026-06-02 | **层级(z-order)调整**：z-order 收敛为以 `WLCanvasModel.streamOrder` 为单一数据源（新增 置顶/置底/上移/下移 接口）；`WLVideoMix` 改为按外部 `setStreamOrder:` 合成（不再按到帧先后自排），`WLStreamsManager` 在增删源/层级操作时同步 mix；`WLStreamRenderingDelegate` 加 `WLZOrderAction`，`WLStreamPreview` **右键弹出菜单**（置顶/上移一层/下移一层/置底），`WLStreamViewController` 执行后按 `streamOrder` 重排画布浮层 subview（预览叠放 = 合成 z-order）。Debug 编译通过 |
+| v0.8 | 2026-06-02 | **音频单路播放**：新增 `WLAudioRenderer`（AudioQueue 即时播放，按首帧 `formatDescription` 动态适配采样率/声道/格式）；`WLStreamsManager` 接通 `didOutputAudioBuffer:`（原直接丢弃 → 转发播放），`stop` 时停播放器；媒体音轨由 `WLMediaSource` 既有 `audioRenderThread` 按 `baseTime+pts` 节流输出，播放器即时播放，音画同步靠源端节流。本阶段仅播放、不采集 Mic（无需麦克风权限）。xcodegen + pod install + Debug 编译通过 |
