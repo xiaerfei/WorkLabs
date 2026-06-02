@@ -142,6 +142,27 @@
     [self.mix setBackgroundImage:image];
 }
 
+- (void)setCanvasSize:(CGSize)canvasSize {
+    if (canvasSize.width <= 0 || canvasSize.height <= 0) return;
+    CGSize old = self.canvas.canvasSize;
+    if (CGSizeEqualToSize(old, canvasSize)) return;
+
+    // 按新旧尺寸比例缩放各路 layout，保持相对布局
+    CGFloat sx = canvasSize.width / old.width;
+    CGFloat sy = canvasSize.height / old.height;
+    for (NSString *sid in self.canvas.streamOrder) {
+        CGRect l = [self.canvas layoutFrameForStreamID:sid];
+        if (CGRectIsNull(l)) continue;
+        CGRect nl = CGRectMake(l.origin.x * sx, l.origin.y * sy,
+                               l.size.width * sx, l.size.height * sy);
+        [self.canvas setLayoutFrame:nl forStreamID:sid];
+        [self.mix setLayoutFrame:nl forStreamID:sid];
+    }
+
+    self.canvas.canvasSize = canvasSize;
+    [self.mix updateCanvasSize:canvasSize];
+}
+
 #pragma mark - Z-order（同步 canvas + mix）
 
 - (void)bringStreamToFront:(NSString *)streamID {

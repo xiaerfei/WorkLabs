@@ -43,6 +43,9 @@ NS_ASSUME_NONNULL_BEGIN
 // 设置合成 z-order（数组顺序=从底到顶）；由编排层依据 WLCanvasModel 同步
 - (void)setStreamOrder:(NSArray<NSString *> *)streamOrder;
 
+// 更新画布尺寸（重建 pixelBufferPool）
+- (void)updateCanvasSize:(CGSize)canvasSize;
+
 @end
 
 NS_ASSUME_NONNULL_END

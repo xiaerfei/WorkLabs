@@ -49,6 +49,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setBackgroundColor:(nullable NSColor *)color;
 - (void)setBackgroundImage:(nullable NSImage *)image;
 
+// 更新画布分辨率：按新旧尺寸比例缩放各路 layout，同步 canvas + mix
+- (void)setCanvasSize:(CGSize)canvasSize;
+
 // z-order 调整（同步 canvas + mix；调用方负责同步预览 subview 顺序）
 - (void)bringStreamToFront:(NSString *)streamID;
 - (void)sendStreamToBack:(NSString *)streamID;

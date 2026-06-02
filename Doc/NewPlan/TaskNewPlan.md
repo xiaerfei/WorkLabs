@@ -1,7 +1,7 @@
 # WorkLabs 多路流推流系统 - 实施计划（简化版）
 
 > 本文档聚焦**当前简化设计与本阶段范围**。
-> **本阶段**：`MediaSource` / `Camera` 多路 → Filter → Render 画布（背景色/图 + 预览）→ `WLVideoMix` 合成；音频已打通「媒体音轨 → 播放」单路（`WLAudioRenderer`）；**不含** Encoder/推流，Mic 采集 / 多路混音 / AAC 编码与 Network 拉流为后续阶段。
+> **本阶段**：`MediaSource` / `Camera` 多路 → Filter → Render 画布（背景色/图 + 预览）→ `WLVideoMix` 合成 → `WLRecorder` 录制为 mp4（ffmpeg / h264_videotoolbox，仅视频）；音频已打通「媒体音轨 → 播放」单路（`WLAudioRenderer`）；**不含** RTMP 推流，Mic 采集 / 多路混音 / AAC 编码 / 录制带音频与 Network 拉流为后续阶段。
 
 ## 1. 项目背景与目标
 
@@ -342,3 +342,5 @@ xcodebuild -workspace WorkLabs.xcworkspace -scheme WorkLabs -configuration Debug
 | v0.6 | 2026-06-02 | **Camera 接入(本阶段)**：`WLStreamViewController` 工具栏「+」改为弹出菜单（添加视频文件 / 添加摄像头▸设备列表）；新增 `addCameraSourceWithDevice:`（请求摄像头授权 + 同设备去重，复用 `WLMediaSource` 同款预览/合成接入路径）；复用既有 `WLCameraSource`（已遵循新协议、旧 UI 共用、未改其代码）与 `WLDevicesManager` 设备枚举；`project.yml` 增加 `NSCameraUsageDescription`（TCC 授权）。xcodegen + pod install + Debug 编译通过 |
 | v0.7 | 2026-06-02 | **层级(z-order)调整**：z-order 收敛为以 `WLCanvasModel.streamOrder` 为单一数据源（新增 置顶/置底/上移/下移 接口）；`WLVideoMix` 改为按外部 `setStreamOrder:` 合成（不再按到帧先后自排），`WLStreamsManager` 在增删源/层级操作时同步 mix；`WLStreamRenderingDelegate` 加 `WLZOrderAction`，`WLStreamPreview` **右键弹出菜单**（置顶/上移一层/下移一层/置底），`WLStreamViewController` 执行后按 `streamOrder` 重排画布浮层 subview（预览叠放 = 合成 z-order）。Debug 编译通过 |
 | v0.8 | 2026-06-02 | **音频单路播放**：新增 `WLAudioRenderer`（AudioQueue 即时播放，按首帧 `formatDescription` 动态适配采样率/声道/格式）；`WLStreamsManager` 接通 `didOutputAudioBuffer:`（原直接丢弃 → 转发播放），`stop` 时停播放器；媒体音轨由 `WLMediaSource` 既有 `audioRenderThread` 按 `baseTime+pts` 节流输出，播放器即时播放，音画同步靠源端节流。本阶段仅播放、不采集 Mic（无需麦克风权限）。xcodegen + pod install + Debug 编译通过 |
+| v0.9 | 2026-06-02 | **录制（仅视频，ffmpeg）**：新增 `WLRecorder` —— `libavformat`(mp4 muxer) + `h264_videotoolbox` 编码 + `swscale`(BGRA→NV12)，按真实 pts 做 VFR 时间戳；针对 videotoolbox extradata 时序，**延迟到首个 packet 再写 mp4 header**（否则缺 SPS/PPS 无法播放）；色彩显式声明 BT.709 + limited range（swscale 用 709 系数）以消除 color range 警告。`WLStreamViewController` 的 `mixedFrameOutput` 接入录制器，工具栏录制按钮（🔴）切换开始/停止（`NSSavePanel` 选路径，停止后可在 Finder 显示）。录制带音频为后续阶段。xcodegen + pod install + Debug 编译通过 |
+| v0.10 | 2026-06-02 | **画布分辨率可设**：设置菜单（⚙️）新增「画布分辨率」子菜单（720p/1080p/1440p + 竖屏 1080×1920/720×1280，勾选当前）；`WLStreamsManager.setCanvasSize:` 按新旧尺寸比例缩放各路 layout 保持相对布局，并同步 `WLVideoMix.updateCanvasSize:`（重建 pixelBufferPool）；`canvasView` 改为按 canvasSize **锁宽高比 letterbox 居中**（外层 canvasArea 黑底），保证预览=合成=录制宽高比一致；录制进行中禁止改分辨率（录制尺寸随画布）。Debug 编译通过 |

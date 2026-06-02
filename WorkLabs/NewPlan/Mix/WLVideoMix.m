@@ -134,6 +134,19 @@
     });
 }
 
+- (void)updateCanvasSize:(CGSize)canvasSize {
+    if (canvasSize.width <= 0 || canvasSize.height <= 0) return;
+    dispatch_async(self.serialQueue, ^{
+        self->_canvasSize = canvasSize;
+        if (self->_pixelBufferPool) {
+            CVPixelBufferPoolRelease(self->_pixelBufferPool);
+            self->_pixelBufferPool = NULL;
+        }
+        [self ensurePool];
+        [self renderWithPts:self.lastPts];
+    });
+}
+
 #pragma mark - Render
 
 - (void)renderWithPts:(Float64)pts {
