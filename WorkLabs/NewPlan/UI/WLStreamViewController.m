@@ -2,12 +2,19 @@
 //  WLStreamViewController.m
 //  WorkLabs
 //
-//  推流主界面
+//  推流主界面 — Render 所见即所得画布（背景层 + 两路 Stream 浮层）
 //
 
 #import "WLStreamViewController.h"
 #import <Masonry/Masonry.h>
 #import "WLStreamPreview.h"
+#import "WLStreamsManager.h"
+#import "WLCanvasModel.h"
+#import "WLMediaSource.h"
+#import "WLCameraSource.h"
+#import "WLCameraSourceConfig.h"
+#import "WLDevicesManager.h"
+#import "WLRecorder.h"
 
 static const CGFloat kIconBgAlpha = 0.05;
 
@@ -74,15 +81,38 @@ static const CGFloat kIconBgAlpha = 0.05;
 
 @end
 
+#pragma mark - WLCanvasContainerView
+
+@interface WLCanvasContainerView : NSView
+@property (nonatomic, copy, nullable) void (^onBackgroundClick)(void);
+@end
+
+@implementation WLCanvasContainerView
+- (void)mouseDown:(NSEvent *)event {
+    if (self.onBackgroundClick) self.onBackgroundClick();
+}
+@end
+
 #pragma mark - WLStreamViewController
 
-@interface WLStreamViewController ()
+@interface WLStreamViewController () <WLStreamRenderingDelegate>
 
-// 画布容器（尺寸与 output 分辨率一致）
-@property (nonatomic, strong) NSView *canvasView;
+// 可用区（黑底，letterbox 背景）
+@property (nonatomic, strong) WLCanvasContainerView *canvasArea;
+// Render 画布（按 canvasSize 锁宽高比，居中于可用区；背景色 = layer.backgroundColor，背景图 = layer.contents）
+@property (nonatomic, strong) WLCanvasContainerView *canvasView;
 
-// 主预览（合成结果），铺满 canvasView 底层
-@property (nonatomic, strong, readwrite) WLStreamPreview *mainPreview;
+// 编排核心 + 画布数据源
+@property (nonatomic, strong) WLStreamsManager *manager;
+@property (nonatomic, strong) WLCanvasModel *canvas;
+
+// preview ↔ streamID ↔ source 映射
+@property (nonatomic, strong) NSMapTable<WLStreamPreview *, NSString *> *previewToSID;
+@property (nonatomic, strong) NSMutableDictionary<NSString *, id<WLStreamSourceProtocol>> *sidToSource;
+
+// 录制
+@property (nonatomic, strong) WLRecorder *recorder;
+@property (nonatomic, copy, nullable) NSString *currentRecordPath;
 
 // 进度条
 @property (nonatomic, strong) NSSlider *progressSlider;
@@ -106,6 +136,19 @@ static const CGFloat kIconBgAlpha = 0.05;
     self.view.wantsLayer = YES;
     self.view.layer.backgroundColor = [NSColor blackColor].CGColor;
 
+    _previewToSID = [NSMapTable strongToStrongObjectsMapTable];
+    _sidToSource = [NSMutableDictionary dictionary];
+
+    _canvas = [[WLCanvasModel alloc] init];           // 默认 1920×1080
+    _manager = [[WLStreamsManager alloc] initWithCanvas:_canvas];
+
+    // 合成帧 → 录制器（未录制时 appendVideoPixelBuffer: 内部直接返回）
+    __weak typeof(self) wself = self;
+    self.manager.mixedFrameOutput = ^(CVPixelBufferRef pb, Float64 pts) {
+        [wself.recorder appendVideoPixelBuffer:pb pts:pts];
+        CVPixelBufferRelease(pb); // 所有权转移给 block
+    };
+
     [self setupCanvas];
     [self setupSlider];
     [self setupToolbar];
@@ -115,17 +158,26 @@ static const CGFloat kIconBgAlpha = 0.05;
 #pragma mark - Setup
 
 - (void)setupCanvas {
-    self.canvasView = [[NSView alloc] init];
-    self.canvasView.wantsLayer = YES;
-    self.canvasView.layer.backgroundColor = [NSColor colorWithWhite:0.1 alpha:1.0].CGColor;
-    self.canvasView.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.view addSubview:self.canvasView];
+    __weak typeof(self) wself = self;
 
-    // MainPreview 铺满 canvasView，底层，不拦截鼠标
-    self.mainPreview = [[WLStreamPreview alloc] initWithFrame:self.canvasView.bounds];
-    self.mainPreview.interactive = NO;
-    self.mainPreview.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-    [self.canvasView addSubview:self.mainPreview];
+    // 可用区（黑底，承载 letterbox 黑边）
+    WLCanvasContainerView *area = [[WLCanvasContainerView alloc] init];
+    area.wantsLayer = YES;
+    area.layer.backgroundColor = [NSColor blackColor].CGColor;
+    area.translatesAutoresizingMaskIntoConstraints = NO;
+    area.onBackgroundClick = ^{ [wself deselectAllPreviews]; };
+    self.canvasArea = area;
+    [self.view addSubview:area];
+
+    // 画布（按 canvasSize 锁宽高比，居中于可用区）
+    WLCanvasContainerView *canvas = [[WLCanvasContainerView alloc] init];
+    canvas.wantsLayer = YES;
+    canvas.layer.backgroundColor = [NSColor colorWithWhite:0.1 alpha:1.0].CGColor;
+    canvas.layer.contentsGravity = kCAGravityResize; // 背景图拉伸铺满整张
+    canvas.translatesAutoresizingMaskIntoConstraints = NO;
+    canvas.onBackgroundClick = ^{ [wself deselectAllPreviews]; };
+    self.canvasView = canvas;
+    [area addSubview:canvas];
 }
 
 - (void)setupSlider {
@@ -188,10 +240,11 @@ static const CGFloat kIconBgAlpha = 0.05;
 #pragma mark - Layout
 
 - (void)layoutUI {
-    [self.canvasView mas_makeConstraints:^(MASConstraintMaker *make) {
+    [self.canvasArea mas_makeConstraints:^(MASConstraintMaker *make) {
         make.top.left.right.equalTo(self.view);
         make.bottom.equalTo(self.progressSlider.mas_top);
     }];
+    [self updateCanvasAspect];
 
     [self.progressSlider mas_makeConstraints:^(MASConstraintMaker *make) {
         make.left.equalTo(self.view).offset(16);
@@ -207,40 +260,331 @@ static const CGFloat kIconBgAlpha = 0.05;
     }];
 }
 
-#pragma mark - Public
+#pragma mark - 坐标换算（canvasView 显示坐标 ↔ 画布像素坐标）
 
-- (void)addOverlayPreview:(WLStreamPreview *)preview {
-    if (!preview) return;
-    preview.translatesAutoresizingMaskIntoConstraints = YES;
-    // 叠加在 mainPreview 之上
-    [self.canvasView addSubview:preview positioned:NSWindowAbove relativeTo:self.mainPreview];
+- (CGRect)viewRectFromCanvasRect:(CGRect)cr {
+    CGSize cs = self.canvas.canvasSize;
+    CGSize vs = self.canvasView.bounds.size;
+    if (cs.width <= 0 || cs.height <= 0 || vs.width <= 0 || vs.height <= 0) return cr;
+    CGFloat fx = vs.width / cs.width, fy = vs.height / cs.height;
+    return CGRectMake(cr.origin.x * fx, cr.origin.y * fy, cr.size.width * fx, cr.size.height * fy);
 }
 
-- (void)removeOverlayPreview:(WLStreamPreview *)preview {
-    if (preview.superview == self.canvasView) {
-        [preview removeFromSuperview];
+- (CGRect)canvasRectFromViewRect:(CGRect)vr {
+    CGSize cs = self.canvas.canvasSize;
+    CGSize vs = self.canvasView.bounds.size;
+    if (cs.width <= 0 || cs.height <= 0 || vs.width <= 0 || vs.height <= 0) return vr;
+    CGFloat fx = cs.width / vs.width, fy = cs.height / vs.height;
+    return CGRectMake(vr.origin.x * fx, vr.origin.y * fy, vr.size.width * fx, vr.size.height * fy);
+}
+
+#pragma mark - 添加媒体源
+
+- (void)addMediaSourceWithPath:(NSString *)path {
+    if (path.length == 0) return;
+
+    WLMediaSource *source = [[WLMediaSource alloc] initWithPath:path];
+
+    // 初始布局：画布中央，占画布一半
+    CGSize cs = self.canvas.canvasSize;
+    CGRect canvasLayout = CGRectMake(cs.width * 0.25, cs.height * 0.25,
+                                     cs.width * 0.5,  cs.height * 0.5);
+    CGRect uiFrame = [self viewRectFromCanvasRect:canvasLayout];
+
+    WLStreamPreview *preview = [[WLStreamPreview alloc] initWithFrame:uiFrame];
+    preview.delegate = self;
+    preview.translatesAutoresizingMaskIntoConstraints = YES;
+
+    NSString *sid = [self.manager addSource:source previewOutput:preview];
+    if (sid.length == 0) return;
+    [self.manager setLayoutFrame:canvasLayout forStreamID:sid];
+
+    [self.previewToSID setObject:sid forKey:preview];
+    self.sidToSource[sid] = source;
+
+    [self.canvasView addSubview:preview];
+
+    NSError *err = nil;
+    if (![source start:&err]) {
+        NSLog(@"[WLStreamViewController] MediaSource start failed: %@", err);
     }
 }
 
-- (void)showSlider:(BOOL)show animated:(BOOL)animated {
-    if (self.sliderVisible == show) return;
-    self.sliderVisible = show;
-    self.progressSlider.hidden = !show;
+#pragma mark - 添加摄像头源
 
-    [NSAnimationContext runAnimationGroup:^(NSAnimationContext *context) {
-        context.duration = animated ? 0.25 : 0;
-        [self.view layoutSubtreeIfNeeded];
-    } completionHandler:nil];
+- (void)addCameraSourceWithDevice:(AVCaptureDevice *)device {
+    if (!device) return;
+
+    // 去重：同一摄像头不重复添加（避免争用同一 AVCaptureDevice）
+    for (id<WLStreamSourceProtocol> s in self.sidToSource.allValues) {
+        if ([s isKindOfClass:[WLCameraSource class]]) {
+            AVCaptureDevice *d = [(WLCameraSource *)s config].device;
+            if ([d.uniqueID isEqualToString:device.uniqueID]) {
+                NSLog(@"[WLStreamViewController] 摄像头已添加: %@", device.localizedName);
+                return;
+            }
+        }
+    }
+
+    WLCameraSourceConfig *config = [WLCameraSourceConfig configWithDevice:device];
+    WLCameraSource *source = [[WLCameraSource alloc] initWithConfig:config];
+
+    // 初始布局：画布中央，占画布一半（首帧到达后按真实比例自适应）
+    CGSize cs = self.canvas.canvasSize;
+    CGRect canvasLayout = CGRectMake(cs.width * 0.25, cs.height * 0.25,
+                                     cs.width * 0.5,  cs.height * 0.5);
+    CGRect uiFrame = [self viewRectFromCanvasRect:canvasLayout];
+
+    WLStreamPreview *preview = [[WLStreamPreview alloc] initWithFrame:uiFrame];
+    preview.delegate = self;
+    preview.translatesAutoresizingMaskIntoConstraints = YES;
+
+    NSString *sid = [self.manager addSource:source previewOutput:preview];
+    if (sid.length == 0) return;
+    [self.manager setLayoutFrame:canvasLayout forStreamID:sid];
+
+    [self.previewToSID setObject:sid forKey:preview];
+    self.sidToSource[sid] = source;
+
+    [self.canvasView addSubview:preview];
+
+    NSError *err = nil;
+    if (![source start:&err]) {
+        NSLog(@"[WLStreamViewController] CameraSource start failed: %@", err);
+    }
 }
 
-- (void)updateSliderValue:(double)value {
-    self.progressSlider.doubleValue = value;
+#pragma mark - WLStreamRenderingDelegate（浮层拖拽/缩放 → 同步画布坐标）
+
+- (void)rendering:(id<WLStreamRenderingProtocol>)rendering didUpdateFrame:(CGRect)frame {
+    if (![rendering isKindOfClass:[WLStreamPreview class]]) return;
+    NSString *sid = [self.previewToSID objectForKey:(WLStreamPreview *)rendering];
+    if (sid.length == 0) return;
+    CGRect canvasLayout = [self canvasRectFromViewRect:frame];
+    [self.manager setLayoutFrame:canvasLayout forStreamID:sid];
+}
+
+- (void)renderingDidRequestSelect:(id<WLStreamRenderingProtocol>)rendering {
+    // 单选：选中被点击的浮层，取消其它
+    for (WLStreamPreview *p in [[self.previewToSID keyEnumerator] allObjects]) {
+        p.selected = (p == rendering);
+    }
+}
+
+- (void)deselectAllPreviews {
+    for (WLStreamPreview *p in [[self.previewToSID keyEnumerator] allObjects]) {
+        p.selected = NO;
+    }
+}
+
+- (void)rendering:(id<WLStreamRenderingProtocol>)rendering
+    didRequestZOrderAction:(WLZOrderAction)action {
+    if (![rendering isKindOfClass:[WLStreamPreview class]]) return;
+    NSString *sid = [self.previewToSID objectForKey:(WLStreamPreview *)rendering];
+    if (sid.length == 0) return;
+
+    switch (action) {
+        case WLZOrderActionFront: [self.manager bringStreamToFront:sid]; break;
+        case WLZOrderActionBack:  [self.manager sendStreamToBack:sid];   break;
+        case WLZOrderActionUp:    [self.manager moveStreamUp:sid];       break;
+        case WLZOrderActionDown:  [self.manager moveStreamDown:sid];     break;
+    }
+    [self syncPreviewZOrder];
+}
+
+// 按 canvas.streamOrder(从底到顶) 重排画布上的浮层，使预览叠放 = 合成 z-order
+- (void)syncPreviewZOrder {
+    for (NSString *sid in self.canvas.streamOrder) {
+        WLStreamPreview *p = [self previewForStreamID:sid];
+        if (p) [self.canvasView addSubview:p]; // 重新 addSubview = 移到最上
+    }
+}
+
+- (WLStreamPreview *)previewForStreamID:(NSString *)sid {
+    for (WLStreamPreview *p in [[self.previewToSID keyEnumerator] allObjects]) {
+        if ([[self.previewToSID objectForKey:p] isEqualToString:sid]) return p;
+    }
+    return nil;
+}
+
+#pragma mark - 背景设置
+
+- (void)settingsClicked:(id)sender {
+    NSMenu *menu = [[NSMenu alloc] init];
+    [menu addItemWithTitle:@"设置背景色…" action:@selector(chooseBgColor:) keyEquivalent:@""];
+    [menu addItemWithTitle:@"设置背景图…" action:@selector(chooseBgImage:) keyEquivalent:@""];
+
+    [menu addItem:[NSMenuItem separatorItem]];
+
+    // 画布分辨率子菜单
+    NSMenuItem *resItem = [menu addItemWithTitle:@"画布分辨率" action:nil keyEquivalent:@""];
+    NSMenu *resMenu = [[NSMenu alloc] init];
+    NSArray<NSDictionary *> *presets = @[
+        @{@"t": @"1280×720 (720p)",   @"w": @1280, @"h": @720},
+        @{@"t": @"1920×1080 (1080p)", @"w": @1920, @"h": @1080},
+        @{@"t": @"2560×1440 (1440p)", @"w": @2560, @"h": @1440},
+        @{@"t": @"1080×1920 (竖屏)",  @"w": @1080, @"h": @1920},
+        @{@"t": @"720×1280 (竖屏)",   @"w": @720,  @"h": @1280},
+    ];
+    CGSize cur = self.canvas.canvasSize;
+    for (NSDictionary *p in presets) {
+        NSMenuItem *it = [resMenu addItemWithTitle:p[@"t"]
+                                            action:@selector(resolutionSelected:)
+                                     keyEquivalent:@""];
+        it.target = self;
+        it.representedObject = p;
+        if ((int)cur.width == [p[@"w"] intValue] && (int)cur.height == [p[@"h"] intValue]) {
+            it.state = NSControlStateValueOn;
+        }
+    }
+    [menu setSubmenu:resMenu forItem:resItem];
+
+    [menu addItem:[NSMenuItem separatorItem]];
+    [menu addItemWithTitle:@"清除背景" action:@selector(clearBackground:) keyEquivalent:@""];
+
+    for (NSMenuItem *item in menu.itemArray) {
+        if (item.action) item.target = self;
+    }
+
+    NSView *btn = [sender isKindOfClass:[NSView class]] ? (NSView *)sender : self.settingsButton;
+    [menu popUpMenuPositioningItem:nil
+                        atLocation:NSMakePoint(0, NSHeight(btn.bounds))
+                            inView:btn];
+}
+
+- (void)chooseBgColor:(id)sender {
+    NSColorPanel *panel = [NSColorPanel sharedColorPanel];
+    panel.target = self;
+    panel.action = @selector(bgColorChanged:);
+    [panel orderFront:nil];
+}
+
+- (void)bgColorChanged:(id)sender {
+    NSColor *color = [NSColorPanel sharedColorPanel].color;
+    self.canvasView.layer.backgroundColor = color.CGColor;
+    [self.manager setBackgroundColor:color];
+}
+
+- (void)chooseBgImage:(id)sender {
+    NSOpenPanel *panel = [NSOpenPanel openPanel];
+    panel.allowedFileTypes = @[@"png", @"jpg", @"jpeg", @"heic", @"tiff", @"bmp", @"gif"];
+    panel.allowsMultipleSelection = NO;
+    __weak typeof(self) wself = self;
+    [panel beginWithCompletionHandler:^(NSModalResponse result) {
+        if (result != NSModalResponseOK || panel.URLs.count == 0) return;
+        NSImage *image = [[NSImage alloc] initWithContentsOfURL:panel.URLs.firstObject];
+        if (!image) return;
+        CGImageRef cg = [image CGImageForProposedRect:NULL context:nil hints:nil];
+        wself.canvasView.layer.contents = (__bridge id)cg;
+        [wself.manager setBackgroundImage:image];
+    }];
+}
+
+- (void)clearBackground:(id)sender {
+    self.canvasView.layer.backgroundColor = [NSColor colorWithWhite:0.1 alpha:1.0].CGColor;
+    self.canvasView.layer.contents = nil;
+    [self.manager setBackgroundColor:nil];
+    [self.manager setBackgroundImage:nil];
+}
+
+#pragma mark - 画布分辨率
+
+- (void)resolutionSelected:(NSMenuItem *)sender {
+    NSDictionary *p = sender.representedObject;
+    if (![p isKindOfClass:[NSDictionary class]]) return;
+    CGSize size = CGSizeMake([p[@"w"] doubleValue], [p[@"h"] doubleValue]);
+
+    if (self.recorder.isRecording) {
+        NSAlert *alert = [[NSAlert alloc] init];
+        alert.messageText = @"录制进行中";
+        alert.informativeText = @"请先停止录制，再修改画布分辨率。";
+        [alert addButtonWithTitle:@"好"];
+        [alert runModal];
+        return;
+    }
+    [self applyCanvasSize:size];
+}
+
+- (void)applyCanvasSize:(CGSize)size {
+    [self.manager setCanvasSize:size];      // 缩放 layout + 同步 canvas/mix
+    [self updateCanvasAspect];              // 更新画布预览宽高比
+    [self.view layoutSubtreeIfNeeded];      // 立即布局，canvasView.bounds 生效
+    [self repositionAllPreviews];           // 按新尺寸重摆浮层
+    NSLog(@"[WLStreamViewController] 画布分辨率 → %.0f×%.0f", size.width, size.height);
+}
+
+// 让画布预览按 canvasSize 锁宽高比、letterbox 居中于可用区
+- (void)updateCanvasAspect {
+    CGSize cs = self.canvas.canvasSize;
+    CGFloat aspect = (cs.height > 0) ? (cs.width / cs.height) : (16.0 / 9.0);
+    [self.canvasView mas_remakeConstraints:^(MASConstraintMaker *make) {
+        make.center.equalTo(self.canvasArea);
+        make.width.lessThanOrEqualTo(self.canvasArea);
+        make.height.lessThanOrEqualTo(self.canvasArea);
+        make.width.equalTo(self.canvasView.mas_height).multipliedBy(aspect);
+        make.width.equalTo(self.canvasArea).priorityHigh();
+        make.height.equalTo(self.canvasArea).priorityHigh();
+    }];
+}
+
+- (void)repositionAllPreviews {
+    for (WLStreamPreview *p in [[self.previewToSID keyEnumerator] allObjects]) {
+        NSString *sid = [self.previewToSID objectForKey:p];
+        if (sid.length == 0) continue;
+        CGRect layout = [self.canvas layoutFrameForStreamID:sid];
+        if (CGRectIsNull(layout)) continue;
+        p.frame = [self viewRectFromCanvasRect:layout];
+    }
 }
 
 #pragma mark - Actions
 
+- (WLRecorder *)recorder {
+    if (!_recorder) _recorder = [[WLRecorder alloc] init];
+    return _recorder;
+}
+
 - (void)recordClicked:(id)sender {
-    NSLog(@"[WLStreamViewController] 录制 clicked");
+    if (self.recorder.isRecording) {
+        [self.recorder stopRecording];
+        NSString *path = self.currentRecordPath;
+        self.currentRecordPath = nil;
+        NSLog(@"[WLStreamViewController] 录制已停止: %@", path);
+        if (path) {
+            NSAlert *alert = [[NSAlert alloc] init];
+            alert.messageText = @"录制完成";
+            alert.informativeText = [NSString stringWithFormat:@"已保存到：\n%@", path];
+            [alert addButtonWithTitle:@"好"];
+            [alert addButtonWithTitle:@"在 Finder 中显示"];
+            if ([alert runModal] == NSAlertSecondButtonReturn) {
+                [[NSWorkspace sharedWorkspace]
+                    activateFileViewerSelectingURLs:@[[NSURL fileURLWithPath:path]]];
+            }
+        }
+        return;
+    }
+
+    NSSavePanel *panel = [NSSavePanel savePanel];
+    panel.allowedFileTypes = @[@"mp4"];
+    panel.nameFieldStringValue = @"WorkLabs.mp4";
+    __weak typeof(self) wself = self;
+    [panel beginWithCompletionHandler:^(NSModalResponse result) {
+        if (result != NSModalResponseOK || !panel.URL) return;
+        NSError *err = nil;
+        if ([wself.recorder startRecordingToPath:panel.URL.path
+                                       videoSize:wself.canvas.canvasSize
+                                             fps:30
+                                           error:&err]) {
+            wself.currentRecordPath = panel.URL.path;
+            NSLog(@"[WLStreamViewController] 开始录制 → %@", panel.URL.path);
+        } else {
+            NSAlert *alert = [[NSAlert alloc] init];
+            alert.messageText = @"无法开始录制";
+            alert.informativeText = err.localizedDescription ?: @"未知错误";
+            [alert addButtonWithTitle:@"好"];
+            [alert runModal];
+        }
+    }];
 }
 
 - (void)liveClicked:(id)sender {
@@ -248,11 +592,75 @@ static const CGFloat kIconBgAlpha = 0.05;
 }
 
 - (void)addClicked:(id)sender {
-    NSLog(@"[WLStreamViewController] 添加 clicked");
+    NSMenu *menu = [[NSMenu alloc] init];
+
+    NSMenuItem *fileItem = [menu addItemWithTitle:@"添加视频文件…"
+                                           action:@selector(addVideoFileClicked:)
+                                    keyEquivalent:@""];
+    fileItem.target = self;
+
+    // 「添加摄像头」子菜单：动态列出当前视频采集设备
+    NSMenuItem *camItem = [menu addItemWithTitle:@"添加摄像头" action:nil keyEquivalent:@""];
+    NSMenu *camMenu = [[NSMenu alloc] init];
+    NSArray<WLDeviceItem *> *devices = [[WLDevicesManager manager] currentVideoDevices];
+    if (devices.count == 0) {
+        NSMenuItem *empty = [camMenu addItemWithTitle:@"未检测到摄像头" action:nil keyEquivalent:@""];
+        empty.enabled = NO;
+    } else {
+        for (WLDeviceItem *item in devices) {
+            NSMenuItem *di = [camMenu addItemWithTitle:(item.localizedName ?: @"未知设备")
+                                                action:@selector(cameraDeviceSelected:)
+                                         keyEquivalent:@""];
+            di.target = self;
+            di.representedObject = item.device;
+        }
+    }
+    [menu setSubmenu:camMenu forItem:camItem];
+
+    NSView *btn = [sender isKindOfClass:[NSView class]] ? (NSView *)sender : self.addButton;
+    [menu popUpMenuPositioningItem:nil
+                        atLocation:NSMakePoint(0, NSHeight(btn.bounds))
+                            inView:btn];
 }
 
-- (void)settingsClicked:(id)sender {
-    NSLog(@"[WLStreamViewController] 设置 clicked");
+- (void)addVideoFileClicked:(id)sender {
+    NSOpenPanel *panel = [NSOpenPanel openPanel];
+    panel.allowedFileTypes = @[@"mp4", @"mov", @"m4v", @"mkv", @"flv", @"ts", @"avi"];
+    panel.allowsMultipleSelection = NO;
+    __weak typeof(self) wself = self;
+    [panel beginWithCompletionHandler:^(NSModalResponse result) {
+        if (result != NSModalResponseOK || panel.URLs.count == 0) return;
+        [wself addMediaSourceWithPath:panel.URLs.firstObject.path];
+    }];
+}
+
+- (void)cameraDeviceSelected:(NSMenuItem *)sender {
+    AVCaptureDevice *device = sender.representedObject;
+    if (!device) return;
+
+    AVAuthorizationStatus status = [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeVideo];
+    if (status == AVAuthorizationStatusAuthorized) {
+        [self addCameraSourceWithDevice:device];
+    } else if (status == AVAuthorizationStatusNotDetermined) {
+        __weak typeof(self) wself = self;
+        [AVCaptureDevice requestAccessForMediaType:AVMediaTypeVideo
+                                 completionHandler:^(BOOL granted) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (granted) [wself addCameraSourceWithDevice:device];
+                else [wself showCameraAccessDeniedAlert];
+            });
+        }];
+    } else {
+        [self showCameraAccessDeniedAlert];
+    }
+}
+
+- (void)showCameraAccessDeniedAlert {
+    NSAlert *alert = [[NSAlert alloc] init];
+    alert.messageText = @"无法访问摄像头";
+    alert.informativeText = @"请在「系统设置 ▸ 隐私与安全性 ▸ 摄像头」中允许 WorkLabs 访问摄像头。";
+    [alert addButtonWithTitle:@"好"];
+    [alert runModal];
 }
 
 - (void)sliderValueChanged:(id)sender {

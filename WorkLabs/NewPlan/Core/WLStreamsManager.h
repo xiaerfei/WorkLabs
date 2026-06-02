@@ -2,36 +2,37 @@
 //  WLStreamsManager.h
 //  WorkLabs
 //
-//  推流管线编排器：Source → perStreamFilter → fork(Preview + Mix) → PostFilter → MainPreview
+//  简化版编排核心：Source → perStreamFilter → fork(Render预览 + WLVideoMix 合成)。
+//  背景/布局由 WLCanvasModel 单一数据源描述，同步给 Render 画布与 WLVideoMix。
+//  本阶段不接 Encoder/音频。
 //
 
 #import <Foundation/Foundation.h>
+#import <Cocoa/Cocoa.h>
 #import "WLStreamSourceProtocol.h"
 #import "WLStreamOutputProtocol.h"
 #import "WLStreamFilterProtocol.h"
-#import "WLStreamRenderingProtocol.h"
+#import "WLCanvasModel.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface WLStreamsManager : NSObject <WLStreamSourceDelegate, WLStreamRenderingDelegate>
+@interface WLStreamsManager : NSObject <WLStreamSourceDelegate>
 
-+ (instancetype)manager;
+- (instancetype)initWithCanvas:(WLCanvasModel *)canvas;
 
-// 固定画布尺寸，默认 1920×1080。需在添加 Source 前设置。
-@property (nonatomic, assign) CGSize canvasSize;
+// 画布数据源（背景/布局）
+@property (nonatomic, strong, readonly) WLCanvasModel *canvas;
 
-// 主预览输出：接收 Mix + PostFilter 处理后的合成画面
-@property (nonatomic, weak, nullable) id<WLVideoOutputProtocol> mainPreviewOutput;
-
-// 合成之后再过的最终 Filter（如美颜/水印）；nil 时跳过
-@property (nonatomic, strong, nullable) id<WLVideoFilterProtocol> postFilter;
+// 合成帧输出（本阶段用于验证 / 后续接 Encoder）。
+// 所有权遵循 Create Rule：block 收到的 pixelBuffer 所有权转移给 block，需自行 CVPixelBufferRelease。
+@property (nonatomic, copy, nullable) void (^mixedFrameOutput)(CVPixelBufferRef pixelBuffer, Float64 pts);
 
 #pragma mark - Source
 
-// 注册 Source；同时指定其小预览输出（如 WLStreamPreview，nil 表示不需要小预览）。
-// 内部会把 source.delegate 设为 self，因此 Source 的 delegate 由 Manager 接管。
-- (void)addSource:(id<WLStreamSourceProtocol>)source
-   previewOutput:(nullable id<WLVideoOutputProtocol>)preview;
+// 注册 Source，并指定其预览输出（如 WLStreamPreview，nil 表示不需要预览）。返回该路的 streamID。
+// 内部会把 source.delegate 设为 self。预览的拖拽 delegate 由调用方(界面层)管理。
+- (NSString *)addSource:(id<WLStreamSourceProtocol>)source
+          previewOutput:(nullable id<WLVideoOutputProtocol>)preview;
 
 - (void)removeSource:(id<WLStreamSourceProtocol>)source;
 
@@ -39,8 +40,23 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setFilter:(nullable id<WLVideoFilterProtocol>)filter
         forSource:(id<WLStreamSourceProtocol>)source;
 
-// 设置某路 Source 在画布上的 layout（画布像素坐标，左下角原点）
-- (void)setLayoutFrame:(CGRect)frame forSource:(id<WLStreamSourceProtocol>)source;
+- (NSString *)streamIDForSource:(id<WLStreamSourceProtocol>)source;
+
+#pragma mark - Layout / Background（同步 canvas + mix）
+
+// 设置某路在画布上的 layout（画布像素坐标，左下角原点）
+- (void)setLayoutFrame:(CGRect)frame forStreamID:(NSString *)streamID;
+- (void)setBackgroundColor:(nullable NSColor *)color;
+- (void)setBackgroundImage:(nullable NSImage *)image;
+
+// 更新画布分辨率：按新旧尺寸比例缩放各路 layout，同步 canvas + mix
+- (void)setCanvasSize:(CGSize)canvasSize;
+
+// z-order 调整（同步 canvas + mix；调用方负责同步预览 subview 顺序）
+- (void)bringStreamToFront:(NSString *)streamID;
+- (void)sendStreamToBack:(NSString *)streamID;
+- (void)moveStreamUp:(NSString *)streamID;
+- (void)moveStreamDown:(NSString *)streamID;
 
 #pragma mark - Lifecycle
 
