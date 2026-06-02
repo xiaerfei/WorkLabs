@@ -24,6 +24,7 @@
 @property (nonatomic, assign) Float64 lastPts;
 
 @property (nonatomic, assign) CVPixelBufferPoolRef pixelBufferPool;
+@property (nonatomic, assign) CGColorSpaceRef colorSpace; // 输出色彩空间(sRGB)，避免输出线性 RGB 致画面偏暗
 
 @end
 
@@ -37,6 +38,7 @@
 
         id<MTLDevice> device = MTLCreateSystemDefaultDevice();
         _ciContext = device ? [CIContext contextWithMTLDevice:device] : [CIContext context];
+        _colorSpace = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
 
         _serialQueue = dispatch_queue_create("com.worklabs.videomix", DISPATCH_QUEUE_SERIAL);
         _latestFrames = [NSMutableDictionary dictionary];
@@ -55,6 +57,9 @@
     }
     if (_pixelBufferPool) {
         CVPixelBufferPoolRelease(_pixelBufferPool);
+    }
+    if (_colorSpace) {
+        CGColorSpaceRelease(_colorSpace);
     }
 }
 
@@ -209,7 +214,7 @@
     [self.ciContext render:composed
            toCVPixelBuffer:out
                     bounds:canvasRect
-                colorSpace:nil];
+                colorSpace:self.colorSpace];
 
     if (self.output) {
         self.output(out, pts); // 所有权转移给 block
