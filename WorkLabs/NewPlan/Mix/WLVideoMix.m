@@ -18,6 +18,11 @@
 // 维持合成顺序（先加入的在底层）
 @property (nonatomic, strong) NSMutableArray<NSString *> *streamOrder;
 
+// 画布背景（仅在 serialQueue 访问）
+@property (nonatomic, strong, nullable) CIColor *bgColor;
+@property (nonatomic, strong, nullable) CIImage *bgImage;
+@property (nonatomic, assign) Float64 lastPts;
+
 @property (nonatomic, assign) CVPixelBufferPoolRef pixelBufferPool;
 
 @end
@@ -53,6 +58,32 @@
     }
 }
 
+#pragma mark - Background
+
+- (void)setBackgroundColor:(nullable NSColor *)color {
+    CIColor *ci = nil;
+    if (color) {
+        NSColor *rgb = [color colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
+        if (rgb) ci = [[CIColor alloc] initWithColor:rgb];
+    }
+    dispatch_async(self.serialQueue, ^{
+        self.bgColor = ci;
+        [self renderWithPts:self.lastPts];
+    });
+}
+
+- (void)setBackgroundImage:(nullable NSImage *)image {
+    CIImage *ci = nil;
+    if (image) {
+        CGImageRef cg = [image CGImageForProposedRect:NULL context:nil hints:nil];
+        if (cg) ci = [CIImage imageWithCGImage:cg];
+    }
+    dispatch_async(self.serialQueue, ^{
+        self.bgImage = ci;
+        [self renderWithPts:self.lastPts];
+    });
+}
+
 #pragma mark - Public
 
 - (void)inputVideoFrame:(CVPixelBufferRef)pixelBuffer
@@ -79,6 +110,7 @@
     if (streamID.length == 0) return;
     dispatch_async(self.serialQueue, ^{
         self.layouts[streamID] = [NSValue valueWithRect:frame];
+        [self renderWithPts:self.lastPts];
     });
 }
 
@@ -96,10 +128,31 @@
 #pragma mark - Render
 
 - (void)renderWithPts:(Float64)pts {
-    if (self.streamOrder.count == 0) return;
+    self.lastPts = pts;
+    CGRect canvasRect = CGRectMake(0, 0, self.canvasSize.width, self.canvasSize.height);
 
-    // 从底到顶依次叠加
     CIImage *composed = nil;
+
+    // 1) 背景色：铺满画布
+    if (self.bgColor) {
+        composed = [[CIImage imageWithColor:self.bgColor] imageByCroppingToRect:canvasRect];
+    }
+
+    // 2) 背景图：缩放铺满，叠在背景色之上
+    if (self.bgImage) {
+        CGRect ext = self.bgImage.extent;
+        if (ext.size.width > 0 && ext.size.height > 0) {
+            CGFloat sx = self.canvasSize.width / ext.size.width;
+            CGFloat sy = self.canvasSize.height / ext.size.height;
+            CIImage *scaled = [self.bgImage imageByApplyingTransform:CGAffineTransformMakeScale(sx, sy)];
+            // 把缩放后图像原点对齐到 (0,0)
+            scaled = [scaled imageByApplyingTransform:
+                      CGAffineTransformMakeTranslation(-scaled.extent.origin.x, -scaled.extent.origin.y)];
+            composed = composed ? [scaled imageByCompositingOverImage:composed] : scaled;
+        }
+    }
+
+    // 3) 各路视频流：从底到顶依次叠加
     for (NSString *sid in self.streamOrder) {
         CVPixelBufferRef pb = (__bridge CVPixelBufferRef)self.latestFrames[sid];
         if (!pb) continue;
@@ -110,29 +163,20 @@
         CGRect layout = [self layoutForStreamID:sid imageExtent:image.extent];
         if (layout.size.width <= 0 || layout.size.height <= 0) continue;
 
-        // 缩放到 layout 大小
         CGFloat sx = layout.size.width / image.extent.size.width;
         CGFloat sy = layout.size.height / image.extent.size.height;
         CIImage *scaled = [image imageByApplyingTransform:CGAffineTransformMakeScale(sx, sy)];
-
-        // 平移到 layout 位置（画布像素坐标，左下角原点）
         CIImage *placed = [scaled imageByApplyingTransform:
                            CGAffineTransformMakeTranslation(layout.origin.x, layout.origin.y)];
 
-        if (composed == nil) {
-            composed = placed;
-        } else {
-            composed = [placed imageByCompositingOverImage:composed];
-        }
+        composed = composed ? [placed imageByCompositingOverImage:composed] : placed;
     }
 
+    // 无背景且无流 → 不输出
     if (composed == nil) return;
 
-    // 裁剪到画布范围
-    CGRect canvasRect = CGRectMake(0, 0, self.canvasSize.width, self.canvasSize.height);
     composed = [composed imageByCroppingToRect:canvasRect];
 
-    // 渲染到 pixel buffer
     CVPixelBufferRef out = NULL;
     if (!self.pixelBufferPool) [self ensurePool];
     if (!self.pixelBufferPool) return;
@@ -140,7 +184,6 @@
         return;
     }
 
-    // 用画布原点对齐渲染
     [self.ciContext render:composed
            toCVPixelBuffer:out
                     bounds:canvasRect

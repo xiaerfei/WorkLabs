@@ -2,12 +2,15 @@
 //  WLStreamViewController.m
 //  WorkLabs
 //
-//  推流主界面
+//  推流主界面 — Render 所见即所得画布（背景层 + 两路 Stream 浮层）
 //
 
 #import "WLStreamViewController.h"
 #import <Masonry/Masonry.h>
 #import "WLStreamPreview.h"
+#import "WLStreamsManager.h"
+#import "WLCanvasModel.h"
+#import "WLMediaSource.h"
 
 static const CGFloat kIconBgAlpha = 0.05;
 
@@ -74,15 +77,32 @@ static const CGFloat kIconBgAlpha = 0.05;
 
 @end
 
+#pragma mark - WLCanvasContainerView
+
+@interface WLCanvasContainerView : NSView
+@property (nonatomic, copy, nullable) void (^onBackgroundClick)(void);
+@end
+
+@implementation WLCanvasContainerView
+- (void)mouseDown:(NSEvent *)event {
+    if (self.onBackgroundClick) self.onBackgroundClick();
+}
+@end
+
 #pragma mark - WLStreamViewController
 
-@interface WLStreamViewController ()
+@interface WLStreamViewController () <WLStreamRenderingDelegate>
 
-// 画布容器（尺寸与 output 分辨率一致）
-@property (nonatomic, strong) NSView *canvasView;
+// Render 画布容器（背景色 = layer.backgroundColor，背景图 = layer.contents）
+@property (nonatomic, strong) WLCanvasContainerView *canvasView;
 
-// 主预览（合成结果），铺满 canvasView 底层
-@property (nonatomic, strong, readwrite) WLStreamPreview *mainPreview;
+// 编排核心 + 画布数据源
+@property (nonatomic, strong) WLStreamsManager *manager;
+@property (nonatomic, strong) WLCanvasModel *canvas;
+
+// preview ↔ streamID ↔ source 映射
+@property (nonatomic, strong) NSMapTable<WLStreamPreview *, NSString *> *previewToSID;
+@property (nonatomic, strong) NSMutableDictionary<NSString *, id<WLStreamSourceProtocol>> *sidToSource;
 
 // 进度条
 @property (nonatomic, strong) NSSlider *progressSlider;
@@ -106,6 +126,23 @@ static const CGFloat kIconBgAlpha = 0.05;
     self.view.wantsLayer = YES;
     self.view.layer.backgroundColor = [NSColor blackColor].CGColor;
 
+    _previewToSID = [NSMapTable strongToStrongObjectsMapTable];
+    _sidToSource = [NSMutableDictionary dictionary];
+
+    _canvas = [[WLCanvasModel alloc] init];           // 默认 1920×1080
+    _manager = [[WLStreamsManager alloc] initWithCanvas:_canvas];
+
+    // 本阶段：合成帧仅用于验证 Mix 在工作（路线 A 不回显主画面预览）
+    __block NSUInteger mixCount = 0;
+    self.manager.mixedFrameOutput = ^(CVPixelBufferRef pb, Float64 pts) {
+        if ((mixCount++ % 120) == 0) {
+            NSLog(@"[WLVideoMix] composed #%lu  %zux%zu",
+                  (unsigned long)mixCount,
+                  CVPixelBufferGetWidth(pb), CVPixelBufferGetHeight(pb));
+        }
+        CVPixelBufferRelease(pb); // 所有权转移给 block
+    };
+
     [self setupCanvas];
     [self setupSlider];
     [self setupToolbar];
@@ -115,17 +152,15 @@ static const CGFloat kIconBgAlpha = 0.05;
 #pragma mark - Setup
 
 - (void)setupCanvas {
-    self.canvasView = [[NSView alloc] init];
-    self.canvasView.wantsLayer = YES;
-    self.canvasView.layer.backgroundColor = [NSColor colorWithWhite:0.1 alpha:1.0].CGColor;
-    self.canvasView.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.view addSubview:self.canvasView];
-
-    // MainPreview 铺满 canvasView，底层，不拦截鼠标
-    self.mainPreview = [[WLStreamPreview alloc] initWithFrame:self.canvasView.bounds];
-    self.mainPreview.interactive = NO;
-    self.mainPreview.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-    [self.canvasView addSubview:self.mainPreview];
+    WLCanvasContainerView *canvas = [[WLCanvasContainerView alloc] init];
+    canvas.wantsLayer = YES;
+    canvas.layer.backgroundColor = [NSColor colorWithWhite:0.1 alpha:1.0].CGColor;
+    canvas.layer.contentsGravity = kCAGravityResize; // 背景图拉伸铺满整张
+    canvas.translatesAutoresizingMaskIntoConstraints = NO;
+    __weak typeof(self) wself = self;
+    canvas.onBackgroundClick = ^{ [wself deselectAllPreviews]; };
+    self.canvasView = canvas;
+    [self.view addSubview:canvas];
 }
 
 - (void)setupSlider {
@@ -207,34 +242,128 @@ static const CGFloat kIconBgAlpha = 0.05;
     }];
 }
 
-#pragma mark - Public
+#pragma mark - 坐标换算（canvasView 显示坐标 ↔ 画布像素坐标）
 
-- (void)addOverlayPreview:(WLStreamPreview *)preview {
-    if (!preview) return;
-    preview.translatesAutoresizingMaskIntoConstraints = YES;
-    // 叠加在 mainPreview 之上
-    [self.canvasView addSubview:preview positioned:NSWindowAbove relativeTo:self.mainPreview];
+- (CGRect)viewRectFromCanvasRect:(CGRect)cr {
+    CGSize cs = self.canvas.canvasSize;
+    CGSize vs = self.canvasView.bounds.size;
+    if (cs.width <= 0 || cs.height <= 0 || vs.width <= 0 || vs.height <= 0) return cr;
+    CGFloat fx = vs.width / cs.width, fy = vs.height / cs.height;
+    return CGRectMake(cr.origin.x * fx, cr.origin.y * fy, cr.size.width * fx, cr.size.height * fy);
 }
 
-- (void)removeOverlayPreview:(WLStreamPreview *)preview {
-    if (preview.superview == self.canvasView) {
-        [preview removeFromSuperview];
+- (CGRect)canvasRectFromViewRect:(CGRect)vr {
+    CGSize cs = self.canvas.canvasSize;
+    CGSize vs = self.canvasView.bounds.size;
+    if (cs.width <= 0 || cs.height <= 0 || vs.width <= 0 || vs.height <= 0) return vr;
+    CGFloat fx = cs.width / vs.width, fy = cs.height / vs.height;
+    return CGRectMake(vr.origin.x * fx, vr.origin.y * fy, vr.size.width * fx, vr.size.height * fy);
+}
+
+#pragma mark - 添加媒体源
+
+- (void)addMediaSourceWithPath:(NSString *)path {
+    if (path.length == 0) return;
+
+    WLMediaSource *source = [[WLMediaSource alloc] initWithPath:path];
+
+    // 初始布局：画布中央，占画布一半
+    CGSize cs = self.canvas.canvasSize;
+    CGRect canvasLayout = CGRectMake(cs.width * 0.25, cs.height * 0.25,
+                                     cs.width * 0.5,  cs.height * 0.5);
+    CGRect uiFrame = [self viewRectFromCanvasRect:canvasLayout];
+
+    WLStreamPreview *preview = [[WLStreamPreview alloc] initWithFrame:uiFrame];
+    preview.delegate = self;
+    preview.translatesAutoresizingMaskIntoConstraints = YES;
+
+    NSString *sid = [self.manager addSource:source previewOutput:preview];
+    if (sid.length == 0) return;
+    [self.manager setLayoutFrame:canvasLayout forStreamID:sid];
+
+    [self.previewToSID setObject:sid forKey:preview];
+    self.sidToSource[sid] = source;
+
+    [self.canvasView addSubview:preview];
+
+    NSError *err = nil;
+    if (![source start:&err]) {
+        NSLog(@"[WLStreamViewController] MediaSource start failed: %@", err);
     }
 }
 
-- (void)showSlider:(BOOL)show animated:(BOOL)animated {
-    if (self.sliderVisible == show) return;
-    self.sliderVisible = show;
-    self.progressSlider.hidden = !show;
+#pragma mark - WLStreamRenderingDelegate（浮层拖拽/缩放 → 同步画布坐标）
 
-    [NSAnimationContext runAnimationGroup:^(NSAnimationContext *context) {
-        context.duration = animated ? 0.25 : 0;
-        [self.view layoutSubtreeIfNeeded];
-    } completionHandler:nil];
+- (void)rendering:(id<WLStreamRenderingProtocol>)rendering didUpdateFrame:(CGRect)frame {
+    if (![rendering isKindOfClass:[WLStreamPreview class]]) return;
+    NSString *sid = [self.previewToSID objectForKey:(WLStreamPreview *)rendering];
+    if (sid.length == 0) return;
+    CGRect canvasLayout = [self canvasRectFromViewRect:frame];
+    [self.manager setLayoutFrame:canvasLayout forStreamID:sid];
 }
 
-- (void)updateSliderValue:(double)value {
-    self.progressSlider.doubleValue = value;
+- (void)renderingDidRequestSelect:(id<WLStreamRenderingProtocol>)rendering {
+    // 单选：选中被点击的浮层，取消其它
+    for (WLStreamPreview *p in [[self.previewToSID keyEnumerator] allObjects]) {
+        p.selected = (p == rendering);
+    }
+}
+
+- (void)deselectAllPreviews {
+    for (WLStreamPreview *p in [[self.previewToSID keyEnumerator] allObjects]) {
+        p.selected = NO;
+    }
+}
+
+#pragma mark - 背景设置
+
+- (void)settingsClicked:(id)sender {
+    NSMenu *menu = [[NSMenu alloc] init];
+    [menu addItemWithTitle:@"设置背景色…" action:@selector(chooseBgColor:) keyEquivalent:@""];
+    [menu addItemWithTitle:@"设置背景图…" action:@selector(chooseBgImage:) keyEquivalent:@""];
+    [menu addItem:[NSMenuItem separatorItem]];
+    [menu addItemWithTitle:@"清除背景"   action:@selector(clearBackground:) keyEquivalent:@""];
+    for (NSMenuItem *item in menu.itemArray) item.target = self;
+
+    NSView *btn = [sender isKindOfClass:[NSView class]] ? (NSView *)sender : self.settingsButton;
+    [menu popUpMenuPositioningItem:nil
+                        atLocation:NSMakePoint(0, NSHeight(btn.bounds))
+                            inView:btn];
+}
+
+- (void)chooseBgColor:(id)sender {
+    NSColorPanel *panel = [NSColorPanel sharedColorPanel];
+    panel.target = self;
+    panel.action = @selector(bgColorChanged:);
+    [panel orderFront:nil];
+}
+
+- (void)bgColorChanged:(id)sender {
+    NSColor *color = [NSColorPanel sharedColorPanel].color;
+    self.canvasView.layer.backgroundColor = color.CGColor;
+    [self.manager setBackgroundColor:color];
+}
+
+- (void)chooseBgImage:(id)sender {
+    NSOpenPanel *panel = [NSOpenPanel openPanel];
+    panel.allowedFileTypes = @[@"png", @"jpg", @"jpeg", @"heic", @"tiff", @"bmp", @"gif"];
+    panel.allowsMultipleSelection = NO;
+    __weak typeof(self) wself = self;
+    [panel beginWithCompletionHandler:^(NSModalResponse result) {
+        if (result != NSModalResponseOK || panel.URLs.count == 0) return;
+        NSImage *image = [[NSImage alloc] initWithContentsOfURL:panel.URLs.firstObject];
+        if (!image) return;
+        CGImageRef cg = [image CGImageForProposedRect:NULL context:nil hints:nil];
+        wself.canvasView.layer.contents = (__bridge id)cg;
+        [wself.manager setBackgroundImage:image];
+    }];
+}
+
+- (void)clearBackground:(id)sender {
+    self.canvasView.layer.backgroundColor = [NSColor colorWithWhite:0.1 alpha:1.0].CGColor;
+    self.canvasView.layer.contents = nil;
+    [self.manager setBackgroundColor:nil];
+    [self.manager setBackgroundImage:nil];
 }
 
 #pragma mark - Actions
@@ -248,11 +377,14 @@ static const CGFloat kIconBgAlpha = 0.05;
 }
 
 - (void)addClicked:(id)sender {
-    NSLog(@"[WLStreamViewController] 添加 clicked");
-}
-
-- (void)settingsClicked:(id)sender {
-    NSLog(@"[WLStreamViewController] 设置 clicked");
+    NSOpenPanel *panel = [NSOpenPanel openPanel];
+    panel.allowedFileTypes = @[@"mp4", @"mov", @"m4v", @"mkv", @"flv", @"ts", @"avi"];
+    panel.allowsMultipleSelection = NO;
+    __weak typeof(self) wself = self;
+    [panel beginWithCompletionHandler:^(NSModalResponse result) {
+        if (result != NSModalResponseOK || panel.URLs.count == 0) return;
+        [wself addMediaSourceWithPath:panel.URLs.firstObject.path];
+    }];
 }
 
 - (void)sliderValueChanged:(id)sender {

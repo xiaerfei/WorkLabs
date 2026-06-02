@@ -8,6 +8,7 @@
 
 @interface WLStreamsManager ()
 
+@property (nonatomic, strong, readwrite) WLCanvasModel *canvas;
 @property (nonatomic, strong) NSMutableArray<id<WLStreamSourceProtocol>> *sources;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, id<WLVideoFilterProtocol>> *perStreamFilters;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, id<WLVideoOutputProtocol>> *previewOutputs;
@@ -19,17 +20,10 @@
 
 @implementation WLStreamsManager
 
-+ (instancetype)manager {
-    static WLStreamsManager *instance = nil;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{ instance = [[WLStreamsManager alloc] init]; });
-    return instance;
-}
-
-- (instancetype)init {
+- (instancetype)initWithCanvas:(WLCanvasModel *)canvas {
     self = [super init];
     if (self) {
-        _canvasSize = CGSizeMake(1920, 1080);
+        _canvas = canvas ?: [[WLCanvasModel alloc] init];
         _sources = [NSMutableArray array];
         _perStreamFilters = [NSMutableDictionary dictionary];
         _previewOutputs = [NSMutableDictionary dictionary];
@@ -37,36 +31,29 @@
     return self;
 }
 
+- (instancetype)init {
+    return [self initWithCanvas:[[WLCanvasModel alloc] init]];
+}
+
 #pragma mark - Mix lazy init
 
 - (WLVideoMix *)mix {
     if (!_mix) {
-        _mix = [[WLVideoMix alloc] initWithCanvasSize:self.canvasSize];
+        _mix = [[WLVideoMix alloc] initWithCanvasSize:self.canvas.canvasSize];
+        [_mix setBackgroundColor:self.canvas.backgroundColor];
+        [_mix setBackgroundImage:self.canvas.backgroundImage];
         __weak typeof(self) wself = self;
         _mix.output = ^(CVPixelBufferRef pb, Float64 pts) {
             __strong typeof(wself) sself = wself;
             if (!sself) { CVPixelBufferRelease(pb); return; }
-            [sself handleMixedFrame:pb pts:pts];
+            if (sself.mixedFrameOutput) {
+                sself.mixedFrameOutput(pb, pts); // 所有权转移给 block
+            } else {
+                CVPixelBufferRelease(pb);
+            }
         };
     }
     return _mix;
-}
-
-- (void)handleMixedFrame:(CVPixelBufferRef)pb pts:(Float64)pts {
-    CVPixelBufferRef toForward = pb;
-
-    if (self.postFilter) {
-        CVPixelBufferRef out = [self.postFilter processVideoFrame:pb pts:pts];
-        CVPixelBufferRelease(pb);
-        if (!out) return;
-        toForward = out;
-    }
-
-    id<WLVideoOutputProtocol> output = self.mainPreviewOutput;
-    if (output) {
-        [output receiveVideoFrame:toForward pts:pts];
-    }
-    CVPixelBufferRelease(toForward);
 }
 
 #pragma mark - Source mgmt
@@ -75,24 +62,28 @@
     return [NSString stringWithFormat:@"%p", source];
 }
 
-- (void)addSource:(id<WLStreamSourceProtocol>)source
-   previewOutput:(nullable id<WLVideoOutputProtocol>)preview {
-    if (!source || [self.sources containsObject:source]) return;
+- (NSString *)addSource:(id<WLStreamSourceProtocol>)source
+          previewOutput:(nullable id<WLVideoOutputProtocol>)preview {
+    if (!source) return @"";
+    NSString *sid = [self streamIDForSource:source];
+    if ([self.sources containsObject:source]) return sid;
 
     source.delegate = self;
     [self.sources addObject:source];
+    [self.canvas addStreamID:sid];
 
-    NSString *sid = [self streamIDForSource:source];
     if (preview) {
         self.previewOutputs[sid] = preview;
-
-        // 浮层 Preview 拖动/缩放时自动同步到 Mix
-        if ([preview conformsToProtocol:@protocol(WLStreamRenderingProtocol)]) {
-            id<WLStreamRenderingProtocol> rendering = (id<WLStreamRenderingProtocol>)preview;
-            rendering.delegate = self;
-            [self.mix setLayoutFrame:rendering.frame forStreamID:sid];
-        }
     }
+
+    // 初始 layout：缺省铺满画布
+    CGRect layout = [self.canvas layoutFrameForStreamID:sid];
+    if (CGRectIsNull(layout)) {
+        layout = CGRectMake(0, 0, self.canvas.canvasSize.width, self.canvas.canvasSize.height);
+        [self.canvas setLayoutFrame:layout forStreamID:sid];
+    }
+    [self.mix setLayoutFrame:layout forStreamID:sid];
+    return sid;
 }
 
 - (void)removeSource:(id<WLStreamSourceProtocol>)source {
@@ -102,6 +93,7 @@
     NSString *sid = [self streamIDForSource:source];
     [self.perStreamFilters removeObjectForKey:sid];
     [self.previewOutputs removeObjectForKey:sid];
+    [self.canvas removeStreamID:sid];
     [self.mix removeStreamID:sid];
 
     if (source.delegate == self) {
@@ -121,9 +113,22 @@
     }
 }
 
-- (void)setLayoutFrame:(CGRect)frame forSource:(id<WLStreamSourceProtocol>)source {
-    if (!source) return;
-    [self.mix setLayoutFrame:frame forStreamID:[self streamIDForSource:source]];
+#pragma mark - Layout / Background
+
+- (void)setLayoutFrame:(CGRect)frame forStreamID:(NSString *)streamID {
+    if (streamID.length == 0) return;
+    [self.canvas setLayoutFrame:frame forStreamID:streamID];
+    [self.mix setLayoutFrame:frame forStreamID:streamID];
+}
+
+- (void)setBackgroundColor:(nullable NSColor *)color {
+    self.canvas.backgroundColor = color;
+    [self.mix setBackgroundColor:color];
+}
+
+- (void)setBackgroundImage:(nullable NSImage *)image {
+    self.canvas.backgroundImage = image;
+    [self.mix setBackgroundImage:image];
 }
 
 #pragma mark - Lifecycle
@@ -174,7 +179,7 @@
         toFork = out;
     }
 
-    // Fork 1: 小预览
+    // Fork 1: Render 画布预览
     id<WLVideoOutputProtocol> preview = self.previewOutputs[sid];
     if (preview) {
         [preview receiveVideoFrame:toFork pts:pts];
@@ -186,25 +191,12 @@
     CVPixelBufferRelease(toFork);
 }
 
-#pragma mark - WLStreamSourceDelegate (audio, 暂未接入 Preview 管线)
+#pragma mark - WLStreamSourceDelegate (audio, 本阶段不接)
 
 - (void)source:(id<WLStreamSourceProtocol>)source
     didOutputAudioBuffer:(CMSampleBufferRef)sampleBuffer {
-    // Preview 管线只处理视频；音频后续接 AudioMixer 时再实现。
+    // 音频管线另行讨论
     if (sampleBuffer) CFRelease(sampleBuffer);
-}
-
-#pragma mark - WLStreamRenderingDelegate
-
-- (void)rendering:(id<WLStreamRenderingProtocol>)rendering didUpdateFrame:(CGRect)frame {
-    // 反查 source 并把新 layout 推给 Mix
-    for (id<WLStreamSourceProtocol> source in self.sources) {
-        NSString *sid = [self streamIDForSource:source];
-        if (self.previewOutputs[sid] == (id)rendering) {
-            [self.mix setLayoutFrame:frame forStreamID:sid];
-            return;
-        }
-    }
 }
 
 @end

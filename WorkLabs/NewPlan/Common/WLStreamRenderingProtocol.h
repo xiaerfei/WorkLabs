@@ -14,6 +14,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 @protocol WLStreamRenderingDelegate <NSObject>
 - (void)rendering:(id<WLStreamRenderingProtocol>)rendering didUpdateFrame:(CGRect)frame;
+@optional
+// 浮层被点击，请求界面层做单选（选中本浮层、取消其它）
+- (void)renderingDidRequestSelect:(id<WLStreamRenderingProtocol>)rendering;
 @end
 
 @protocol WLStreamRenderingProtocol <WLVideoOutputProtocol>

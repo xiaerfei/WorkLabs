@@ -2,10 +2,12 @@
 //  WLVideoMix.h
 //  WorkLabs
 //
-//  视频合成器 — 把多路输入按 layoutFrame 合成到固定画布
+//  视频合成器 — 背景(色/图) + 多路按 layoutFrame 合成到固定画布。
+//  合成顺序：填背景色 → 铺背景图(整张) → 按加入顺序(z-order)叠加各路流。
 //
 
 #import <Foundation/Foundation.h>
+#import <Cocoa/Cocoa.h>
 #import <CoreVideo/CoreVideo.h>
 #import "WLDefines.h"
 
@@ -21,6 +23,10 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy, nullable) void (^output)(CVPixelBufferRef pixelBuffer, Float64 pts);
 
 - (instancetype)initWithCanvasSize:(CGSize)canvasSize;
+
+// 画布背景：纯色 + 整张铺满背景图（传 nil 清除）
+- (void)setBackgroundColor:(nullable NSColor *)color;
+- (void)setBackgroundImage:(nullable NSImage *)image;
 
 // 输入一帧（按 streamID 区分）。
 // 调用方持有 pixelBuffer 所有权，Mix 内部会按需 retain；调用方仍需释放自己的引用。
