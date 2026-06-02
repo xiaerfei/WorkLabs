@@ -131,6 +131,10 @@ static const CGFloat kIconBgAlpha = 0.05;
 
 #pragma mark - Lifecycle
 
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.view.wantsLayer = YES;
@@ -178,6 +182,13 @@ static const CGFloat kIconBgAlpha = 0.05;
     canvas.onBackgroundClick = ^{ [wself deselectAllPreviews]; };
     self.canvasView = canvas;
     [area addSubview:canvas];
+
+    // 窗口尺寸变化时重算浮层位置（画布坐标 → 视图坐标）
+    [[NSNotificationCenter defaultCenter]
+        addObserver:self
+           selector:@selector(canvasBoundsDidChange:)
+               name:NSViewFrameDidChangeNotification
+               object:canvas];
 }
 
 - (void)setupSlider {
@@ -238,6 +249,10 @@ static const CGFloat kIconBgAlpha = 0.05;
 }
 
 #pragma mark - Layout
+
+- (void)canvasBoundsDidChange:(NSNotification *)note {
+    [self repositionAllPreviews];
+}
 
 - (void)layoutUI {
     [self.canvasArea mas_makeConstraints:^(MASConstraintMaker *make) {
