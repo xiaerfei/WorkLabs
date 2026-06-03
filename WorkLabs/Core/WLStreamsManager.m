@@ -18,6 +18,7 @@
 @property (nonatomic, strong) WLVideoMix *mix;
 @property (nonatomic, strong) WLAudioRenderer *audioRenderer;
 @property (nonatomic, strong) WLAudioMixer *mixer;
+@property (nonatomic, strong) NSMutableDictionary<NSNumber *, NSNumber *> *typeVolumes; // fromType → volume
 @property (nonatomic, assign, readwrite, getter=isRunning) BOOL running;
 
 @end
@@ -31,6 +32,7 @@
         _sources = [NSMutableArray array];
         _perStreamFilters = [NSMutableDictionary dictionary];
         _previewOutputs = [NSMutableDictionary dictionary];
+        _typeVolumes = [NSMutableDictionary dictionary];
     }
     return self;
 }
@@ -98,6 +100,7 @@
     source.delegate = self;
     [self.sources addObject:source];
     [self.mixer addInput:sid];   // 所有源汇入音频混音（无音频则该路恒空，混音时跳过）
+    [self.mixer setGain:[self volumeForFromType:source.fromType] forInput:sid]; // 应用该类型当前音量
 
     // 纯音频源（如 Mic）不参与画布合成
     if (source.streamType == WLNodeTypeAudio) {
@@ -189,6 +192,22 @@
 
     self.canvas.canvasSize = canvasSize;
     [self.mix updateCanvasSize:canvasSize];
+}
+
+#pragma mark - 音频音量（按来源类型）
+
+- (void)setVolume:(float)volume forFromType:(WLFromType)fromType {
+    self.typeVolumes[@(fromType)] = @(volume);
+    for (id<WLStreamSourceProtocol> s in self.sources) {
+        if (s.fromType == fromType) {
+            [self.mixer setGain:volume forInput:[self streamIDForSource:s]];
+        }
+    }
+}
+
+- (float)volumeForFromType:(WLFromType)fromType {
+    NSNumber *v = self.typeVolumes[@(fromType)];
+    return v ? v.floatValue : 1.0f;
 }
 
 #pragma mark - Z-order（同步 canvas + mix）

@@ -12,6 +12,7 @@
 #import "WLCanvasModel.h"
 #import "WLMediaSource.h"
 #import "WLMicSource.h"
+#import "WLSettingsWindowController.h"
 #import "WLCameraSource.h"
 #import "WLCameraSourceConfig.h"
 #import "WLDevicesManager.h"
@@ -96,7 +97,7 @@ static const CGFloat kIconBgAlpha = 0.05;
 
 #pragma mark - WLStreamViewController
 
-@interface WLStreamViewController () <WLStreamRenderingDelegate>
+@interface WLStreamViewController () <WLStreamRenderingDelegate, WLSettingsWindowControllerDelegate>
 
 // 可用区（黑底，letterbox 背景）
 @property (nonatomic, strong) WLCanvasContainerView *canvasArea;
@@ -114,6 +115,9 @@ static const CGFloat kIconBgAlpha = 0.05;
 // 录制
 @property (nonatomic, strong) WLRecorder *recorder;
 @property (nonatomic, copy, nullable) NSString *currentRecordPath;
+
+// 设置窗口
+@property (nonatomic, strong) WLSettingsWindowController *settingsWC;
 
 // 进度条
 @property (nonatomic, strong) NSSlider *progressSlider;
@@ -427,102 +431,53 @@ static const CGFloat kIconBgAlpha = 0.05;
     return nil;
 }
 
-#pragma mark - 背景设置
+#pragma mark - 设置（独立窗口）
 
 - (void)settingsClicked:(id)sender {
-    NSMenu *menu = [[NSMenu alloc] init];
-    [menu addItemWithTitle:@"设置背景色…" action:@selector(chooseBgColor:) keyEquivalent:@""];
-    [menu addItemWithTitle:@"设置背景图…" action:@selector(chooseBgImage:) keyEquivalent:@""];
-
-    [menu addItem:[NSMenuItem separatorItem]];
-
-    // 画布分辨率子菜单
-    NSMenuItem *resItem = [menu addItemWithTitle:@"画布分辨率" action:nil keyEquivalent:@""];
-    NSMenu *resMenu = [[NSMenu alloc] init];
-    NSArray<NSDictionary *> *presets = @[
-        @{@"t": @"1280×720 (720p)",   @"w": @1280, @"h": @720},
-        @{@"t": @"1920×1080 (1080p)", @"w": @1920, @"h": @1080},
-        @{@"t": @"2560×1440 (1440p)", @"w": @2560, @"h": @1440},
-        @{@"t": @"1080×1920 (竖屏)",  @"w": @1080, @"h": @1920},
-        @{@"t": @"720×1280 (竖屏)",   @"w": @720,  @"h": @1280},
-    ];
-    CGSize cur = self.canvas.canvasSize;
-    for (NSDictionary *p in presets) {
-        NSMenuItem *it = [resMenu addItemWithTitle:p[@"t"]
-                                            action:@selector(resolutionSelected:)
-                                     keyEquivalent:@""];
-        it.target = self;
-        it.representedObject = p;
-        if ((int)cur.width == [p[@"w"] intValue] && (int)cur.height == [p[@"h"] intValue]) {
-            it.state = NSControlStateValueOn;
-        }
+    if (!self.settingsWC) {
+        self.settingsWC = [[WLSettingsWindowController alloc] init];
+        self.settingsWC.settingsDelegate = self;
     }
-    [menu setSubmenu:resMenu forItem:resItem];
-
-    [menu addItem:[NSMenuItem separatorItem]];
-    [menu addItemWithTitle:@"清除背景" action:@selector(clearBackground:) keyEquivalent:@""];
-
-    for (NSMenuItem *item in menu.itemArray) {
-        if (item.action) item.target = self;
-    }
-
-    NSView *btn = [sender isKindOfClass:[NSView class]] ? (NSView *)sender : self.settingsButton;
-    [menu popUpMenuPositioningItem:nil
-                        atLocation:NSMakePoint(0, NSHeight(btn.bounds))
-                            inView:btn];
+    self.settingsWC.currentCanvasSize = self.canvas.canvasSize;
+    [self.settingsWC showWindow:nil];
+    [self.settingsWC.window makeKeyAndOrderFront:nil];
+    [NSApp activateIgnoringOtherApps:YES];
 }
 
-- (void)chooseBgColor:(id)sender {
-    NSColorPanel *panel = [NSColorPanel sharedColorPanel];
-    panel.target = self;
-    panel.action = @selector(bgColorChanged:);
-    [panel orderFront:nil];
-}
+#pragma mark - WLSettingsWindowControllerDelegate
 
-- (void)bgColorChanged:(id)sender {
-    NSColor *color = [NSColorPanel sharedColorPanel].color;
+- (void)settingsDidChooseBackgroundColor:(NSColor *)color {
     self.canvasView.layer.backgroundColor = color.CGColor;
     [self.manager setBackgroundColor:color];
 }
 
-- (void)chooseBgImage:(id)sender {
-    NSOpenPanel *panel = [NSOpenPanel openPanel];
-    panel.allowedFileTypes = @[@"png", @"jpg", @"jpeg", @"heic", @"tiff", @"bmp", @"gif"];
-    panel.allowsMultipleSelection = NO;
-    __weak typeof(self) wself = self;
-    [panel beginWithCompletionHandler:^(NSModalResponse result) {
-        if (result != NSModalResponseOK || panel.URLs.count == 0) return;
-        NSImage *image = [[NSImage alloc] initWithContentsOfURL:panel.URLs.firstObject];
-        if (!image) return;
-        CGImageRef cg = [image CGImageForProposedRect:NULL context:nil hints:nil];
-        wself.canvasView.layer.contents = (__bridge id)cg;
-        [wself.manager setBackgroundImage:image];
-    }];
+- (void)settingsDidChooseBackgroundImage:(NSImage *)image {
+    CGImageRef cg = [image CGImageForProposedRect:NULL context:nil hints:nil];
+    self.canvasView.layer.contents = (__bridge id)cg;
+    [self.manager setBackgroundImage:image];
 }
 
-- (void)clearBackground:(id)sender {
+- (void)settingsDidClearBackground {
     self.canvasView.layer.backgroundColor = [NSColor colorWithWhite:0.1 alpha:1.0].CGColor;
     self.canvasView.layer.contents = nil;
     [self.manager setBackgroundColor:nil];
     [self.manager setBackgroundImage:nil];
 }
 
-#pragma mark - 画布分辨率
+- (BOOL)settingsCanChangeCanvasSize {
+    return !self.recorder.isRecording;
+}
 
-- (void)resolutionSelected:(NSMenuItem *)sender {
-    NSDictionary *p = sender.representedObject;
-    if (![p isKindOfClass:[NSDictionary class]]) return;
-    CGSize size = CGSizeMake([p[@"w"] doubleValue], [p[@"h"] doubleValue]);
-
-    if (self.recorder.isRecording) {
-        NSAlert *alert = [[NSAlert alloc] init];
-        alert.messageText = @"录制进行中";
-        alert.informativeText = @"请先停止录制，再修改画布分辨率。";
-        [alert addButtonWithTitle:@"好"];
-        [alert runModal];
-        return;
-    }
+- (void)settingsDidSelectCanvasSize:(CGSize)size {
     [self applyCanvasSize:size];
+}
+
+- (void)settingsDidSetVolume:(float)volume forFromType:(WLFromType)fromType {
+    [self.manager setVolume:volume forFromType:fromType];
+}
+
+- (float)settingsVolumeForFromType:(WLFromType)fromType {
+    return [self.manager volumeForFromType:fromType];
 }
 
 - (void)applyCanvasSize:(CGSize)size {

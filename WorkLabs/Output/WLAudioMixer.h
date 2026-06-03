@@ -21,6 +21,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)addInput:(NSString *)inputID;
 - (void)removeInput:(NSString *)inputID;
 
+// 设置某路增益（1.0=原始；<1 减小，>1 放大）。混音时该路样本乘以此增益。
+- (void)setGain:(float)gain forInput:(NSString *)inputID;
+
 // 写入某路 PCM（任意采样率/声道，Float32 或 S16 交错）；内部重采样进该路环形缓冲。
 - (void)writeSampleBuffer:(CMSampleBufferRef)sampleBuffer forInput:(NSString *)inputID;
 

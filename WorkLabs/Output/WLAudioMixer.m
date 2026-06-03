@@ -25,6 +25,7 @@ static const int kRingSeconds = 1;                    // 每路环形缓冲容�
     int              srcRate;
     int              srcChannels;
     int              srcFmt;     // enum AVSampleFormat
+    float            gain;       // 混音增益（1.0=原始）
 }
 @end
 
@@ -62,6 +63,7 @@ static const int kRingSeconds = 1;                    // 每路环形缓冲容�
         WLMixerInput *in = [WLMixerInput new];
         TPCircularBufferInit(&in->ring, kMixRate * kMixChannels * (int)sizeof(float) * kRingSeconds);
         in->swr = NULL; in->srcRate = 0; in->srcChannels = 0; in->srcFmt = -1;
+        in->gain = 1.0f;
         self.inputs[inputID] = in;
     }
 }
@@ -74,6 +76,15 @@ static const int kRingSeconds = 1;                    // 每路环形缓冲容�
         [self.inputs removeObjectForKey:inputID];
         if (in->swr) swr_free(&in->swr);
         TPCircularBufferCleanup(&in->ring);
+    }
+}
+
+- (void)setGain:(float)gain forInput:(NSString *)inputID {
+    if (inputID.length == 0) return;
+    if (gain < 0) gain = 0;
+    @synchronized (self) {
+        WLMixerInput *in = self.inputs[inputID];
+        if (in) in->gain = gain;
     }
 }
 
@@ -182,7 +193,8 @@ static const int kRingSeconds = 1;                    // 每路环形缓冲容�
             int useBytes = MIN(availBytes, wantBytes);
             int useFloats = useBytes / (int)sizeof(float);
             const float *src = (const float *)tail;
-            for (int i = 0; i < useFloats; i++) mix[i] += src[i];   // 叠加
+            float g = in->gain;
+            for (int i = 0; i < useFloats; i++) mix[i] += src[i] * g;   // 增益后叠加
             TPCircularBufferConsume(&in->ring, useBytes);
             any = YES;
         }

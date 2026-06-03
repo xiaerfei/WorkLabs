@@ -56,6 +56,13 @@ NS_ASSUME_NONNULL_BEGIN
 // 更新画布分辨率：按新旧尺寸比例缩放各路 layout，同步 canvas + mix
 - (void)setCanvasSize:(CGSize)canvasSize;
 
+#pragma mark - 音频音量（按来源类型）
+
+// 设置某类来源（如 Media / Mic）在混音中的音量（1.0=原始，<1 减小，>1 放大）；
+// 对已添加及之后添加的该类源生效。
+- (void)setVolume:(float)volume forFromType:(WLFromType)fromType;
+- (float)volumeForFromType:(WLFromType)fromType;
+
 // z-order 调整（同步 canvas + mix；调用方负责同步预览 subview 顺序）
 - (void)bringStreamToFront:(NSString *)streamID;
 - (void)sendStreamToBack:(NSString *)streamID;
