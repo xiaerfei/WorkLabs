@@ -19,6 +19,9 @@
 @property (nonatomic, strong) NSSlider *micVolSlider;
 @property (nonatomic, strong) NSTextField *mediaPercentLabel;
 @property (nonatomic, strong) NSTextField *micPercentLabel;
+@property (nonatomic, strong) NSTextField *pushURLField;
+@property (nonatomic, strong) NSTextField *streamKeyField;
+@property (nonatomic, strong) NSTextField *pushSavedLabel;
 @end
 
 @implementation WLSettingsWindowController
@@ -38,6 +41,7 @@
             @{@"title": @"画布", @"symbol": @"display"},
             @{@"title": @"背景", @"symbol": @"photo"},
             @{@"title": @"音频", @"symbol": @"speaker.wave.2"},
+            @{@"title": @"推流", @"symbol": @"antenna.radiowaves.left.and.right"},
         ];
         _resolutionPresets = @[
             @{@"t": @"1280×720 (720p)",   @"w": @1280, @"h": @720},
@@ -96,7 +100,7 @@
         make.left.equalTo(sidebarBG.mas_right);
     }];
 
-    self.panels = @[[self buildCanvasPanel], [self buildBackgroundPanel], [self buildAudioPanel]];
+    self.panels = @[[self buildCanvasPanel], [self buildBackgroundPanel], [self buildAudioPanel], [self buildPushPanel]];
 }
 
 // 一行：左标题 + 右控件
@@ -217,6 +221,68 @@
     return panel;
 }
 
+- (NSView *)buildPushPanel {
+    NSView *panel = [[NSView alloc] init];
+
+    self.pushURLField = [[NSTextField alloc] init];
+    self.pushURLField.placeholderString = @"rtmp://server/app";
+    NSView *urlRow = [self rowWithTitle:@"推流地址" control:self.pushURLField];
+    [self.pushURLField mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.right.equalTo(urlRow);
+    }];
+
+    self.streamKeyField = [[NSTextField alloc] init];
+    self.streamKeyField.placeholderString = @"推流码 / Stream Key";
+    NSView *keyRow = [self rowWithTitle:@"密钥" control:self.streamKeyField];
+    [self.streamKeyField mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.right.equalTo(keyRow);
+    }];
+
+    NSTextField *hint = [NSTextField labelWithString:@"完整推流地址 = 推流地址 / 密钥；密钥留空则直接使用推流地址。"];
+    hint.textColor = [NSColor secondaryLabelColor];
+    hint.font = [NSFont systemFontOfSize:11];
+    hint.lineBreakMode = NSLineBreakByWordWrapping;
+    hint.maximumNumberOfLines = 0;
+
+    // 保存按钮（回车即可触发）+ 保存反馈
+    NSButton *saveBtn = [NSButton buttonWithTitle:@"保存" target:self action:@selector(savePushSettings:)];
+    saveBtn.keyEquivalent = @"\r";
+    self.pushSavedLabel = [NSTextField labelWithString:@""];
+    self.pushSavedLabel.textColor = [NSColor systemGreenColor];
+    self.pushSavedLabel.font = [NSFont systemFontOfSize:12];
+
+    [panel addSubview:urlRow];
+    [panel addSubview:keyRow];
+    [panel addSubview:hint];
+    [panel addSubview:saveBtn];
+    [panel addSubview:self.pushSavedLabel];
+    [urlRow mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.top.equalTo(panel).offset(24);
+        make.left.equalTo(panel).offset(24);
+        make.right.equalTo(panel).offset(-24);
+        make.height.equalTo(@24);
+    }];
+    [keyRow mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.top.equalTo(urlRow.mas_bottom).offset(16);
+        make.left.right.equalTo(urlRow);
+        make.height.equalTo(@24);
+    }];
+    [hint mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.top.equalTo(keyRow.mas_bottom).offset(16);
+        make.left.equalTo(urlRow).offset(102);
+        make.right.equalTo(urlRow);
+    }];
+    [saveBtn mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.top.equalTo(hint.mas_bottom).offset(20);
+        make.right.equalTo(urlRow);
+    }];
+    [self.pushSavedLabel mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.centerY.equalTo(saveBtn);
+        make.right.equalTo(saveBtn.mas_left).offset(-10);
+    }];
+    return panel;
+}
+
 - (NSSlider *)volumeSliderForType:(WLFromType)type {
     NSSlider *slider = [NSSlider sliderWithValue:1.0 minValue:0.0 maxValue:2.0
                                           target:self action:@selector(volumeChanged:)];
@@ -242,6 +308,20 @@
     if ([self.settingsDelegate respondsToSelector:@selector(settingsDidSetVolume:forFromType:)]) {
         [self.settingsDelegate settingsDidSetVolume:v forFromType:(WLFromType)sender.tag];
     }
+}
+
+- (void)savePushSettings:(id)sender {
+    if ([self.settingsDelegate respondsToSelector:@selector(settingsDidSetPushURL:streamKey:)]) {
+        [self.settingsDelegate settingsDidSetPushURL:(self.pushURLField.stringValue ?: @"")
+                                           streamKey:(self.streamKeyField.stringValue ?: @"")];
+    }
+    self.pushSavedLabel.stringValue = @"✓ 已保存";
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(clearPushSavedLabel) object:nil];
+    [self performSelector:@selector(clearPushSavedLabel) withObject:nil afterDelay:2.0];
+}
+
+- (void)clearPushSavedLabel {
+    self.pushSavedLabel.stringValue = @"";
 }
 
 - (void)showPanelAtIndex:(NSInteger)idx {
@@ -275,6 +355,7 @@
 - (void)showWindow:(id)sender {
     [super showWindow:sender];
     [self syncVolumesFromDelegate];
+    [self syncPushFromDelegate];
 }
 
 - (void)syncVolumesFromDelegate {
@@ -285,6 +366,15 @@
     self.micVolSlider.floatValue = kv;
     self.mediaPercentLabel.stringValue = [NSString stringWithFormat:@"%.0f%%", mv * 100];
     self.micPercentLabel.stringValue = [NSString stringWithFormat:@"%.0f%%", kv * 100];
+}
+
+- (void)syncPushFromDelegate {
+    if ([self.settingsDelegate respondsToSelector:@selector(settingsPushURL)]) {
+        self.pushURLField.stringValue = [self.settingsDelegate settingsPushURL] ?: @"";
+    }
+    if ([self.settingsDelegate respondsToSelector:@selector(settingsStreamKey)]) {
+        self.streamKeyField.stringValue = [self.settingsDelegate settingsStreamKey] ?: @"";
+    }
 }
 
 #pragma mark - Actions

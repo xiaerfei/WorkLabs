@@ -13,6 +13,7 @@
 #import "WLMediaSource.h"
 #import "WLMicSource.h"
 #import "WLSettingsWindowController.h"
+#import "WLPusher.h"
 #import "WLCameraSource.h"
 #import "WLCameraSourceConfig.h"
 #import "WLDevicesManager.h"
@@ -24,6 +25,12 @@ static const CGFloat kIconBgAlpha = 0.05;
 
 @interface WLIconButtonView : NSView
 @property (nonatomic, strong) CALayer *bgLayer;
+@property (nonatomic, strong) NSImageView *iconView;            // 图标（激活态改色用）
+@property (nonatomic, strong, nullable) NSColor *idleIconColor; // 空闲图标色
+@property (nonatomic, strong, nullable) NSColor *activeColor;   // 激活态圆底色（录制/直播 = 红）
+@property (nonatomic, assign, getter=isActive) BOOL active;     // 进行中
+@property (nonatomic, assign) BOOL hovering;
+@property (nonatomic, assign) BOOL pressed;
 @property (nonatomic, weak) id target;
 @property (nonatomic, assign) SEL action;
 @end
@@ -54,30 +61,67 @@ static const CGFloat kIconBgAlpha = 0.05;
     self.bgLayer.frame = self.bounds;
 }
 
+// 统一按 激活 / hover / 按下 计算圆底色
+- (void)updateBackground {
+    if (self.active && self.activeColor) {
+        NSColor *c = self.activeColor;
+        if (self.pressed)       c = [self.activeColor highlightWithLevel:0.3];
+        else if (self.hovering) c = [self.activeColor highlightWithLevel:0.15];
+        self.bgLayer.backgroundColor = c.CGColor;
+    } else {
+        CGFloat a = kIconBgAlpha;
+        if (self.pressed)       a = kIconBgAlpha * 4;
+        else if (self.hovering) a = kIconBgAlpha * 2.5;
+        self.bgLayer.backgroundColor = [NSColor colorWithWhite:1.0 alpha:a].CGColor;
+    }
+}
+
+- (void)setActive:(BOOL)active {
+    if (_active == active) return;
+    _active = active;
+    if (active) {
+        self.iconView.contentTintColor = [NSColor whiteColor];
+        CABasicAnimation *pulse = [CABasicAnimation animationWithKeyPath:@"opacity"];
+        pulse.fromValue = @1.0;
+        pulse.toValue = @0.45;
+        pulse.duration = 0.8;
+        pulse.autoreverses = YES;
+        pulse.repeatCount = HUGE_VALF;
+        pulse.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseInEaseOut];
+        [self.bgLayer addAnimation:pulse forKey:@"pulse"];
+    } else {
+        self.iconView.contentTintColor = self.idleIconColor;
+        [self.bgLayer removeAnimationForKey:@"pulse"];
+    }
+    [self updateBackground];
+}
+
 - (void)mouseEntered:(NSEvent *)event {
-    self.bgLayer.backgroundColor = [NSColor colorWithWhite:1.0 alpha:kIconBgAlpha * 2.5].CGColor;
+    self.hovering = YES;
+    [self updateBackground];
 }
 
 - (void)mouseExited:(NSEvent *)event {
-    self.bgLayer.backgroundColor = [NSColor colorWithWhite:1.0 alpha:kIconBgAlpha].CGColor;
+    self.hovering = NO;
+    [self updateBackground];
 }
 
 - (void)mouseDown:(NSEvent *)event {
-    self.bgLayer.backgroundColor = [NSColor colorWithWhite:1.0 alpha:kIconBgAlpha * 4].CGColor;
+    self.pressed = YES;
+    [self updateBackground];
 }
 
 - (void)mouseUp:(NSEvent *)event {
+    self.pressed = NO;
     NSPoint loc = [self convertPoint:event.locationInWindow fromView:nil];
-    if (NSPointInRect(loc, self.bounds)) {
-        self.bgLayer.backgroundColor = [NSColor colorWithWhite:1.0 alpha:kIconBgAlpha * 2.5].CGColor;
-        if (self.target && self.action) {
+    BOOL inside = NSPointInRect(loc, self.bounds);
+    self.hovering = inside;
+    [self updateBackground];
+    if (inside && self.target && self.action) {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-            [self.target performSelector:self.action withObject:self];
+        [self.target performSelector:self.action withObject:self];
 #pragma clang diagnostic pop
-        }
-    } else {
-        self.bgLayer.backgroundColor = [NSColor colorWithWhite:1.0 alpha:kIconBgAlpha].CGColor;
     }
 }
 
@@ -97,7 +141,7 @@ static const CGFloat kIconBgAlpha = 0.05;
 
 #pragma mark - WLStreamViewController
 
-@interface WLStreamViewController () <WLStreamRenderingDelegate, WLSettingsWindowControllerDelegate>
+@interface WLStreamViewController () <WLStreamRenderingDelegate, WLSettingsWindowControllerDelegate, WLPusherDelegate>
 
 // 可用区（黑底，letterbox 背景）
 @property (nonatomic, strong) WLCanvasContainerView *canvasArea;
@@ -115,6 +159,11 @@ static const CGFloat kIconBgAlpha = 0.05;
 // 录制
 @property (nonatomic, strong) WLRecorder *recorder;
 @property (nonatomic, copy, nullable) NSString *currentRecordPath;
+
+// 推流
+@property (nonatomic, strong) WLPusher *pusher;
+@property (nonatomic, copy, nullable) NSString *pushURL;     // 服务器地址，如 rtmp://server/app
+@property (nonatomic, copy, nullable) NSString *streamKey;   // 推流码 / Stream Key
 
 // 设置窗口
 @property (nonatomic, strong) WLSettingsWindowController *settingsWC;
@@ -151,11 +200,22 @@ static const CGFloat kIconBgAlpha = 0.05;
     _canvas = [[WLCanvasModel alloc] init];           // 默认 1920×1080
     _manager = [[WLStreamsManager alloc] initWithCanvas:_canvas];
 
-    // 合成帧 → 录制器（未录制时 appendVideoPixelBuffer: 内部直接返回）
+    _pusher = [[WLPusher alloc] init];
+    _pusher.delegate = self;
+    _pushURL   = [[NSUserDefaults standardUserDefaults] stringForKey:@"WLPushURL"];
+    _streamKey = [[NSUserDefaults standardUserDefaults] stringForKey:@"WLStreamKey"];
+    (void)self.recorder;   // 预热（消除合成线程与主线程 lazy 创建竞争）
+
+    // 合成帧 / 混音音频 → 同时分发给录制器与推流器（各自内部按 isRecording/isPushing 判断）
     __weak typeof(self) wself = self;
     self.manager.mixedFrameOutput = ^(CVPixelBufferRef pb, Float64 pts) {
         [wself.recorder appendVideoPixelBuffer:pb pts:pts];
-        CVPixelBufferRelease(pb); // 所有权转移给 block
+        [wself.pusher   appendVideoPixelBuffer:pb pts:pts];
+        CVPixelBufferRelease(pb); // 所有权转移给 block（两个消费者各自 retain）
+    };
+    self.manager.audioBufferOutput = ^(CMSampleBufferRef sb) {
+        [wself.recorder appendAudioSampleBuffer:sb];
+        [wself.pusher   appendAudioSampleBuffer:sb];
     };
 
     [self setupCanvas];
@@ -480,6 +540,17 @@ static const CGFloat kIconBgAlpha = 0.05;
     return [self.manager volumeForFromType:fromType];
 }
 
+- (void)settingsDidSetPushURL:(NSString *)url streamKey:(NSString *)streamKey {
+    self.pushURL = url;
+    self.streamKey = streamKey;
+    NSUserDefaults *d = [NSUserDefaults standardUserDefaults];
+    [d setObject:(url ?: @"") forKey:@"WLPushURL"];
+    [d setObject:(streamKey ?: @"") forKey:@"WLStreamKey"];
+}
+
+- (NSString *)settingsPushURL { return self.pushURL; }
+- (NSString *)settingsStreamKey { return self.streamKey; }
+
 - (void)applyCanvasSize:(CGSize)size {
     [self.manager setCanvasSize:size];      // 缩放 layout + 同步 canvas/mix
     [self updateCanvasAspect];              // 更新画布预览宽高比
@@ -530,7 +601,7 @@ static const CGFloat kIconBgAlpha = 0.05;
 - (void)recordClicked:(id)sender {
     if (self.recorder.isRecording) {
         [self.recorder stopRecording];
-        self.manager.audioBufferOutput = nil;   // 停止音频转发
+        [self setRecordButtonActive:NO];
         NSString *path = self.currentRecordPath;
         self.currentRecordPath = nil;
         NSLog(@"[WLStreamViewController] 录制已停止: %@", path);
@@ -562,12 +633,7 @@ static const CGFloat kIconBgAlpha = 0.05;
                                     audioEnabled:audioEnabled
                                            error:&err]) {
             wself.currentRecordPath = panel.URL.path;
-            if (audioEnabled) {
-                // 把源音频转发给录制器（弱引用避免 manager→block→controller 循环）
-                wself.manager.audioBufferOutput = ^(CMSampleBufferRef sb) {
-                    [wself.recorder appendAudioSampleBuffer:sb];
-                };
-            }
+            [wself setRecordButtonActive:YES];
             NSLog(@"[WLStreamViewController] 开始录制 → %@ (audio=%d)", panel.URL.path, audioEnabled);
         } else {
             NSAlert *alert = [[NSAlert alloc] init];
@@ -580,7 +646,73 @@ static const CGFloat kIconBgAlpha = 0.05;
 }
 
 - (void)liveClicked:(id)sender {
-    NSLog(@"[WLStreamViewController] 直播 clicked");
+    if (self.pusher.isPushing) {
+        [self.pusher stop];
+        return;
+    }
+
+    NSString *url = [self fullPushURL];
+    if (url.length == 0) {
+        // 尚未配置推流地址 → 提示并打开设置（推流面板）
+        NSAlert *alert = [[NSAlert alloc] init];
+        alert.messageText = @"未配置推流地址";
+        alert.informativeText = @"请先在「设置 › 推流」中填写推流地址和密钥。";
+        [alert addButtonWithTitle:@"打开设置"];
+        [alert addButtonWithTitle:@"取消"];
+        if ([alert runModal] == NSAlertFirstButtonReturn) [self settingsClicked:nil];
+        return;
+    }
+
+    BOOL audioEnabled = [self hasAudioCapableSource];
+    [self setLiveButtonActive:YES];   // 连接中即给红色反馈
+    [self.pusher startWithURL:url videoSize:self.canvas.canvasSize fps:30 audioEnabled:audioEnabled];
+    NSLog(@"[WLStreamViewController] 推流连接中 → %@ (audio=%d)", url, audioEnabled);
+}
+
+// 拼接「推流地址 / 密钥」为完整 RTMP URL：去掉相接处多余斜杠；密钥为空则用纯地址。
+- (NSString *)fullPushURL {
+    NSCharacterSet *ws = [NSCharacterSet whitespaceAndNewlineCharacterSet];
+    NSString *base = [(self.pushURL ?: @"") stringByTrimmingCharactersInSet:ws];
+    NSString *key  = [(self.streamKey ?: @"") stringByTrimmingCharactersInSet:ws];
+    if (base.length == 0) return @"";
+    if (key.length == 0) return base;
+    while ([base hasSuffix:@"/"]) base = [base substringToIndex:base.length - 1];
+    while ([key hasPrefix:@"/"])  key  = [key substringFromIndex:1];
+    return [NSString stringWithFormat:@"%@/%@", base, key];
+}
+
+// 直播按钮状态：active=红（连接中/推流中），否则绿（可推流）
+- (void)setLiveButtonActive:(BOOL)active {
+    WLIconButtonView *btn = (WLIconButtonView *)self.liveButton;
+    btn.activeColor = [NSColor systemRedColor];   // 推流中：红底 + 白图标 + 呼吸
+    btn.active = active;
+}
+
+- (void)setRecordButtonActive:(BOOL)active {
+    WLIconButtonView *btn = (WLIconButtonView *)self.recordButton;
+    btn.activeColor = [NSColor systemRedColor];   // 录制中：红底 + 白图标 + 呼吸
+    btn.active = active;
+}
+
+#pragma mark - WLPusherDelegate
+
+- (void)pusherDidStart:(WLPusher *)pusher {
+    [self setLiveButtonActive:YES];
+    NSLog(@"[WLStreamViewController] 推流已开始");
+}
+
+- (void)pusher:(WLPusher *)pusher didFailWithError:(NSError *)error {
+    [self setLiveButtonActive:NO];
+    NSAlert *alert = [[NSAlert alloc] init];
+    alert.messageText = @"推流出错";
+    alert.informativeText = error.localizedDescription ?: @"未知错误";
+    [alert addButtonWithTitle:@"好"];
+    [alert runModal];
+}
+
+- (void)pusherDidStop:(WLPusher *)pusher {
+    [self setLiveButtonActive:NO];
+    NSLog(@"[WLStreamViewController] 推流已停止");
 }
 
 - (void)addClicked:(id)sender {
@@ -761,6 +893,8 @@ static const CGFloat kIconBgAlpha = 0.05;
     [imageView.widthAnchor constraintEqualToConstant:size].active = YES;
     [imageView.heightAnchor constraintEqualToConstant:size].active = YES;
 
+    container.iconView = imageView;
+    container.idleIconColor = color;
     container.target = self;
     container.action = action;
     return container;

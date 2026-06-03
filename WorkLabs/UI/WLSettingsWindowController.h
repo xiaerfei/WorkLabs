@@ -37,6 +37,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)settingsDidSetVolume:(float)volume forFromType:(WLFromType)fromType;
 - (float)settingsVolumeForFromType:(WLFromType)fromType;
 
+// 推流：服务器地址 + 密钥（推流码）。编辑结束即回调宿主保存；打开设置时回读做回填。
+- (void)settingsDidSetPushURL:(NSString *)url streamKey:(NSString *)streamKey;
+- (nullable NSString *)settingsPushURL;
+- (nullable NSString *)settingsStreamKey;
+
 @end
 
 NS_ASSUME_NONNULL_END
