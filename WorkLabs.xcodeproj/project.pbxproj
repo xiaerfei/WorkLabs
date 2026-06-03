@@ -7,220 +7,95 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		027B6308C2D8CE91DB3EC805 /* WLPanelViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = C839259DF06B1CD83B042F6C /* WLPanelViewController.m */; };
-		07C68F9247E14362FF5A334F /* WLAudioResample.m in Sources */ = {isa = PBXBuildFile; fileRef = B9D351AAA269926FE3E1E275 /* WLAudioResample.m */; };
-		0A472FF07E116728F7C098CA /* NSView+BackgroundColor.m in Sources */ = {isa = PBXBuildFile; fileRef = 553038B9826D0B14D00B3017 /* NSView+BackgroundColor.m */; };
-		0C2093BDFF15F6215A897C6D /* WLRenderingManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 6ED67BFC0CBD6874BFB47FF9 /* WLRenderingManager.m */; };
-		11CD9BAAEFFA46F76FCBDF8B /* WLSettingViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = F84096EA5F226219AE6E3422 /* WLSettingViewController.m */; };
-		11DD7AB098E4F9A15DC9846B /* WLPreviewOutput.m in Sources */ = {isa = PBXBuildFile; fileRef = 0C102AA46E5C8D33175B2AFE /* WLPreviewOutput.m */; };
 		125C69550A1AAB32489582D1 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3296CA5B80F52879A94FC9DE /* Assets.xcassets */; };
-		13075A9BBCE2123E78066826 /* WLSceneManager.m in Sources */ = {isa = PBXBuildFile; fileRef = B02DDDE4C364E96EC5E64D1A /* WLSceneManager.m */; };
 		17175DE86A9D1C0A04873C2E /* WLAudioRenderer.m in Sources */ = {isa = PBXBuildFile; fileRef = 60909326E1EDD8EE34BCACDC /* WLAudioRenderer.m */; };
-		18270C3C89931CD6D45ACBD5 /* WLAudioPlayer.m in Sources */ = {isa = PBXBuildFile; fileRef = 7AA117C1F29F0B315B11B02F /* WLAudioPlayer.m */; };
-		1ED3CDE9EB5BA6D939149782 /* TVUAudioManager.m in Sources */ = {isa = PBXBuildFile; fileRef = CE96ED7115C3D773975DDBC0 /* TVUAudioManager.m */; };
 		289184189AAB05E6664A42A2 /* WLNodeQueue.m in Sources */ = {isa = PBXBuildFile; fileRef = 87268D8E159CD620803CA0C7 /* WLNodeQueue.m */; };
 		28C19EE3691DEFD5234649CB /* WLMediaSource.m in Sources */ = {isa = PBXBuildFile; fileRef = 331AF1AF137520AB2755997E /* WLMediaSource.m */; };
-		28D1EB53C61D96C8B93EB6C0 /* WLVideoSelectView.m in Sources */ = {isa = PBXBuildFile; fileRef = 8EF0AF63103560856772EBAB /* WLVideoSelectView.m */; };
-		2BC5C571622038150A9FF78B /* WLEventObserveItem.m in Sources */ = {isa = PBXBuildFile; fileRef = 8C3D84DDB206C8214CB23113 /* WLEventObserveItem.m */; };
 		2FAC99BAE24732448DC8E55F /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 2828F0090D835F4C00373969 /* main.m */; };
-		3B3984BEEA553685EB91B776 /* WLVideoFilter.m in Sources */ = {isa = PBXBuildFile; fileRef = EF78BDF05DE976FAD800B06C /* WLVideoFilter.m */; };
-		3B6B98B2A7E7941A366F756D /* TVUVideoManager.mm in Sources */ = {isa = PBXBuildFile; fileRef = 9CEDA4B7453F8DA0A25F1E88 /* TVUVideoManager.mm */; };
-		43639EF5ED1D9E5CBB43472C /* WLEvent.m in Sources */ = {isa = PBXBuildFile; fileRef = 2D1150C241D6CDBA15F28AA1 /* WLEvent.m */; };
 		46EA0E2AB82A6F95A51794FE /* WLStreamsManager.m in Sources */ = {isa = PBXBuildFile; fileRef = B278F89E52D9298A7DAB24B3 /* WLStreamsManager.m */; };
-		479AAAD277D6F94ABCCA2117 /* WLSourcePanel.m in Sources */ = {isa = PBXBuildFile; fileRef = 253897D72A66A7D7EE2DE997 /* WLSourcePanel.m */; };
-		48E90ABD820A9DD7369B8D0E /* WLVideoDeviceSettingView.m in Sources */ = {isa = PBXBuildFile; fileRef = F4D14A23A9725A05F19AE3DD /* WLVideoDeviceSettingView.m */; };
-		50A31413A9F44C60A221FD5A /* WLAudioMixerPanel.m in Sources */ = {isa = PBXBuildFile; fileRef = B59CB037C0D0C5078E7F1A8B /* WLAudioMixerPanel.m */; };
 		5D5DB6C1077B3282B80D462E /* WLStreamPreview.m in Sources */ = {isa = PBXBuildFile; fileRef = B0ADF83CB74FE9FA2A6D8D75 /* WLStreamPreview.m */; };
-		5E9F198C00C0FAB206B32623 /* WLMenuPanelViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = B03C0FE4C0D3D814FD380518 /* WLMenuPanelViewController.m */; };
 		5EDDF40BE193B19B473A30F1 /* WLCanvasModel.m in Sources */ = {isa = PBXBuildFile; fileRef = DC3F05EE87963816E2242E3F /* WLCanvasModel.m */; };
 		5F547ADC2871CF398F96D08C /* WLRecorder.m in Sources */ = {isa = PBXBuildFile; fileRef = 16C712A67387C0122A0438A6 /* WLRecorder.m */; };
 		6831E201AB2F45B7D2C12903 /* WLStreamViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = B1A69A5CE285BFC5653E5610 /* WLStreamViewController.m */; };
 		69E983AB5E81E097D0B436E0 /* WLVideoMix.m in Sources */ = {isa = PBXBuildFile; fileRef = A5DC2320A07002582B94EC48 /* WLVideoMix.m */; };
-		6DBA91C64FB42612C6D45E13 /* NSObject+BaseDataType.m in Sources */ = {isa = PBXBuildFile; fileRef = 00D6441EE7FC65B33292ED58 /* NSObject+BaseDataType.m */; };
-		6FD3F67B1EFF7D2A382758C4 /* WLSceneViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 7124DFBBED4AE9CCB52C9930 /* WLSceneViewController.m */; };
-		70DF46D152EB38D678CA3F6F /* Pods_WorkLabs.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 77C399CD96FDCE4133398D56 /* Pods_WorkLabs.framework */; };
-		75C9BA3A85D90FCCECE306CF /* WLAudioBuffer.m in Sources */ = {isa = PBXBuildFile; fileRef = 0D7B0AD05271C9D3EDB6C9A4 /* WLAudioBuffer.m */; };
-		76325885FEF49FC0E969AFE3 /* WLMediaSourceSettingView.m in Sources */ = {isa = PBXBuildFile; fileRef = 3742F80B34D71090F1007BE0 /* WLMediaSourceSettingView.m */; };
-		76A97E8E1428C931BF335A38 /* WLMetalPreviewShaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = 4D5CAC36CE871AA01AF69793 /* WLMetalPreviewShaders.metal */; };
-		7F1F9E4F386BBEAC3139A917 /* WLMediaSourceItem.m in Sources */ = {isa = PBXBuildFile; fileRef = 94C66E64B4FE8A4EC733E1B5 /* WLMediaSourceItem.m */; };
-		8067F1B90E2C6485D4E29EC3 /* WLMetalPreview.m in Sources */ = {isa = PBXBuildFile; fileRef = 6F3759E1AEA7A94605797FCC /* WLMetalPreview.m */; };
+		6CA8D3A8736F5EC6F35DDD00 /* Pods_WorkLabs.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 85429E067DCD55611147C150 /* Pods_WorkLabs.framework */; };
 		8E9A4AB66228CB299758160A /* WLNode.m in Sources */ = {isa = PBXBuildFile; fileRef = 8DA88E7141B15C6E4CBEAC5B /* WLNode.m */; };
-		9926D371132D7AF85BA9056B /* WLAudioQueuePlayer.m in Sources */ = {isa = PBXBuildFile; fileRef = 4FF18E4F1AC6E718EFC7CE30 /* WLAudioQueuePlayer.m */; };
-		9F55973A7F91F68550B12A9A /* WLAudioEncode.m in Sources */ = {isa = PBXBuildFile; fileRef = ED6AB0F621A41B8F1A63B1B6 /* WLAudioEncode.m */; };
 		9F815F2971C0BFF7CB4BD025 /* WLMediaSourcePreview.m in Sources */ = {isa = PBXBuildFile; fileRef = 520C6C2FBA18268ADFF56F8F /* WLMediaSourcePreview.m */; };
 		A26D26246662B63A5B126D3A /* WLCameraSourceConfig.m in Sources */ = {isa = PBXBuildFile; fileRef = B905ACED8AC97EBE88EC7473 /* WLCameraSourceConfig.m */; };
-		A4AC3B4593EE4553027F9A84 /* WLVideoEncode.m in Sources */ = {isa = PBXBuildFile; fileRef = 5FEFDDB3668DC28C2FE54A6D /* WLVideoEncode.m */; };
 		A944D2EFDE9B8326B790AC62 /* WLDevicesManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 820FDE267A97F427FD8AF291 /* WLDevicesManager.m */; };
-		AAF854E443DAE72EE4A4871D /* WLControlsPanel.m in Sources */ = {isa = PBXBuildFile; fileRef = EFBDBA6C8A27565A92C103CD /* WLControlsPanel.m */; };
-		B11A60F1B0B8606545A96AEF /* WLSceneRenderer.m in Sources */ = {isa = PBXBuildFile; fileRef = 0E42605D31D319A3F087BF66 /* WLSceneRenderer.m */; };
-		B6B81D881ABFCDB5701B5C51 /* WLCameraSourceSettingView.m in Sources */ = {isa = PBXBuildFile; fileRef = 5A559146E22CFABF3D82B608 /* WLCameraSourceSettingView.m */; };
-		B9B10C7B7BFD5383DF164A37 /* WLViedoPreview.m in Sources */ = {isa = PBXBuildFile; fileRef = D037EA0F541974AD3CB5451D /* WLViedoPreview.m */; };
-		C22AA6ED71A8B2CFB838BEC1 /* WLResample.m in Sources */ = {isa = PBXBuildFile; fileRef = 27EBCD171549EE814F009B05 /* WLResample.m */; };
+		BD2EBA9718315DC01E9822CF /* WLMetalPreviewShaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = FA20906C5A746903B1C22BBD /* WLMetalPreviewShaders.metal */; };
 		C24ED5D6DE7FFD132062F4CE /* NSWindow+WLExtend.m in Sources */ = {isa = PBXBuildFile; fileRef = DF6FAED1DF7D6C9CB9F6CBDA /* NSWindow+WLExtend.m */; };
 		C53F6BB5386F2A522781B283 /* NSArray+Function.m in Sources */ = {isa = PBXBuildFile; fileRef = F8EACF7F95848F5523DF2E95 /* NSArray+Function.m */; };
-		C659ED90402EA8C585F50A93 /* WLAudioOutput.m in Sources */ = {isa = PBXBuildFile; fileRef = D8F30CC527E68280C8E1B9CD /* WLAudioOutput.m */; };
-		C697A49943FDDB2D2237F007 /* WLEventSendItem.m in Sources */ = {isa = PBXBuildFile; fileRef = 4B3FE4C439F28340DF6F2496 /* WLEventSendItem.m */; };
-		C93F8171B646972C817E5DF7 /* WLVideoDeviceSettingWindowController.m in Sources */ = {isa = PBXBuildFile; fileRef = 57809D3079BDCE5FF198B1AC /* WLVideoDeviceSettingWindowController.m */; };
 		C95432CCFD4EECDCB62AFC5B /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 5FE5010F1D5CE14CE01C7DB7 /* AppDelegate.m */; };
 		D77B636AD1EE51B974D45161 /* WLMainWindowController.m in Sources */ = {isa = PBXBuildFile; fileRef = 4F4C73674132282FBD06F9A8 /* WLMainWindowController.m */; };
-		D799EE303683485FFCDC2F95 /* WLPipelineManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 61F1A40F0E252E6541C8B343 /* WLPipelineManager.m */; };
 		D84120096ACEA9A5CC2A2DFA /* WLCameraSource.m in Sources */ = {isa = PBXBuildFile; fileRef = D00432CD899F2802AB3231A3 /* WLCameraSource.m */; };
-		DAAD48D44C9BB91EC6D8FAA2 /* WLEventDisposeBag.m in Sources */ = {isa = PBXBuildFile; fileRef = 60772EA5D780764DD882AAD6 /* WLEventDisposeBag.m */; };
-		E366423895AE8C0DC110C434 /* WLToolbarButton.m in Sources */ = {isa = PBXBuildFile; fileRef = 65C135321B15149DCCF35C93 /* WLToolbarButton.m */; };
 		E689C437E12E2F96C6BA9A4D /* WLMainViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 3F652B94A908D7CE5CE204CE /* WLMainViewController.m */; };
 		E6F0F55E76296639DB512003 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 8483BA89D3B818305C35E345 /* Main.storyboard */; };
-		EA61FBB070E9F756E48ED06B /* WLVideoManager.m in Sources */ = {isa = PBXBuildFile; fileRef = A37A90229DBB5FB94FE808B6 /* WLVideoManager.m */; };
-		EEC6DDC5AF1336556956FE94 /* WLAudioMixer.m in Sources */ = {isa = PBXBuildFile; fileRef = 950E5E9BA3820ABFD41ACC67 /* WLAudioMixer.m */; };
-		EFB02AF4FC16CD450B3DBAB7 /* WLPushStreamsManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 639EFEEC449C9785B87AEA63 /* WLPushStreamsManager.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		004F5D7B844DCA791434886F /* WLStreamOutputProtocol.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLStreamOutputProtocol.h; sourceTree = "<group>"; };
-		00B217A7E15C359EA248F532 /* TVUVideoManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = TVUVideoManager.h; sourceTree = "<group>"; };
-		00D6441EE7FC65B33292ED58 /* NSObject+BaseDataType.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "NSObject+BaseDataType.m"; sourceTree = "<group>"; };
 		048C70C9722526DD3959E093 /* WLVideoMix.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLVideoMix.h; sourceTree = "<group>"; };
-		09C875A4B26100762103915E /* NSView+BackgroundColor.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "NSView+BackgroundColor.h"; sourceTree = "<group>"; };
-		0C102AA46E5C8D33175B2AFE /* WLPreviewOutput.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLPreviewOutput.m; sourceTree = "<group>"; };
-		0C584C1DEC6E5A285CD9367A /* WLVideoDeviceSettingWindowController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLVideoDeviceSettingWindowController.h; sourceTree = "<group>"; };
-		0D7B0AD05271C9D3EDB6C9A4 /* WLAudioBuffer.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLAudioBuffer.m; sourceTree = "<group>"; };
 		0D7B7157ADAC9CA17347F2A6 /* WLDevicesManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLDevicesManager.h; sourceTree = "<group>"; };
-		0E42605D31D319A3F087BF66 /* WLSceneRenderer.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLSceneRenderer.m; sourceTree = "<group>"; };
-		15FC60E5B9B44AA53DE3B33B /* WLPreviewOutput.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLPreviewOutput.h; sourceTree = "<group>"; };
 		16C712A67387C0122A0438A6 /* WLRecorder.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLRecorder.m; sourceTree = "<group>"; };
-		1A43AD34B88C993501E3D8B0 /* Pods-WorkLabs.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-WorkLabs.debug.xcconfig"; path = "Target Support Files/Pods-WorkLabs/Pods-WorkLabs.debug.xcconfig"; sourceTree = "<group>"; };
-		207842D15FE99D0148FC4A51 /* WLAudioMixer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLAudioMixer.h; sourceTree = "<group>"; };
-		2341DCD7ECDB0AB95F9CAE79 /* WLMetalPreview.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLMetalPreview.h; sourceTree = "<group>"; };
 		2427A3A023F5014DE2A6755E /* NSArray+Function.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "NSArray+Function.h"; sourceTree = "<group>"; };
 		246F2B8F8553343561DB02A1 /* WLCameraSource.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLCameraSource.h; sourceTree = "<group>"; };
-		253897D72A66A7D7EE2DE997 /* WLSourcePanel.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLSourcePanel.m; sourceTree = "<group>"; };
 		25392A1827459B19E283486D /* WLStreamSourceProtocol.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLStreamSourceProtocol.h; sourceTree = "<group>"; };
-		25495FB1CA4C9D38FFAC7D28 /* WLVideoFilter.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLVideoFilter.h; sourceTree = "<group>"; };
-		27EBCD171549EE814F009B05 /* WLResample.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLResample.m; sourceTree = "<group>"; };
 		2828F0090D835F4C00373969 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
 		298BD501E3BA53EF94B38A5A /* WLMediaSource.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLMediaSource.h; sourceTree = "<group>"; };
-		2A625E43619EC6680328D797 /* WLEventSendItem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLEventSendItem.h; sourceTree = "<group>"; };
-		2CABC321FBA7A562377051C9 /* WLSettingViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLSettingViewController.h; sourceTree = "<group>"; };
-		2D1150C241D6CDBA15F28AA1 /* WLEvent.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLEvent.m; sourceTree = "<group>"; };
-		2F24C5A09AEC321FAEC73DB0 /* WLPushStreamsManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLPushStreamsManager.h; sourceTree = "<group>"; };
 		3296CA5B80F52879A94FC9DE /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		331AF1AF137520AB2755997E /* WLMediaSource.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLMediaSource.m; sourceTree = "<group>"; };
 		36753C1C9320173B40C724F8 /* WLRecorder.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLRecorder.h; sourceTree = "<group>"; };
-		3729B1298ADECF2495D947EE /* WLToolbarButton.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLToolbarButton.h; sourceTree = "<group>"; };
-		3742F80B34D71090F1007BE0 /* WLMediaSourceSettingView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLMediaSourceSettingView.m; sourceTree = "<group>"; };
 		3F652B94A908D7CE5CE204CE /* WLMainViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLMainViewController.m; sourceTree = "<group>"; };
-		44C5E0BC4F36DC42B0B24D1B /* WLEventItem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLEventItem.h; sourceTree = "<group>"; };
-		48F66FE28267CEEB44D048AD /* WLViedoPreview.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLViedoPreview.h; sourceTree = "<group>"; };
 		4AC3962AE27C09081C2E80BB /* NSWindow+WLExtend.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "NSWindow+WLExtend.h"; sourceTree = "<group>"; };
-		4B3FE4C439F28340DF6F2496 /* WLEventSendItem.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLEventSendItem.m; sourceTree = "<group>"; };
-		4C3330464E650978808EC9C3 /* WLVideoSelectView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLVideoSelectView.h; sourceTree = "<group>"; };
-		4D5CAC36CE871AA01AF69793 /* WLMetalPreviewShaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = WLMetalPreviewShaders.metal; sourceTree = "<group>"; };
-		4D869D0193FCE844C24DD16F /* WLPanelViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLPanelViewController.h; sourceTree = "<group>"; };
-		4E9F9034D380EDCBCFE632C6 /* WLControlsPanel.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLControlsPanel.h; sourceTree = "<group>"; };
 		4F4C73674132282FBD06F9A8 /* WLMainWindowController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLMainWindowController.m; sourceTree = "<group>"; };
-		4FF18E4F1AC6E718EFC7CE30 /* WLAudioQueuePlayer.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLAudioQueuePlayer.m; sourceTree = "<group>"; };
-		516CEF878046C4C77DC0FF0C /* WLSourcePanel.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLSourcePanel.h; sourceTree = "<group>"; };
 		520C6C2FBA18268ADFF56F8F /* WLMediaSourcePreview.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLMediaSourcePreview.m; sourceTree = "<group>"; };
-		5426CC18159BF78EAED5B460 /* WLEvent.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLEvent.h; sourceTree = "<group>"; };
-		553038B9826D0B14D00B3017 /* NSView+BackgroundColor.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "NSView+BackgroundColor.m"; sourceTree = "<group>"; };
-		57809D3079BDCE5FF198B1AC /* WLVideoDeviceSettingWindowController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLVideoDeviceSettingWindowController.m; sourceTree = "<group>"; };
 		58C29EA2A35A463854BF98A9 /* WLStreamRenderingProtocol.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLStreamRenderingProtocol.h; sourceTree = "<group>"; };
-		5A559146E22CFABF3D82B608 /* WLCameraSourceSettingView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLCameraSourceSettingView.m; sourceTree = "<group>"; };
 		5D4FC22B3F1EA09FFD205BD0 /* WorkLabs.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WorkLabs.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5FE5010F1D5CE14CE01C7DB7 /* AppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
-		5FEFDDB3668DC28C2FE54A6D /* WLVideoEncode.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLVideoEncode.m; sourceTree = "<group>"; };
-		60772EA5D780764DD882AAD6 /* WLEventDisposeBag.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLEventDisposeBag.m; sourceTree = "<group>"; };
 		60909326E1EDD8EE34BCACDC /* WLAudioRenderer.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLAudioRenderer.m; sourceTree = "<group>"; };
-		61F1A40F0E252E6541C8B343 /* WLPipelineManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLPipelineManager.m; sourceTree = "<group>"; };
-		623944DFCA9D4135C211FF50 /* WLCameraSourceSettingView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLCameraSourceSettingView.h; sourceTree = "<group>"; };
-		639EFEEC449C9785B87AEA63 /* WLPushStreamsManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLPushStreamsManager.m; sourceTree = "<group>"; };
-		654E7B9A26887412D86723FA /* WLResample.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLResample.h; sourceTree = "<group>"; };
-		65C135321B15149DCCF35C93 /* WLToolbarButton.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLToolbarButton.m; sourceTree = "<group>"; };
-		6D716EC94BFD462BDC768E31 /* WLEventObserveItem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLEventObserveItem.h; sourceTree = "<group>"; };
-		6ED67BFC0CBD6874BFB47FF9 /* WLRenderingManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLRenderingManager.m; sourceTree = "<group>"; };
-		6F3759E1AEA7A94605797FCC /* WLMetalPreview.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLMetalPreview.m; sourceTree = "<group>"; };
-		7124DFBBED4AE9CCB52C9930 /* WLSceneViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLSceneViewController.m; sourceTree = "<group>"; };
-		76B06F7E9A551C9A299DEFA7 /* WLMediaSourceSettingView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLMediaSourceSettingView.h; sourceTree = "<group>"; };
-		77C399CD96FDCE4133398D56 /* Pods_WorkLabs.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_WorkLabs.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		7A3144393DFB1359AB279E58 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
-		7AA117C1F29F0B315B11B02F /* WLAudioPlayer.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLAudioPlayer.m; sourceTree = "<group>"; };
-		7D484E729E677A203EB32089 /* WLSceneViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLSceneViewController.h; sourceTree = "<group>"; };
 		7F31250042BB4B0400705B20 /* WLDefines.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLDefines.h; sourceTree = "<group>"; };
-		812EC0A3C9B9987837D3036B /* WLAudioQueuePlayer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLAudioQueuePlayer.h; sourceTree = "<group>"; };
 		820FDE267A97F427FD8AF291 /* WLDevicesManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLDevicesManager.m; sourceTree = "<group>"; };
 		82FB3D82FB8831A314232582 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
+		85429E067DCD55611147C150 /* Pods_WorkLabs.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_WorkLabs.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		8562AE5C04419352CFD5BDE3 /* WLMainWindowController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLMainWindowController.h; sourceTree = "<group>"; };
 		87268D8E159CD620803CA0C7 /* WLNodeQueue.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLNodeQueue.m; sourceTree = "<group>"; };
-		8C3D84DDB206C8214CB23113 /* WLEventObserveItem.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLEventObserveItem.m; sourceTree = "<group>"; };
 		8DA88E7141B15C6E4CBEAC5B /* WLNode.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLNode.m; sourceTree = "<group>"; };
-		8EF0AF63103560856772EBAB /* WLVideoSelectView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLVideoSelectView.m; sourceTree = "<group>"; };
-		94C66E64B4FE8A4EC733E1B5 /* WLMediaSourceItem.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLMediaSourceItem.m; sourceTree = "<group>"; };
-		9509608C74C55A8568A33DA9 /* WLAudioOutput.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLAudioOutput.h; sourceTree = "<group>"; };
-		950E5E9BA3820ABFD41ACC67 /* WLAudioMixer.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLAudioMixer.m; sourceTree = "<group>"; };
-		9A50F5C0BC0F6B060EB80565 /* WLAudioEncode.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLAudioEncode.h; sourceTree = "<group>"; };
-		9CEDA4B7453F8DA0A25F1E88 /* TVUVideoManager.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = TVUVideoManager.mm; sourceTree = "<group>"; };
-		9D0FFEA3C13AF83CE6F62A35 /* WLAudioMixerPanel.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLAudioMixerPanel.h; sourceTree = "<group>"; };
-		A0CD7989B9E16A43BED57785 /* WLMenuPanelViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLMenuPanelViewController.h; sourceTree = "<group>"; };
 		A320B8591CAFA414A6E25CF6 /* WLMediaSourcePreview.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLMediaSourcePreview.h; sourceTree = "<group>"; };
-		A37A90229DBB5FB94FE808B6 /* WLVideoManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLVideoManager.m; sourceTree = "<group>"; };
 		A448D8CAB01D6C17C08AC2F4 /* WLNode.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLNode.h; sourceTree = "<group>"; };
 		A5DC2320A07002582B94EC48 /* WLVideoMix.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLVideoMix.m; sourceTree = "<group>"; };
 		A5F1757D2526DE1E37F90AC2 /* WLStreamFilterProtocol.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLStreamFilterProtocol.h; sourceTree = "<group>"; };
-		A8FF8C74EDAF8D36C3D3602B /* WLAudioResample.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLAudioResample.h; sourceTree = "<group>"; };
 		A994F6F30DE1C040AF7F2D3F /* WLStreamViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLStreamViewController.h; sourceTree = "<group>"; };
 		B020314DE3B5EADD19423F06 /* WLMainViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLMainViewController.h; sourceTree = "<group>"; };
-		B02DDDE4C364E96EC5E64D1A /* WLSceneManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLSceneManager.m; sourceTree = "<group>"; };
-		B03C0FE4C0D3D814FD380518 /* WLMenuPanelViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLMenuPanelViewController.m; sourceTree = "<group>"; };
 		B0ADF83CB74FE9FA2A6D8D75 /* WLStreamPreview.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLStreamPreview.m; sourceTree = "<group>"; };
 		B1A69A5CE285BFC5653E5610 /* WLStreamViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLStreamViewController.m; sourceTree = "<group>"; };
 		B278F89E52D9298A7DAB24B3 /* WLStreamsManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLStreamsManager.m; sourceTree = "<group>"; };
 		B2CD55CCCF4F2FC8AE095852 /* WorkLabs.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = WorkLabs.entitlements; sourceTree = "<group>"; };
 		B4FF398C49A05C63B3FF85C7 /* WLNodeQueue.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLNodeQueue.h; sourceTree = "<group>"; };
-		B59CB037C0D0C5078E7F1A8B /* WLAudioMixerPanel.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLAudioMixerPanel.m; sourceTree = "<group>"; };
-		B64B9D7466E751F20BFE8531 /* WLEventDisposeBag.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLEventDisposeBag.h; sourceTree = "<group>"; };
+		B7F248C36A872D8B174DB977 /* Pods-WorkLabs.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-WorkLabs.release.xcconfig"; path = "Target Support Files/Pods-WorkLabs/Pods-WorkLabs.release.xcconfig"; sourceTree = "<group>"; };
 		B905ACED8AC97EBE88EC7473 /* WLCameraSourceConfig.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLCameraSourceConfig.m; sourceTree = "<group>"; };
-		B9D351AAA269926FE3E1E275 /* WLAudioResample.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLAudioResample.m; sourceTree = "<group>"; };
-		BB7654B365956CDAB0A258C7 /* Pods-WorkLabs.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-WorkLabs.release.xcconfig"; path = "Target Support Files/Pods-WorkLabs/Pods-WorkLabs.release.xcconfig"; sourceTree = "<group>"; };
-		C277376F0C9AE51436CBA6EB /* WLVideoEncode.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLVideoEncode.h; sourceTree = "<group>"; };
 		C3B39F9544CB6BF731EEC39A /* WLCanvasModel.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLCanvasModel.h; sourceTree = "<group>"; };
-		C839259DF06B1CD83B042F6C /* WLPanelViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLPanelViewController.m; sourceTree = "<group>"; };
 		CD25C4E909D8F41262CD5C21 /* WLAudioRenderer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLAudioRenderer.h; sourceTree = "<group>"; };
-		CE96ED7115C3D773975DDBC0 /* TVUAudioManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = TVUAudioManager.m; sourceTree = "<group>"; };
 		D00432CD899F2802AB3231A3 /* WLCameraSource.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLCameraSource.m; sourceTree = "<group>"; };
-		D037EA0F541974AD3CB5451D /* WLViedoPreview.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLViedoPreview.m; sourceTree = "<group>"; };
-		D0A75A87FD57179AF7508DD4 /* WLVideoDeviceSettingView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLVideoDeviceSettingView.h; sourceTree = "<group>"; };
 		D307D9CA2E3C82103A848CD8 /* WLStreamsManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLStreamsManager.h; sourceTree = "<group>"; };
 		D55A839DABD7A1B6056A389E /* WLSourceProtocol.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLSourceProtocol.h; sourceTree = "<group>"; };
-		D84C3D0BCBDA9E9264F826D5 /* TVUAudioManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = TVUAudioManager.h; sourceTree = "<group>"; };
-		D8F30CC527E68280C8E1B9CD /* WLAudioOutput.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLAudioOutput.m; sourceTree = "<group>"; };
-		D91D0D9851680B0AF4B8C964 /* WLVideoManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLVideoManager.h; sourceTree = "<group>"; };
 		DB9298E80B63D2B333456678 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
 		DC3F05EE87963816E2242E3F /* WLCanvasModel.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLCanvasModel.m; sourceTree = "<group>"; };
 		DF6FAED1DF7D6C9CB9F6CBDA /* NSWindow+WLExtend.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "NSWindow+WLExtend.m"; sourceTree = "<group>"; };
-		E03E3DA8DC22EEED710C8FCC /* WLMediaSourceItem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLMediaSourceItem.h; sourceTree = "<group>"; };
-		E5D05BA85D241E02D1BA07DC /* WLRenderingManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLRenderingManager.h; sourceTree = "<group>"; };
-		E78BF05E56849F815B9F7031 /* NSObject+BaseDataType.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "NSObject+BaseDataType.h"; sourceTree = "<group>"; };
-		EAD2D3D706EAB79601F15136 /* WLSceneRenderer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLSceneRenderer.h; sourceTree = "<group>"; };
-		EB26963489FD2B0A2B819226 /* WLAudioPlayer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLAudioPlayer.h; sourceTree = "<group>"; };
-		EBD23710D8F73AB0886E5C5C /* WLAudioBuffer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLAudioBuffer.h; sourceTree = "<group>"; };
 		EC183E6E024C93FA73E5B151 /* WLCameraSourceConfig.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLCameraSourceConfig.h; sourceTree = "<group>"; };
-		ED6AB0F621A41B8F1A63B1B6 /* WLAudioEncode.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLAudioEncode.m; sourceTree = "<group>"; };
-		EF78BDF05DE976FAD800B06C /* WLVideoFilter.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLVideoFilter.m; sourceTree = "<group>"; };
-		EFBDBA6C8A27565A92C103CD /* WLControlsPanel.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLControlsPanel.m; sourceTree = "<group>"; };
 		F4001BC8C651094B529E931E /* WLStreamPreview.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLStreamPreview.h; sourceTree = "<group>"; };
-		F4D14A23A9725A05F19AE3DD /* WLVideoDeviceSettingView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLVideoDeviceSettingView.m; sourceTree = "<group>"; };
-		F6CA735B4F636E3E4687E815 /* WLEventConst.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLEventConst.h; sourceTree = "<group>"; };
-		F84096EA5F226219AE6E3422 /* WLSettingViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLSettingViewController.m; sourceTree = "<group>"; };
+		F8B628CD0DFC5D2D9FD69148 /* Pods-WorkLabs.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-WorkLabs.debug.xcconfig"; path = "Target Support Files/Pods-WorkLabs/Pods-WorkLabs.debug.xcconfig"; sourceTree = "<group>"; };
 		F8EACF7F95848F5523DF2E95 /* NSArray+Function.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "NSArray+Function.m"; sourceTree = "<group>"; };
-		FF647AC0DCA5DECD1914FC68 /* WLSceneManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLSceneManager.h; sourceTree = "<group>"; };
-		FFA078C6A7F1E9DF55F8BF71 /* WLPipelineManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLPipelineManager.h; sourceTree = "<group>"; };
+		FA20906C5A746903B1C22BBD /* WLMetalPreviewShaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = WLMetalPreviewShaders.metal; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		F7AFA5B80A620D0394C406FC /* Frameworks */ = {
+		289CFAC3B6FB02AAEE7DF12F /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				70DF46D152EB38D678CA3F6F /* Pods_WorkLabs.framework in Frameworks */,
+				6CA8D3A8736F5EC6F35DDD00 /* Pods_WorkLabs.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -238,17 +113,6 @@
 			path = UI;
 			sourceTree = "<group>";
 		};
-		06CE7010CD523D5AC7CE157B /* Output */ = {
-			isa = PBXGroup;
-			children = (
-				9509608C74C55A8568A33DA9 /* WLAudioOutput.h */,
-				D8F30CC527E68280C8E1B9CD /* WLAudioOutput.m */,
-				15FC60E5B9B44AA53DE3B33B /* WLPreviewOutput.h */,
-				0C102AA46E5C8D33175B2AFE /* WLPreviewOutput.m */,
-			);
-			path = Output;
-			sourceTree = "<group>";
-		};
 		093C4FFA6512177D8ECA88B6 /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -257,52 +121,12 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-		0B0C3ED3B017137FD2C17FCC /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				1A43AD34B88C993501E3D8B0 /* Pods-WorkLabs.debug.xcconfig */,
-				BB7654B365956CDAB0A258C7 /* Pods-WorkLabs.release.xcconfig */,
-			);
-			name = Pods;
-			path = Pods;
-			sourceTree = "<group>";
-		};
-		0B471DBF174E54858FD3EE72 /* Custom */ = {
-			isa = PBXGroup;
-			children = (
-				48F66FE28267CEEB44D048AD /* WLViedoPreview.h */,
-				D037EA0F541974AD3CB5451D /* WLViedoPreview.m */,
-			);
-			path = Custom;
-			sourceTree = "<group>";
-		};
 		0CA8C879FE529584724E7139 /* UI */ = {
 			isa = PBXGroup;
 			children = (
-				B9C4E9E1F578A65654F20E15 /* ControlPanel */,
 				DE1B7B18459323456E6BB76D /* Main */,
-				17999726620EF5BC3AD3F445 /* Scene */,
-				F6E1DD9D77F0A2F4B1692EB7 /* Setting */,
 			);
 			path = UI;
-			sourceTree = "<group>";
-		};
-		109292C740F4EA28442FE4F3 /* Pipeline */ = {
-			isa = PBXGroup;
-			children = (
-				FFA078C6A7F1E9DF55F8BF71 /* WLPipelineManager.h */,
-				61F1A40F0E252E6541C8B343 /* WLPipelineManager.m */,
-			);
-			path = Pipeline;
-			sourceTree = "<group>";
-		};
-		17999726620EF5BC3AD3F445 /* Scene */ = {
-			isa = PBXGroup;
-			children = (
-				7D484E729E677A203EB32089 /* WLSceneViewController.h */,
-				7124DFBBED4AE9CCB52C9930 /* WLSceneViewController.m */,
-			);
-			path = Scene;
 			sourceTree = "<group>";
 		};
 		1A0E65F317C1EB366FB3CFE0 /* MediaFile */ = {
@@ -312,6 +136,7 @@
 				331AF1AF137520AB2755997E /* WLMediaSource.m */,
 				A320B8591CAFA414A6E25CF6 /* WLMediaSourcePreview.h */,
 				520C6C2FBA18268ADFF56F8F /* WLMediaSourcePreview.m */,
+				FA20906C5A746903B1C22BBD /* WLMetalPreviewShaders.metal */,
 			);
 			path = MediaFile;
 			sourceTree = "<group>";
@@ -322,24 +147,12 @@
 				55F7C4F2ADE724A42EDE854B /* Audio */,
 				37F9C9175F5260081489D125 /* Common */,
 				B04EC366CB9F8EAD52B54F5E /* Core */,
-				780CA61B80A098E2F9ACA434 /* Filter */,
 				CBD37682E7D7C8BEF5325224 /* Mix */,
-				06CE7010CD523D5AC7CE157B /* Output */,
-				109292C740F4EA28442FE4F3 /* Pipeline */,
 				751FEAC9A2A34A21882BB78F /* Record */,
 				4BC73F50A411D4E96B3685EB /* Source */,
 				060FE8D6ABC7B00350D91FF8 /* UI */,
 			);
 			path = NewPlan;
-			sourceTree = "<group>";
-		};
-		35D0846A017CA346463F8FC5 /* Audio */ = {
-			isa = PBXGroup;
-			children = (
-				9A50F5C0BC0F6B060EB80565 /* WLAudioEncode.h */,
-				ED6AB0F621A41B8F1A63B1B6 /* WLAudioEncode.m */,
-			);
-			path = Audio;
 			sourceTree = "<group>";
 		};
 		37F9C9175F5260081489D125 /* Common */ = {
@@ -358,39 +171,6 @@
 			path = Common;
 			sourceTree = "<group>";
 		};
-		3A9F3F86C33AA684D307BD92 /* AudioPlayer */ = {
-			isa = PBXGroup;
-			children = (
-				812EC0A3C9B9987837D3036B /* WLAudioQueuePlayer.h */,
-				4FF18E4F1AC6E718EFC7CE30 /* WLAudioQueuePlayer.m */,
-			);
-			path = AudioPlayer;
-			sourceTree = "<group>";
-		};
-		444A9FAD4D8E183910C0CC12 /* Encodes */ = {
-			isa = PBXGroup;
-			children = (
-				35D0846A017CA346463F8FC5 /* Audio */,
-				DA0842A2316C06C16409453F /* Video */,
-			);
-			path = Encodes;
-			sourceTree = "<group>";
-		};
-		446AEE60869F707714E82471 /* Scene */ = {
-			isa = PBXGroup;
-			children = (
-				207842D15FE99D0148FC4A51 /* WLAudioMixer.h */,
-				950E5E9BA3820ABFD41ACC67 /* WLAudioMixer.m */,
-				E03E3DA8DC22EEED710C8FCC /* WLMediaSourceItem.h */,
-				94C66E64B4FE8A4EC733E1B5 /* WLMediaSourceItem.m */,
-				FF647AC0DCA5DECD1914FC68 /* WLSceneManager.h */,
-				B02DDDE4C364E96EC5E64D1A /* WLSceneManager.m */,
-				EAD2D3D706EAB79601F15136 /* WLSceneRenderer.h */,
-				0E42605D31D319A3F087BF66 /* WLSceneRenderer.m */,
-			);
-			path = Scene;
-			sourceTree = "<group>";
-		};
 		4BC73F50A411D4E96B3685EB /* Source */ = {
 			isa = PBXGroup;
 			children = (
@@ -401,21 +181,22 @@
 			path = Source;
 			sourceTree = "<group>";
 		};
-		4F4F8F42740892D0EA5D33E6 /* Event */ = {
+		4CF7EF30DEE29D950E80F587 /* Pods */ = {
 			isa = PBXGroup;
 			children = (
-				5426CC18159BF78EAED5B460 /* WLEvent.h */,
-				2D1150C241D6CDBA15F28AA1 /* WLEvent.m */,
-				F6CA735B4F636E3E4687E815 /* WLEventConst.h */,
-				B64B9D7466E751F20BFE8531 /* WLEventDisposeBag.h */,
-				60772EA5D780764DD882AAD6 /* WLEventDisposeBag.m */,
-				44C5E0BC4F36DC42B0B24D1B /* WLEventItem.h */,
-				6D716EC94BFD462BDC768E31 /* WLEventObserveItem.h */,
-				8C3D84DDB206C8214CB23113 /* WLEventObserveItem.m */,
-				2A625E43619EC6680328D797 /* WLEventSendItem.h */,
-				4B3FE4C439F28340DF6F2496 /* WLEventSendItem.m */,
+				F8B628CD0DFC5D2D9FD69148 /* Pods-WorkLabs.debug.xcconfig */,
+				B7F248C36A872D8B174DB977 /* Pods-WorkLabs.release.xcconfig */,
 			);
-			path = Event;
+			name = Pods;
+			path = Pods;
+			sourceTree = "<group>";
+		};
+		4F6B8AB2E6504F5CDC82F8E5 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				85429E067DCD55611147C150 /* Pods_WorkLabs.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 		4FD8F24B3AA635834653E17E /* WLUtils */ = {
@@ -423,9 +204,6 @@
 			children = (
 				2427A3A023F5014DE2A6755E /* NSArray+Function.h */,
 				F8EACF7F95848F5523DF2E95 /* NSArray+Function.m */,
-				E78BF05E56849F815B9F7031 /* NSObject+BaseDataType.h */,
-				00D6441EE7FC65B33292ED58 /* NSObject+BaseDataType.m */,
-				4F4F8F42740892D0EA5D33E6 /* Event */,
 				7D4A99E21563B6E417A41D18 /* UI */,
 			);
 			path = WLUtils;
@@ -449,54 +227,19 @@
 			path = Record;
 			sourceTree = "<group>";
 		};
-		780CA61B80A098E2F9ACA434 /* Filter */ = {
-			isa = PBXGroup;
-			children = (
-				25495FB1CA4C9D38FFAC7D28 /* WLVideoFilter.h */,
-				EF78BDF05DE976FAD800B06C /* WLVideoFilter.m */,
-			);
-			path = Filter;
-			sourceTree = "<group>";
-		};
 		7D4A99E21563B6E417A41D18 /* UI */ = {
 			isa = PBXGroup;
 			children = (
 				BEB53A6F203C297AE13FB34F /* Category */,
-				0B471DBF174E54858FD3EE72 /* Custom */,
 			);
 			path = UI;
-			sourceTree = "<group>";
-		};
-		8E261B7386E4747F9040E20F /* Resample */ = {
-			isa = PBXGroup;
-			children = (
-				A8FF8C74EDAF8D36C3D3602B /* WLAudioResample.h */,
-				B9D351AAA269926FE3E1E275 /* WLAudioResample.m */,
-			);
-			path = Resample;
-			sourceTree = "<group>";
-		};
-		9650048318E553FAA0A1B4C9 /* Core */ = {
-			isa = PBXGroup;
-			children = (
-				CCF2E75078F35939232C0FE5 /* Audio */,
-				444A9FAD4D8E183910C0CC12 /* Encodes */,
-				FE324DD7EE482C3CDF7EC045 /* PushStreams */,
-				B8B17E4E3E984B17EC7DAA4A /* Rendering */,
-				446AEE60869F707714E82471 /* Scene */,
-			);
-			path = Core;
 			sourceTree = "<group>";
 		};
 		990A468EB690E28750CB46F3 /* Video */ = {
 			isa = PBXGroup;
 			children = (
-				00B217A7E15C359EA248F532 /* TVUVideoManager.h */,
-				9CEDA4B7453F8DA0A25F1E88 /* TVUVideoManager.mm */,
 				0D7B7157ADAC9CA17347F2A6 /* WLDevicesManager.h */,
 				820FDE267A97F427FD8AF291 /* WLDevicesManager.m */,
-				D91D0D9851680B0AF4B8C964 /* WLVideoManager.h */,
-				A37A90229DBB5FB94FE808B6 /* WLVideoManager.m */,
 			);
 			path = Video;
 			sourceTree = "<group>";
@@ -512,42 +255,9 @@
 			path = Core;
 			sourceTree = "<group>";
 		};
-		B8B17E4E3E984B17EC7DAA4A /* Rendering */ = {
-			isa = PBXGroup;
-			children = (
-				2341DCD7ECDB0AB95F9CAE79 /* WLMetalPreview.h */,
-				6F3759E1AEA7A94605797FCC /* WLMetalPreview.m */,
-				4D5CAC36CE871AA01AF69793 /* WLMetalPreviewShaders.metal */,
-				E5D05BA85D241E02D1BA07DC /* WLRenderingManager.h */,
-				6ED67BFC0CBD6874BFB47FF9 /* WLRenderingManager.m */,
-			);
-			path = Rendering;
-			sourceTree = "<group>";
-		};
-		B9C4E9E1F578A65654F20E15 /* ControlPanel */ = {
-			isa = PBXGroup;
-			children = (
-				9D0FFEA3C13AF83CE6F62A35 /* WLAudioMixerPanel.h */,
-				B59CB037C0D0C5078E7F1A8B /* WLAudioMixerPanel.m */,
-				4E9F9034D380EDCBCFE632C6 /* WLControlsPanel.h */,
-				EFBDBA6C8A27565A92C103CD /* WLControlsPanel.m */,
-				A0CD7989B9E16A43BED57785 /* WLMenuPanelViewController.h */,
-				B03C0FE4C0D3D814FD380518 /* WLMenuPanelViewController.m */,
-				4D869D0193FCE844C24DD16F /* WLPanelViewController.h */,
-				C839259DF06B1CD83B042F6C /* WLPanelViewController.m */,
-				516CEF878046C4C77DC0FF0C /* WLSourcePanel.h */,
-				253897D72A66A7D7EE2DE997 /* WLSourcePanel.m */,
-				3729B1298ADECF2495D947EE /* WLToolbarButton.h */,
-				65C135321B15149DCCF35C93 /* WLToolbarButton.m */,
-			);
-			path = ControlPanel;
-			sourceTree = "<group>";
-		};
 		BEB53A6F203C297AE13FB34F /* Category */ = {
 			isa = PBXGroup;
 			children = (
-				09C875A4B26100762103915E /* NSView+BackgroundColor.h */,
-				553038B9826D0B14D00B3017 /* NSView+BackgroundColor.m */,
 				4AC3962AE27C09081C2E80BB /* NSWindow+WLExtend.h */,
 				DF6FAED1DF7D6C9CB9F6CBDA /* NSWindow+WLExtend.m */,
 			);
@@ -561,40 +271,6 @@
 				A5DC2320A07002582B94EC48 /* WLVideoMix.m */,
 			);
 			path = Mix;
-			sourceTree = "<group>";
-		};
-		CCF2E75078F35939232C0FE5 /* Audio */ = {
-			isa = PBXGroup;
-			children = (
-				D84C3D0BCBDA9E9264F826D5 /* TVUAudioManager.h */,
-				CE96ED7115C3D773975DDBC0 /* TVUAudioManager.m */,
-				EBD23710D8F73AB0886E5C5C /* WLAudioBuffer.h */,
-				0D7B0AD05271C9D3EDB6C9A4 /* WLAudioBuffer.m */,
-				EB26963489FD2B0A2B819226 /* WLAudioPlayer.h */,
-				7AA117C1F29F0B315B11B02F /* WLAudioPlayer.m */,
-				654E7B9A26887412D86723FA /* WLResample.h */,
-				27EBCD171549EE814F009B05 /* WLResample.m */,
-				3A9F3F86C33AA684D307BD92 /* AudioPlayer */,
-				8E261B7386E4747F9040E20F /* Resample */,
-			);
-			path = Audio;
-			sourceTree = "<group>";
-		};
-		D8358C854F7DC20E90A733F4 /* Frameworks */ = {
-			isa = PBXGroup;
-			children = (
-				77C399CD96FDCE4133398D56 /* Pods_WorkLabs.framework */,
-			);
-			name = Frameworks;
-			sourceTree = "<group>";
-		};
-		DA0842A2316C06C16409453F /* Video */ = {
-			isa = PBXGroup;
-			children = (
-				C277376F0C9AE51436CBA6EB /* WLVideoEncode.h */,
-				5FEFDDB3668DC28C2FE54A6D /* WLVideoEncode.m */,
-			);
-			path = Video;
 			sourceTree = "<group>";
 		};
 		DE1B7B18459323456E6BB76D /* Main */ = {
@@ -616,10 +292,7 @@
 				3296CA5B80F52879A94FC9DE /* Assets.xcassets */,
 				7A3144393DFB1359AB279E58 /* Info.plist */,
 				2828F0090D835F4C00373969 /* main.m */,
-				4C3330464E650978808EC9C3 /* WLVideoSelectView.h */,
-				8EF0AF63103560856772EBAB /* WLVideoSelectView.m */,
 				B2CD55CCCF4F2FC8AE095852 /* WorkLabs.entitlements */,
-				9650048318E553FAA0A1B4C9 /* Core */,
 				8483BA89D3B818305C35E345 /* Main.storyboard */,
 				1D08E2B2F589F7118B3A4E85 /* NewPlan */,
 				0CA8C879FE529584724E7139 /* UI */,
@@ -627,23 +300,6 @@
 				4FD8F24B3AA635834653E17E /* WLUtils */,
 			);
 			path = WorkLabs;
-			sourceTree = "<group>";
-		};
-		F6E1DD9D77F0A2F4B1692EB7 /* Setting */ = {
-			isa = PBXGroup;
-			children = (
-				623944DFCA9D4135C211FF50 /* WLCameraSourceSettingView.h */,
-				5A559146E22CFABF3D82B608 /* WLCameraSourceSettingView.m */,
-				76B06F7E9A551C9A299DEFA7 /* WLMediaSourceSettingView.h */,
-				3742F80B34D71090F1007BE0 /* WLMediaSourceSettingView.m */,
-				2CABC321FBA7A562377051C9 /* WLSettingViewController.h */,
-				F84096EA5F226219AE6E3422 /* WLSettingViewController.m */,
-				D0A75A87FD57179AF7508DD4 /* WLVideoDeviceSettingView.h */,
-				F4D14A23A9725A05F19AE3DD /* WLVideoDeviceSettingView.m */,
-				0C584C1DEC6E5A285CD9367A /* WLVideoDeviceSettingWindowController.h */,
-				57809D3079BDCE5FF198B1AC /* WLVideoDeviceSettingWindowController.m */,
-			);
-			path = Setting;
 			sourceTree = "<group>";
 		};
 		FCB8133173E40FE384D891C4 /* Camera */ = {
@@ -662,18 +318,9 @@
 			children = (
 				E28C67C5CBC9697C1354A2BC /* WorkLabs */,
 				093C4FFA6512177D8ECA88B6 /* Products */,
-				0B0C3ED3B017137FD2C17FCC /* Pods */,
-				D8358C854F7DC20E90A733F4 /* Frameworks */,
+				4CF7EF30DEE29D950E80F587 /* Pods */,
+				4F6B8AB2E6504F5CDC82F8E5 /* Frameworks */,
 			);
-			sourceTree = "<group>";
-		};
-		FE324DD7EE482C3CDF7EC045 /* PushStreams */ = {
-			isa = PBXGroup;
-			children = (
-				2F24C5A09AEC321FAEC73DB0 /* WLPushStreamsManager.h */,
-				639EFEEC449C9785B87AEA63 /* WLPushStreamsManager.m */,
-			);
-			path = PushStreams;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -683,11 +330,11 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 94F8D28D7A68668A7F766FF1 /* Build configuration list for PBXNativeTarget "WorkLabs" */;
 			buildPhases = (
-				AB1FA47054E50D536F4FD869 /* [CP] Check Pods Manifest.lock */,
+				0E0D5875D0D55AD6AEE6FDE4 /* [CP] Check Pods Manifest.lock */,
 				E7509A0D30250B5EDBDBB1DC /* Sources */,
 				1140D55651F1ACCA751C05FE /* Resources */,
-				F7AFA5B80A620D0394C406FC /* Frameworks */,
-				575ECA9D404365B7FD0DDAD2 /* [CP] Embed Pods Frameworks */,
+				289CFAC3B6FB02AAEE7DF12F /* Frameworks */,
+				7D51C607D61D9F075AE8E6E6 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -745,24 +392,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		575ECA9D404365B7FD0DDAD2 /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-WorkLabs/Pods-WorkLabs-frameworks-${CONFIGURATION}-input-files.xcfilelist",
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-WorkLabs/Pods-WorkLabs-frameworks-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-WorkLabs/Pods-WorkLabs-frameworks.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
-		AB1FA47054E50D536F4FD869 /* [CP] Check Pods Manifest.lock */ = {
+		0E0D5875D0D55AD6AEE6FDE4 /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -784,6 +414,23 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
+		7D51C607D61D9F075AE8E6E6 /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-WorkLabs/Pods-WorkLabs-frameworks-${CONFIGURATION}-input-files.xcfilelist",
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-WorkLabs/Pods-WorkLabs-frameworks-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-WorkLabs/Pods-WorkLabs-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -793,65 +440,24 @@
 			files = (
 				C95432CCFD4EECDCB62AFC5B /* AppDelegate.m in Sources */,
 				C53F6BB5386F2A522781B283 /* NSArray+Function.m in Sources */,
-				6DBA91C64FB42612C6D45E13 /* NSObject+BaseDataType.m in Sources */,
-				0A472FF07E116728F7C098CA /* NSView+BackgroundColor.m in Sources */,
 				C24ED5D6DE7FFD132062F4CE /* NSWindow+WLExtend.m in Sources */,
-				1ED3CDE9EB5BA6D939149782 /* TVUAudioManager.m in Sources */,
-				3B6B98B2A7E7941A366F756D /* TVUVideoManager.mm in Sources */,
-				75C9BA3A85D90FCCECE306CF /* WLAudioBuffer.m in Sources */,
-				9F55973A7F91F68550B12A9A /* WLAudioEncode.m in Sources */,
-				EEC6DDC5AF1336556956FE94 /* WLAudioMixer.m in Sources */,
-				50A31413A9F44C60A221FD5A /* WLAudioMixerPanel.m in Sources */,
-				C659ED90402EA8C585F50A93 /* WLAudioOutput.m in Sources */,
-				18270C3C89931CD6D45ACBD5 /* WLAudioPlayer.m in Sources */,
-				9926D371132D7AF85BA9056B /* WLAudioQueuePlayer.m in Sources */,
 				17175DE86A9D1C0A04873C2E /* WLAudioRenderer.m in Sources */,
-				07C68F9247E14362FF5A334F /* WLAudioResample.m in Sources */,
 				D84120096ACEA9A5CC2A2DFA /* WLCameraSource.m in Sources */,
 				A26D26246662B63A5B126D3A /* WLCameraSourceConfig.m in Sources */,
-				B6B81D881ABFCDB5701B5C51 /* WLCameraSourceSettingView.m in Sources */,
 				5EDDF40BE193B19B473A30F1 /* WLCanvasModel.m in Sources */,
-				AAF854E443DAE72EE4A4871D /* WLControlsPanel.m in Sources */,
 				A944D2EFDE9B8326B790AC62 /* WLDevicesManager.m in Sources */,
-				43639EF5ED1D9E5CBB43472C /* WLEvent.m in Sources */,
-				DAAD48D44C9BB91EC6D8FAA2 /* WLEventDisposeBag.m in Sources */,
-				2BC5C571622038150A9FF78B /* WLEventObserveItem.m in Sources */,
-				C697A49943FDDB2D2237F007 /* WLEventSendItem.m in Sources */,
 				E689C437E12E2F96C6BA9A4D /* WLMainViewController.m in Sources */,
 				D77B636AD1EE51B974D45161 /* WLMainWindowController.m in Sources */,
 				28C19EE3691DEFD5234649CB /* WLMediaSource.m in Sources */,
-				7F1F9E4F386BBEAC3139A917 /* WLMediaSourceItem.m in Sources */,
 				9F815F2971C0BFF7CB4BD025 /* WLMediaSourcePreview.m in Sources */,
-				76325885FEF49FC0E969AFE3 /* WLMediaSourceSettingView.m in Sources */,
-				5E9F198C00C0FAB206B32623 /* WLMenuPanelViewController.m in Sources */,
-				8067F1B90E2C6485D4E29EC3 /* WLMetalPreview.m in Sources */,
-				76A97E8E1428C931BF335A38 /* WLMetalPreviewShaders.metal in Sources */,
+				BD2EBA9718315DC01E9822CF /* WLMetalPreviewShaders.metal in Sources */,
 				8E9A4AB66228CB299758160A /* WLNode.m in Sources */,
 				289184189AAB05E6664A42A2 /* WLNodeQueue.m in Sources */,
-				027B6308C2D8CE91DB3EC805 /* WLPanelViewController.m in Sources */,
-				D799EE303683485FFCDC2F95 /* WLPipelineManager.m in Sources */,
-				11DD7AB098E4F9A15DC9846B /* WLPreviewOutput.m in Sources */,
-				EFB02AF4FC16CD450B3DBAB7 /* WLPushStreamsManager.m in Sources */,
 				5F547ADC2871CF398F96D08C /* WLRecorder.m in Sources */,
-				0C2093BDFF15F6215A897C6D /* WLRenderingManager.m in Sources */,
-				C22AA6ED71A8B2CFB838BEC1 /* WLResample.m in Sources */,
-				13075A9BBCE2123E78066826 /* WLSceneManager.m in Sources */,
-				B11A60F1B0B8606545A96AEF /* WLSceneRenderer.m in Sources */,
-				6FD3F67B1EFF7D2A382758C4 /* WLSceneViewController.m in Sources */,
-				11CD9BAAEFFA46F76FCBDF8B /* WLSettingViewController.m in Sources */,
-				479AAAD277D6F94ABCCA2117 /* WLSourcePanel.m in Sources */,
 				5D5DB6C1077B3282B80D462E /* WLStreamPreview.m in Sources */,
 				6831E201AB2F45B7D2C12903 /* WLStreamViewController.m in Sources */,
 				46EA0E2AB82A6F95A51794FE /* WLStreamsManager.m in Sources */,
-				E366423895AE8C0DC110C434 /* WLToolbarButton.m in Sources */,
-				48E90ABD820A9DD7369B8D0E /* WLVideoDeviceSettingView.m in Sources */,
-				C93F8171B646972C817E5DF7 /* WLVideoDeviceSettingWindowController.m in Sources */,
-				A4AC3B4593EE4553027F9A84 /* WLVideoEncode.m in Sources */,
-				3B3984BEEA553685EB91B776 /* WLVideoFilter.m in Sources */,
-				EA61FBB070E9F756E48ED06B /* WLVideoManager.m in Sources */,
 				69E983AB5E81E097D0B436E0 /* WLVideoMix.m in Sources */,
-				28D1EB53C61D96C8B93EB6C0 /* WLVideoSelectView.m in Sources */,
-				B9B10C7B7BFD5383DF164A37 /* WLViedoPreview.m in Sources */,
 				2FAC99BAE24732448DC8E55F /* main.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -872,7 +478,7 @@
 /* Begin XCBuildConfiguration section */
 		2BF1582C4698BE3FAEBB2EBA /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 1A43AD34B88C993501E3D8B0 /* Pods-WorkLabs.debug.xcconfig */;
+			baseConfigurationReference = F8B628CD0DFC5D2D9FD69148 /* Pods-WorkLabs.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = WorkLabs/WorkLabs.entitlements;
@@ -955,7 +561,7 @@
 		};
 		978D8EA31D393FEBBE6C16BA /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = BB7654B365956CDAB0A258C7 /* Pods-WorkLabs.release.xcconfig */;
+			baseConfigurationReference = B7F248C36A872D8B174DB977 /* Pods-WorkLabs.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = WorkLabs/WorkLabs.entitlements;
