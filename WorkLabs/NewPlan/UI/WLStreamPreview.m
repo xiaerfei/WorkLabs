@@ -247,6 +247,8 @@ typedef NS_ENUM(NSInteger, WLHandle) {
     [[menu addItemWithTitle:@"上移一层" action:@selector(zOrderUp:)    keyEquivalent:@""] setTarget:self];
     [[menu addItemWithTitle:@"下移一层" action:@selector(zOrderDown:)  keyEquivalent:@""] setTarget:self];
     [[menu addItemWithTitle:@"置底"     action:@selector(zOrderBack:)  keyEquivalent:@""] setTarget:self];
+    [menu addItem:[NSMenuItem separatorItem]];
+    [[menu addItemWithTitle:@"取消选中" action:@selector(deselect:)    keyEquivalent:@""] setTarget:self];
     [NSMenu popUpContextMenu:menu withEvent:event forView:self];
 }
 
@@ -258,6 +260,12 @@ typedef NS_ENUM(NSInteger, WLHandle) {
 - (void)emitZOrderAction:(WLZOrderAction)action {
     if ([self.delegate respondsToSelector:@selector(rendering:didRequestZOrderAction:)]) {
         [self.delegate rendering:self didRequestZOrderAction:action];
+    }
+}
+
+- (void)deselect:(id)sender {
+    if ([self.delegate respondsToSelector:@selector(renderingDidRequestDeselect:)]) {
+        [self.delegate renderingDidRequestDeselect:self];
     }
 }
 

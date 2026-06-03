@@ -27,6 +27,8 @@ typedef NS_ENUM(NSInteger, WLZOrderAction) {
 - (void)renderingDidRequestSelect:(id<WLStreamRenderingProtocol>)rendering;
 // 浮层右键请求调整层级（z-order）
 - (void)rendering:(id<WLStreamRenderingProtocol>)rendering didRequestZOrderAction:(WLZOrderAction)action;
+// 浮层右键请求取消选中（画布被浮层占满、无空白处可点时的兜底）
+- (void)renderingDidRequestDeselect:(id<WLStreamRenderingProtocol>)rendering;
 @end
 
 @protocol WLStreamRenderingProtocol <WLVideoOutputProtocol>

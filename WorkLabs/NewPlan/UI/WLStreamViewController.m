@@ -392,6 +392,10 @@ static const CGFloat kIconBgAlpha = 0.05;
     }
 }
 
+- (void)renderingDidRequestDeselect:(id<WLStreamRenderingProtocol>)rendering {
+    [self deselectAllPreviews];
+}
+
 - (void)rendering:(id<WLStreamRenderingProtocol>)rendering
     didRequestZOrderAction:(WLZOrderAction)action {
     if (![rendering isKindOfClass:[WLStreamPreview class]]) return;
