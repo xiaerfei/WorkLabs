@@ -256,6 +256,7 @@
     didOutputAudioBuffer:(CMSampleBufferRef)sampleBuffer {
     if (!sampleBuffer) return;
     [self.audioRenderer enqueueSampleBuffer:sampleBuffer];
+    if (self.audioBufferOutput) self.audioBufferOutput(sampleBuffer); // 借用语义，录制器内部自行 CFRetain
     CFRelease(sampleBuffer);
 }
 

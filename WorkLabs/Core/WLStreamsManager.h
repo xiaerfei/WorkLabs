@@ -27,6 +27,10 @@ NS_ASSUME_NONNULL_BEGIN
 // 所有权遵循 Create Rule：block 收到的 pixelBuffer 所有权转移给 block，需自行 CVPixelBufferRelease。
 @property (nonatomic, copy, nullable) void (^mixedFrameOutput)(CVPixelBufferRef pixelBuffer, Float64 pts);
 
+// 音频输出（本阶段用于录制）。block 收到的 sampleBuffer 仅在调用期间有效（"借用"语义）；
+// 需要持有（如异步编码）请自行 CFRetain / CFRelease。
+@property (nonatomic, copy, nullable) void (^audioBufferOutput)(CMSampleBufferRef sampleBuffer);
+
 #pragma mark - Source
 
 // 注册 Source，并指定其预览输出（如 WLStreamPreview，nil 表示不需要预览）。返回该路的 streamID。

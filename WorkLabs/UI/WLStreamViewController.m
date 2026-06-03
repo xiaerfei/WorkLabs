@@ -563,9 +563,18 @@ static const CGFloat kIconBgAlpha = 0.05;
     return _recorder;
 }
 
+// 当前场景是否有会输出音频的源（目前仅媒体文件源产音频；摄像头无音频）
+- (BOOL)hasAudioCapableSource {
+    for (id<WLStreamSourceProtocol> s in self.sidToSource.allValues) {
+        if ([s isKindOfClass:[WLMediaSource class]]) return YES;
+    }
+    return NO;
+}
+
 - (void)recordClicked:(id)sender {
     if (self.recorder.isRecording) {
         [self.recorder stopRecording];
+        self.manager.audioBufferOutput = nil;   // 停止音频转发
         NSString *path = self.currentRecordPath;
         self.currentRecordPath = nil;
         NSLog(@"[WLStreamViewController] 录制已停止: %@", path);
@@ -590,12 +599,20 @@ static const CGFloat kIconBgAlpha = 0.05;
     [panel beginWithCompletionHandler:^(NSModalResponse result) {
         if (result != NSModalResponseOK || !panel.URL) return;
         NSError *err = nil;
+        BOOL audioEnabled = [wself hasAudioCapableSource];
         if ([wself.recorder startRecordingToPath:panel.URL.path
                                        videoSize:wself.canvas.canvasSize
                                              fps:30
+                                    audioEnabled:audioEnabled
                                            error:&err]) {
             wself.currentRecordPath = panel.URL.path;
-            NSLog(@"[WLStreamViewController] 开始录制 → %@", panel.URL.path);
+            if (audioEnabled) {
+                // 把源音频转发给录制器（弱引用避免 manager→block→controller 循环）
+                wself.manager.audioBufferOutput = ^(CMSampleBufferRef sb) {
+                    [wself.recorder appendAudioSampleBuffer:sb];
+                };
+            }
+            NSLog(@"[WLStreamViewController] 开始录制 → %@ (audio=%d)", panel.URL.path, audioEnabled);
         } else {
             NSAlert *alert = [[NSAlert alloc] init];
             alert.messageText = @"无法开始录制";

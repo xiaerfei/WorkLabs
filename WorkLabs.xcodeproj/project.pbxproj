@@ -137,7 +137,6 @@
 				0F988AA596D10886C5351FF2 /* Pods-WorkLabs.debug.xcconfig */,
 				A107D9B70D01F1CDAED28466 /* Pods-WorkLabs.release.xcconfig */,
 			);
-			name = Pods;
 			path = Pods;
 			sourceTree = "<group>";
 		};
@@ -228,10 +227,10 @@
 				3296CA5B80F52879A94FC9DE /* Assets.xcassets */,
 				7A3144393DFB1359AB279E58 /* Info.plist */,
 				B2CD55CCCF4F2FC8AE095852 /* WorkLabs.entitlements */,
+				8483BA89D3B818305C35E345 /* Main.storyboard */,
 				CDBD7C9651520930ABA55043 /* App */,
 				F04A9BAC795ADFE86650DC2F /* Common */,
 				9650048318E553FAA0A1B4C9 /* Core */,
-				8483BA89D3B818305C35E345 /* Main.storyboard */,
 				9321E02ACD4EFD3086BD86B9 /* Mix */,
 				7362E0D89040C6B870E37954 /* Output */,
 				2DEB679500593F7D2B60A71F /* Source */,
@@ -374,9 +373,13 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-WorkLabs/Pods-WorkLabs-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
+			inputPaths = (
+			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-WorkLabs/Pods-WorkLabs-frameworks-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
