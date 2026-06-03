@@ -12,6 +12,7 @@
 		19FC4BAE98EBD68C233B96D9 /* WLMediaSourcePreview.m in Sources */ = {isa = PBXBuildFile; fileRef = 3060F716711D0F343A764A07 /* WLMediaSourcePreview.m */; };
 		1EDE9A5A50021A24205E72AF /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 6687D982E54AA0A9AFB74DA1 /* AppDelegate.m */; };
 		1FCEC86133D897A527726E3E /* WLCameraSourceConfig.m in Sources */ = {isa = PBXBuildFile; fileRef = 2990189613433349BF5D9E49 /* WLCameraSourceConfig.m */; };
+		3658B30BA03DB209528B6C7F /* WLMicSource.m in Sources */ = {isa = PBXBuildFile; fileRef = 933FD167FBD519DD47D7CFC6 /* WLMicSource.m */; };
 		5800ECDFD90F61706AD4D73C /* WLMetalPreviewShaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = 6E0C0390E0562E463DD10A7A /* WLMetalPreviewShaders.metal */; };
 		5DD3D69AA431AFE55C89FBFB /* WLAudioRenderer.m in Sources */ = {isa = PBXBuildFile; fileRef = F85B234D12E0ADFB5217BD61 /* WLAudioRenderer.m */; };
 		6578EBA9E7209EA1602D1F38 /* WLNode.m in Sources */ = {isa = PBXBuildFile; fileRef = 9C076F2810D454E278305B80 /* WLNode.m */; };
@@ -21,8 +22,9 @@
 		83422953C687BFDD3870B64C /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 40EF5768287E39DCC9C954A4 /* main.m */; };
 		8A098AF48E00842343C4C80E /* WLStreamsManager.m in Sources */ = {isa = PBXBuildFile; fileRef = C7B9978A9402D5EB5789363D /* WLStreamsManager.m */; };
 		8FAB3964ABDBAE8ADB3B922F /* WLCanvasModel.m in Sources */ = {isa = PBXBuildFile; fileRef = 368D3064727AA75ABEE58A35 /* WLCanvasModel.m */; };
-		9A7FE84B667D23A2BFBB8221 /* Pods_WorkLabs.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6FF77F18D78FAA0DF4AB9C6F /* Pods_WorkLabs.framework */; };
 		A1E9DCBDE9A745AC7630A5DA /* WLRecorder.m in Sources */ = {isa = PBXBuildFile; fileRef = C7FFCAD4BEE1E3C1BB535861 /* WLRecorder.m */; };
+		A84F4517D6880253CE92A05C /* Pods_WorkLabs.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D43944B22DB2907AC3FF4C22 /* Pods_WorkLabs.framework */; };
+		B76288D93E2D4AF7087224D4 /* WLAudioMixer.m in Sources */ = {isa = PBXBuildFile; fileRef = E36B76EA6A859322B073F306 /* WLAudioMixer.m */; };
 		C15A157A485262CFE2E85D72 /* WLDevicesManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 0F105B44A1B5566F3B6FAA35 /* WLDevicesManager.m */; };
 		C715DD4DA09E8EC6B925955E /* WLNodeQueue.m in Sources */ = {isa = PBXBuildFile; fileRef = E8885EF5E300C6044873B63E /* WLNodeQueue.m */; };
 		C7C616089E7E4F144B41364A /* WLMediaSource.m in Sources */ = {isa = PBXBuildFile; fileRef = 9E9B724BEB3BF77255F65D09 /* WLMediaSource.m */; };
@@ -38,7 +40,7 @@
 		076A73E197B05052FC2F674B /* WLRecorder.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLRecorder.h; sourceTree = "<group>"; };
 		0B5F52870C702052A7D9B449 /* WLMainViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLMainViewController.m; sourceTree = "<group>"; };
 		0F105B44A1B5566F3B6FAA35 /* WLDevicesManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLDevicesManager.m; sourceTree = "<group>"; };
-		0F988AA596D10886C5351FF2 /* Pods-WorkLabs.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-WorkLabs.debug.xcconfig"; path = "Target Support Files/Pods-WorkLabs/Pods-WorkLabs.debug.xcconfig"; sourceTree = "<group>"; };
+		13CE2CE77EE563C7B3D7D938 /* WLAudioMixer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLAudioMixer.h; sourceTree = "<group>"; };
 		1BCB486AE18FB8BA2FFC0F14 /* WLMainWindowController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLMainWindowController.m; sourceTree = "<group>"; };
 		24765B259C828200E49AD5DC /* WLMainWindowController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLMainWindowController.h; sourceTree = "<group>"; };
 		2990189613433349BF5D9E49 /* WLCameraSourceConfig.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLCameraSourceConfig.m; sourceTree = "<group>"; };
@@ -57,21 +59,22 @@
 		549FCBC79BC0F91CFC0A6001 /* NSWindow+WLExtend.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "NSWindow+WLExtend.h"; sourceTree = "<group>"; };
 		5C3049E0F556732D584DD37E /* WLMediaSource.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLMediaSource.h; sourceTree = "<group>"; };
 		5D4FC22B3F1EA09FFD205BD0 /* WorkLabs.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WorkLabs.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		659E01762A450B93FECEC0BE /* WLMicSource.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLMicSource.h; sourceTree = "<group>"; };
 		6687D982E54AA0A9AFB74DA1 /* AppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
 		6DA2A6AD066C00711618375E /* WLSourceProtocol.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLSourceProtocol.h; sourceTree = "<group>"; };
 		6E0C0390E0562E463DD10A7A /* WLMetalPreviewShaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = WLMetalPreviewShaders.metal; sourceTree = "<group>"; };
-		6FF77F18D78FAA0DF4AB9C6F /* Pods_WorkLabs.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_WorkLabs.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		7A3144393DFB1359AB279E58 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		7FCB7B379ABF38F0C259A3BB /* WLCanvasModel.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLCanvasModel.h; sourceTree = "<group>"; };
 		82FB3D82FB8831A314232582 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		8B1BD84EB742E8928519AFF4 /* WLMainViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLMainViewController.h; sourceTree = "<group>"; };
+		933FD167FBD519DD47D7CFC6 /* WLMicSource.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLMicSource.m; sourceTree = "<group>"; };
 		9686FA452EBF4EF2BE41DA69 /* WLVideoMix.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLVideoMix.h; sourceTree = "<group>"; };
 		9C076F2810D454E278305B80 /* WLNode.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLNode.m; sourceTree = "<group>"; };
 		9E9B724BEB3BF77255F65D09 /* WLMediaSource.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLMediaSource.m; sourceTree = "<group>"; };
-		A107D9B70D01F1CDAED28466 /* Pods-WorkLabs.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-WorkLabs.release.xcconfig"; path = "Target Support Files/Pods-WorkLabs/Pods-WorkLabs.release.xcconfig"; sourceTree = "<group>"; };
 		A2842A4EDAB1798D4A37B40B /* WLVideoMix.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLVideoMix.m; sourceTree = "<group>"; };
 		A6CB637C74ECE6289E4CD989 /* NSArray+Function.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "NSArray+Function.h"; sourceTree = "<group>"; };
 		AC32594E0ED93F6B3CB0E9CC /* WLStreamViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLStreamViewController.m; sourceTree = "<group>"; };
+		AE3CE6A151365FB4CEC2C20D /* Pods-WorkLabs.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-WorkLabs.debug.xcconfig"; path = "Target Support Files/Pods-WorkLabs/Pods-WorkLabs.debug.xcconfig"; sourceTree = "<group>"; };
 		B2CD55CCCF4F2FC8AE095852 /* WorkLabs.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = WorkLabs.entitlements; sourceTree = "<group>"; };
 		B4C30FD261F599C3B69CD20A /* WLNodeQueue.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLNodeQueue.h; sourceTree = "<group>"; };
 		BECBE273F175BD0883EC9555 /* WLStreamPreview.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLStreamPreview.h; sourceTree = "<group>"; };
@@ -79,9 +82,12 @@
 		C490FD323E9A1C09C9248F9B /* WLStreamFilterProtocol.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLStreamFilterProtocol.h; sourceTree = "<group>"; };
 		C7B9978A9402D5EB5789363D /* WLStreamsManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLStreamsManager.m; sourceTree = "<group>"; };
 		C7FFCAD4BEE1E3C1BB535861 /* WLRecorder.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLRecorder.m; sourceTree = "<group>"; };
+		C83452765A6E73998CBB9DBF /* Pods-WorkLabs.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-WorkLabs.release.xcconfig"; path = "Target Support Files/Pods-WorkLabs/Pods-WorkLabs.release.xcconfig"; sourceTree = "<group>"; };
 		CCA67D2A34EE4B97CC057E07 /* WLCameraSource.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLCameraSource.h; sourceTree = "<group>"; };
+		D43944B22DB2907AC3FF4C22 /* Pods_WorkLabs.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_WorkLabs.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		DBFE66F9362E4699D66C96FE /* WLNode.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLNode.h; sourceTree = "<group>"; };
 		DFF6C5465008DF598326461C /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
+		E36B76EA6A859322B073F306 /* WLAudioMixer.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLAudioMixer.m; sourceTree = "<group>"; };
 		E3D31F56EBBBC69DDD1ED06B /* WLStreamsManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WLStreamsManager.h; sourceTree = "<group>"; };
 		E86D089117FF75AD8B112F49 /* WLCameraSource.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLCameraSource.m; sourceTree = "<group>"; };
 		E8885EF5E300C6044873B63E /* WLNodeQueue.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WLNodeQueue.m; sourceTree = "<group>"; };
@@ -91,11 +97,11 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		FCB8ADAB7A7A5EAC7059D4C4 /* Frameworks */ = {
+		BCC227A4A55106083F5AF6B4 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				9A7FE84B667D23A2BFBB8221 /* Pods_WorkLabs.framework in Frameworks */,
+				A84F4517D6880253CE92A05C /* Pods_WorkLabs.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -121,22 +127,32 @@
 			path = UI;
 			sourceTree = "<group>";
 		};
+		2BC58B8555E4504AE777EADF /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				D43944B22DB2907AC3FF4C22 /* Pods_WorkLabs.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		2DEB679500593F7D2B60A71F /* Source */ = {
 			isa = PBXGroup;
 			children = (
 				6DA2A6AD066C00711618375E /* WLSourceProtocol.h */,
 				DD126C608627F7D3482E7382 /* Camera */,
 				A66EEB24A1AE39A6F59D851B /* MediaFile */,
+				C853F8AAC43E2EDC3D3FEAC6 /* Mic */,
 			);
 			path = Source;
 			sourceTree = "<group>";
 		};
-		2F5932313C0E7F85F568A01D /* Pods */ = {
+		2F4A855F9BFF2C57852B9BDE /* Pods */ = {
 			isa = PBXGroup;
 			children = (
-				0F988AA596D10886C5351FF2 /* Pods-WorkLabs.debug.xcconfig */,
-				A107D9B70D01F1CDAED28466 /* Pods-WorkLabs.release.xcconfig */,
+				AE3CE6A151365FB4CEC2C20D /* Pods-WorkLabs.debug.xcconfig */,
+				C83452765A6E73998CBB9DBF /* Pods-WorkLabs.release.xcconfig */,
 			);
+			name = Pods;
 			path = Pods;
 			sourceTree = "<group>";
 		};
@@ -154,6 +170,8 @@
 		7362E0D89040C6B870E37954 /* Output */ = {
 			isa = PBXGroup;
 			children = (
+				13CE2CE77EE563C7B3D7D938 /* WLAudioMixer.h */,
+				E36B76EA6A859322B073F306 /* WLAudioMixer.m */,
 				40FF6A01E6FCF3C69E112061 /* WLAudioRenderer.h */,
 				F85B234D12E0ADFB5217BD61 /* WLAudioRenderer.m */,
 				076A73E197B05052FC2F674B /* WLRecorder.h */,
@@ -194,6 +212,15 @@
 			path = MediaFile;
 			sourceTree = "<group>";
 		};
+		C853F8AAC43E2EDC3D3FEAC6 /* Mic */ = {
+			isa = PBXGroup;
+			children = (
+				659E01762A450B93FECEC0BE /* WLMicSource.h */,
+				933FD167FBD519DD47D7CFC6 /* WLMicSource.m */,
+			);
+			path = Mic;
+			sourceTree = "<group>";
+		};
 		CDBD7C9651520930ABA55043 /* App */ = {
 			isa = PBXGroup;
 			children = (
@@ -227,10 +254,10 @@
 				3296CA5B80F52879A94FC9DE /* Assets.xcassets */,
 				7A3144393DFB1359AB279E58 /* Info.plist */,
 				B2CD55CCCF4F2FC8AE095852 /* WorkLabs.entitlements */,
-				8483BA89D3B818305C35E345 /* Main.storyboard */,
 				CDBD7C9651520930ABA55043 /* App */,
 				F04A9BAC795ADFE86650DC2F /* Common */,
 				9650048318E553FAA0A1B4C9 /* Core */,
+				8483BA89D3B818305C35E345 /* Main.storyboard */,
 				9321E02ACD4EFD3086BD86B9 /* Mix */,
 				7362E0D89040C6B870E37954 /* Output */,
 				2DEB679500593F7D2B60A71F /* Source */,
@@ -256,21 +283,13 @@
 			path = Common;
 			sourceTree = "<group>";
 		};
-		F8BE647860C97903022ECCE6 /* Frameworks */ = {
-			isa = PBXGroup;
-			children = (
-				6FF77F18D78FAA0DF4AB9C6F /* Pods_WorkLabs.framework */,
-			);
-			name = Frameworks;
-			sourceTree = "<group>";
-		};
 		FDABD3663FD6AAFA8A3A1A39 = {
 			isa = PBXGroup;
 			children = (
 				E28C67C5CBC9697C1354A2BC /* WorkLabs */,
 				093C4FFA6512177D8ECA88B6 /* Products */,
-				2F5932313C0E7F85F568A01D /* Pods */,
-				F8BE647860C97903022ECCE6 /* Frameworks */,
+				2F4A855F9BFF2C57852B9BDE /* Pods */,
+				2BC58B8555E4504AE777EADF /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -281,11 +300,11 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 94F8D28D7A68668A7F766FF1 /* Build configuration list for PBXNativeTarget "WorkLabs" */;
 			buildPhases = (
-				CAC6DA7034DF1F15F36BB483 /* [CP] Check Pods Manifest.lock */,
+				E3E5D1C84203F570862155E3 /* [CP] Check Pods Manifest.lock */,
 				E7509A0D30250B5EDBDBB1DC /* Sources */,
 				1140D55651F1ACCA751C05FE /* Resources */,
-				FCB8ADAB7A7A5EAC7059D4C4 /* Frameworks */,
-				FD155AD589A4DC1DB0FEF912 /* [CP] Embed Pods Frameworks */,
+				BCC227A4A55106083F5AF6B4 /* Frameworks */,
+				10294C091641C096C0E53DC2 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -343,7 +362,24 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		CAC6DA7034DF1F15F36BB483 /* [CP] Check Pods Manifest.lock */ = {
+		10294C091641C096C0E53DC2 /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-WorkLabs/Pods-WorkLabs-frameworks-${CONFIGURATION}-input-files.xcfilelist",
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-WorkLabs/Pods-WorkLabs-frameworks-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-WorkLabs/Pods-WorkLabs-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		E3E5D1C84203F570862155E3 /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -365,27 +401,6 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-		FD155AD589A4DC1DB0FEF912 /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-WorkLabs/Pods-WorkLabs-frameworks-${CONFIGURATION}-input-files.xcfilelist",
-			);
-			inputPaths = (
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-WorkLabs/Pods-WorkLabs-frameworks-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-WorkLabs/Pods-WorkLabs-frameworks.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -396,6 +411,7 @@
 				1EDE9A5A50021A24205E72AF /* AppDelegate.m in Sources */,
 				E930EA220E45F35F106AD7CC /* NSArray+Function.m in Sources */,
 				F6C16B66919F8365EFFEF342 /* NSWindow+WLExtend.m in Sources */,
+				B76288D93E2D4AF7087224D4 /* WLAudioMixer.m in Sources */,
 				5DD3D69AA431AFE55C89FBFB /* WLAudioRenderer.m in Sources */,
 				CBC05583AD15C9A81904E433 /* WLCameraSource.m in Sources */,
 				1FCEC86133D897A527726E3E /* WLCameraSourceConfig.m in Sources */,
@@ -406,6 +422,7 @@
 				C7C616089E7E4F144B41364A /* WLMediaSource.m in Sources */,
 				19FC4BAE98EBD68C233B96D9 /* WLMediaSourcePreview.m in Sources */,
 				5800ECDFD90F61706AD4D73C /* WLMetalPreviewShaders.metal in Sources */,
+				3658B30BA03DB209528B6C7F /* WLMicSource.m in Sources */,
 				6578EBA9E7209EA1602D1F38 /* WLNode.m in Sources */,
 				C715DD4DA09E8EC6B925955E /* WLNodeQueue.m in Sources */,
 				A1E9DCBDE9A745AC7630A5DA /* WLRecorder.m in Sources */,
@@ -433,7 +450,7 @@
 /* Begin XCBuildConfiguration section */
 		2BF1582C4698BE3FAEBB2EBA /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 0F988AA596D10886C5351FF2 /* Pods-WorkLabs.debug.xcconfig */;
+			baseConfigurationReference = AE3CE6A151365FB4CEC2C20D /* Pods-WorkLabs.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = WorkLabs/WorkLabs.entitlements;
@@ -516,7 +533,7 @@
 		};
 		978D8EA31D393FEBBE6C16BA /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = A107D9B70D01F1CDAED28466 /* Pods-WorkLabs.release.xcconfig */;
+			baseConfigurationReference = C83452765A6E73998CBB9DBF /* Pods-WorkLabs.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = WorkLabs/WorkLabs.entitlements;

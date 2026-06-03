@@ -22,5 +22,7 @@
 	<string>WorkLabs 需要访问摄像头以采集视频画面用于预览与推流。</string>
 	<key>NSMainStoryboardFile</key>
 	<string>Main</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>WorkLabs 需要访问麦克风以采集音频用于混音、播放与录制。</string>
 </dict>
 </plist>

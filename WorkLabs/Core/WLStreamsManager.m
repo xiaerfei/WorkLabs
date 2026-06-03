@@ -6,6 +6,7 @@
 #import "WLStreamsManager.h"
 #import "WLVideoMix.h"
 #import "WLAudioRenderer.h"
+#import "WLAudioMixer.h"
 
 @interface WLStreamsManager ()
 
@@ -16,6 +17,7 @@
 
 @property (nonatomic, strong) WLVideoMix *mix;
 @property (nonatomic, strong) WLAudioRenderer *audioRenderer;
+@property (nonatomic, strong) WLAudioMixer *mixer;
 @property (nonatomic, assign, readwrite, getter=isRunning) BOOL running;
 
 @end
@@ -65,6 +67,22 @@
     return _audioRenderer;
 }
 
+- (WLAudioMixer *)mixer {
+    if (!_mixer) {
+        _mixer = [[WLAudioMixer alloc] init];
+        __weak typeof(self) wself = self;
+        _mixer.mixedOutput = ^(CMSampleBufferRef sb) {
+            __strong typeof(wself) sself = wself;
+            if (!sself) { CFRelease(sb); return; }
+            [sself.audioRenderer enqueueSampleBuffer:sb];           // 播放
+            if (sself.audioBufferOutput) sself.audioBufferOutput(sb); // 录制（借用）
+            CFRelease(sb);                                          // mixer 转移所有权
+        };
+        [_mixer start];
+    }
+    return _mixer;
+}
+
 #pragma mark - Source mgmt
 
 - (NSString *)streamIDForSource:(id<WLStreamSourceProtocol>)source {
@@ -79,6 +97,13 @@
 
     source.delegate = self;
     [self.sources addObject:source];
+    [self.mixer addInput:sid];   // 所有源汇入音频混音（无音频则该路恒空，混音时跳过）
+
+    // 纯音频源（如 Mic）不参与画布合成
+    if (source.streamType == WLNodeTypeAudio) {
+        return sid;
+    }
+
     [self.canvas addStreamID:sid];
 
     if (preview) {
@@ -101,11 +126,14 @@
     if (source.isRunning) [source stop];
 
     NSString *sid = [self streamIDForSource:source];
+    [self.mixer removeInput:sid];
     [self.perStreamFilters removeObjectForKey:sid];
     [self.previewOutputs removeObjectForKey:sid];
-    [self.canvas removeStreamID:sid];
-    [self.mix removeStreamID:sid];
-    [self.mix setStreamOrder:self.canvas.streamOrder];
+    if (source.streamType != WLNodeTypeAudio) {
+        [self.canvas removeStreamID:sid];
+        [self.mix removeStreamID:sid];
+        [self.mix setStreamOrder:self.canvas.streamOrder];
+    }
 
     if (source.delegate == self) {
         source.delegate = nil;
@@ -255,8 +283,8 @@
 - (void)source:(id<WLStreamSourceProtocol>)source
     didOutputAudioBuffer:(CMSampleBufferRef)sampleBuffer {
     if (!sampleBuffer) return;
-    [self.audioRenderer enqueueSampleBuffer:sampleBuffer];
-    if (self.audioBufferOutput) self.audioBufferOutput(sampleBuffer); // 借用语义，录制器内部自行 CFRetain
+    // 汇入混音器对应输入；播放/录制由 mixer.mixedOutput 统一驱动
+    [self.mixer writeSampleBuffer:sampleBuffer forInput:[self streamIDForSource:source]];
     CFRelease(sampleBuffer);
 }
 

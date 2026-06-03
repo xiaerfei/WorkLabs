@@ -11,6 +11,7 @@
 #import "WLStreamsManager.h"
 #import "WLCanvasModel.h"
 #import "WLMediaSource.h"
+#import "WLMicSource.h"
 #import "WLCameraSource.h"
 #import "WLCameraSourceConfig.h"
 #import "WLDevicesManager.h"
@@ -653,6 +654,24 @@ static const CGFloat kIconBgAlpha = 0.05;
     }
     [menu setSubmenu:camMenu forItem:camItem];
 
+    // 「添加麦克风」子菜单：动态列出当前音频采集设备
+    NSMenuItem *micItem = [menu addItemWithTitle:@"添加麦克风" action:nil keyEquivalent:@""];
+    NSMenu *micMenu = [[NSMenu alloc] init];
+    NSArray<WLDeviceItem *> *audioDevices = [[WLDevicesManager manager] currentAudioDevices];
+    if (audioDevices.count == 0) {
+        NSMenuItem *empty = [micMenu addItemWithTitle:@"未检测到麦克风" action:nil keyEquivalent:@""];
+        empty.enabled = NO;
+    } else {
+        for (WLDeviceItem *item in audioDevices) {
+            NSMenuItem *di = [micMenu addItemWithTitle:(item.localizedName ?: @"未知设备")
+                                                action:@selector(micDeviceSelected:)
+                                         keyEquivalent:@""];
+            di.target = self;
+            di.representedObject = item.device;
+        }
+    }
+    [menu setSubmenu:micMenu forItem:micItem];
+
     NSView *btn = [sender isKindOfClass:[NSView class]] ? (NSView *)sender : self.addButton;
     [menu popUpMenuPositioningItem:nil
                         atLocation:NSMakePoint(0, NSHeight(btn.bounds))
@@ -695,6 +714,61 @@ static const CGFloat kIconBgAlpha = 0.05;
     NSAlert *alert = [[NSAlert alloc] init];
     alert.messageText = @"无法访问摄像头";
     alert.informativeText = @"请在「系统设置 ▸ 隐私与安全性 ▸ 摄像头」中允许 WorkLabs 访问摄像头。";
+    [alert addButtonWithTitle:@"好"];
+    [alert runModal];
+}
+
+#pragma mark - 添加麦克风源
+
+- (void)micDeviceSelected:(NSMenuItem *)sender {
+    AVCaptureDevice *device = sender.representedObject;
+    if (!device) return;
+
+    AVAuthorizationStatus status = [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeAudio];
+    if (status == AVAuthorizationStatusAuthorized) {
+        [self addMicSourceWithDevice:device];
+    } else if (status == AVAuthorizationStatusNotDetermined) {
+        __weak typeof(self) wself = self;
+        [AVCaptureDevice requestAccessForMediaType:AVMediaTypeAudio
+                                 completionHandler:^(BOOL granted) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (granted) [wself addMicSourceWithDevice:device];
+                else [wself showMicAccessDeniedAlert];
+            });
+        }];
+    } else {
+        [self showMicAccessDeniedAlert];
+    }
+}
+
+- (void)addMicSourceWithDevice:(AVCaptureDevice *)device {
+    if (!device) return;
+
+    // 去重：同一麦克风不重复添加
+    for (id<WLStreamSourceProtocol> s in self.sidToSource.allValues) {
+        if ([s isKindOfClass:[WLMicSource class]]) {
+            if ([[(WLMicSource *)s device].uniqueID isEqualToString:device.uniqueID]) {
+                NSLog(@"[WLStreamViewController] 麦克风已添加: %@", device.localizedName);
+                return;
+            }
+        }
+    }
+
+    WLMicSource *source = [[WLMicSource alloc] initWithDevice:device];
+    NSString *sid = [self.manager addSource:source previewOutput:nil]; // 纯音频，无画面
+    if (sid.length == 0) return;
+    self.sidToSource[sid] = source;
+
+    NSError *err = nil;
+    if (![source start:&err]) {
+        NSLog(@"[WLStreamViewController] MicSource start failed: %@", err);
+    }
+}
+
+- (void)showMicAccessDeniedAlert {
+    NSAlert *alert = [[NSAlert alloc] init];
+    alert.messageText = @"无法访问麦克风";
+    alert.informativeText = @"请在「系统设置 ▸ 隐私与安全性 ▸ 麦克风」中允许 WorkLabs 访问麦克风。";
     [alert addButtonWithTitle:@"好"];
     [alert runModal];
 }
