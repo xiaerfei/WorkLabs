@@ -186,7 +186,7 @@ static const CGFloat kIconBgAlpha = 0.05;
     // 窗口尺寸变化时重算浮层位置（画布坐标 → 视图坐标）
     [[NSNotificationCenter defaultCenter]
         addObserver:self
-           selector:@selector(canvasBoundsDidChange:)
+           selector:@selector(canvasFrameDidChange:)
                name:NSViewFrameDidChangeNotification
                object:canvas];
 }
@@ -250,7 +250,7 @@ static const CGFloat kIconBgAlpha = 0.05;
 
 #pragma mark - Layout
 
-- (void)canvasBoundsDidChange:(NSNotification *)note {
+- (void)canvasFrameDidChange:(NSNotification *)note {
     [self repositionAllPreviews];
 }
 
@@ -523,8 +523,8 @@ static const CGFloat kIconBgAlpha = 0.05;
 - (void)applyCanvasSize:(CGSize)size {
     [self.manager setCanvasSize:size];      // 缩放 layout + 同步 canvas/mix
     [self updateCanvasAspect];              // 更新画布预览宽高比
-    [self.view layoutSubtreeIfNeeded];      // 立即布局，canvasView.bounds 生效
-    [self repositionAllPreviews];           // 按新尺寸重摆浮层
+    // 立即布局：canvasView frame 变化会同步触发 NSViewFrameDidChange → 自动重摆浮层
+    [self.view layoutSubtreeIfNeeded];
     NSLog(@"[WLStreamViewController] 画布分辨率 → %.0f×%.0f", size.width, size.height);
 }
 
