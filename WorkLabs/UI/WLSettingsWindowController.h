@@ -44,6 +44,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)settingsDidSetVolume:(float)volume forStreamID:(NSString *)streamID;
 - (float)settingsVolumeForStreamID:(NSString *)streamID;
 
+// 每路源的基本滤镜参数（镜像/颜色校正/裁剪）。参数字典键见 WLBasicVideoFilter。
+- (NSDictionary *)settingsFilterParamsForStreamID:(NSString *)streamID;
+- (void)settingsDidSetFilterParams:(NSDictionary *)params forStreamID:(NSString *)streamID;
+
 // 推流：服务器地址 + 密钥（推流码）。编辑结束即回调宿主保存；打开设置时回读做回填。
 - (void)settingsDidSetPushURL:(NSString *)url streamKey:(NSString *)streamKey;
 - (nullable NSString *)settingsPushURL;

@@ -7,6 +7,7 @@
 #import "WLVideoMix.h"
 #import "WLAudioRenderer.h"
 #import "WLAudioMixer.h"
+#import "WLBasicVideoFilter.h"
 
 @interface WLStreamsManager ()
 
@@ -20,6 +21,7 @@
 @property (nonatomic, strong) WLAudioMixer *mixer;
 @property (nonatomic, strong) NSMutableDictionary<NSNumber *, NSNumber *> *typeVolumes; // fromType → volume
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSNumber *> *sidVolumes;  // streamID → volume
+@property (nonatomic, strong) NSMutableDictionary<NSString *, WLBasicVideoFilter *> *sidFilters; // streamID → 基础滤镜
 @property (nonatomic, assign, readwrite, getter=isRunning) BOOL running;
 
 @end
@@ -35,6 +37,7 @@
         _previewOutputs = [NSMutableDictionary dictionary];
         _typeVolumes = [NSMutableDictionary dictionary];
         _sidVolumes = [NSMutableDictionary dictionary];
+        _sidFilters = [NSMutableDictionary dictionary];
     }
     return self;
 }
@@ -135,6 +138,7 @@
     [self.perStreamFilters removeObjectForKey:sid];
     [self.previewOutputs removeObjectForKey:sid];
     [self.sidVolumes removeObjectForKey:sid];
+    [self.sidFilters removeObjectForKey:sid];
     if (source.streamType != WLNodeTypeAudio) {
         [self.canvas removeStreamID:sid];
         [self.mix removeStreamID:sid];
@@ -156,6 +160,27 @@
     } else {
         [self.perStreamFilters removeObjectForKey:sid];
     }
+}
+
+- (void)setFilterParams:(NSDictionary *)params forStreamID:(NSString *)streamID {
+    if (streamID.length == 0) return;
+    WLBasicVideoFilter *filter = self.sidFilters[streamID];
+    if (!filter) {
+        filter = [[WLBasicVideoFilter alloc] init];
+        self.sidFilters[streamID] = filter;
+    }
+    [filter applyParams:params];
+    // identity（全默认）→ 移出激活链路，透传零开销；否则挂上 perStreamFilter
+    if (filter.isIdentity) {
+        [self.perStreamFilters removeObjectForKey:streamID];
+    } else {
+        self.perStreamFilters[streamID] = filter;
+    }
+}
+
+- (NSDictionary *)filterParamsForStreamID:(NSString *)streamID {
+    WLBasicVideoFilter *filter = self.sidFilters[streamID];
+    return filter ? filter.params : [WLBasicVideoFilter defaultParams];
 }
 
 #pragma mark - Layout / Background

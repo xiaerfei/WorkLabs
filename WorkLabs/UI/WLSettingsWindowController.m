@@ -5,6 +5,14 @@
 
 #import "WLSettingsWindowController.h"
 #import <Masonry/Masonry.h>
+#import "WLBasicVideoFilter.h"
+
+// scrollView documentView：翻转坐标系，使内容自上而下排布、初始显示在顶部
+@interface WLFlippedView : NSView
+@end
+@implementation WLFlippedView
+- (BOOL)isFlipped { return YES; }
+@end
 
 @interface WLSettingsWindowController () <NSTableViewDataSource, NSTableViewDelegate>
 @property (nonatomic, strong) NSArray<NSDictionary *> *fixedCategories;    // 固定分类 {kind,title,symbol,panel}
@@ -23,6 +31,9 @@
 @property (nonatomic, copy, nullable) NSString *currentSourceSID;
 @property (nonatomic, strong, nullable) NSSlider *sourceVolSlider;
 @property (nonatomic, strong, nullable) NSTextField *sourceVolPercent;
+// 当前源属性页的滤镜控件（key 见 WLBasicVideoFilter）→ 控件 / 数值标签
+@property (nonatomic, strong, nullable) NSMutableDictionary<NSString *, NSControl *> *filterControls;
+@property (nonatomic, strong, nullable) NSMutableDictionary<NSString *, NSTextField *> *filterValueLabels;
 @end
 
 @implementation WLSettingsWindowController
@@ -269,85 +280,169 @@
     return [self rowWithTitle:title control:stack];
 }
 
-#pragma mark - 源属性页（每个流的配置容器：音量 + 预留滤镜）
+#pragma mark - 源属性页（每个流的配置容器：音量 + 基本滤镜）
 
 - (NSView *)buildSourcePanelForItem:(NSDictionary *)item {
-    NSView *panel = [[NSView alloc] init];
     NSString *name = item[@"name"] ?: @"源";
+    NSString *sid = item[@"sid"] ?: @"";
     BOOL hasAudio = [item[@"hasAudio"] boolValue];
     WLFromType t = (WLFromType)[item[@"fromType"] integerValue];
     NSString *typeName = (t == WLFromTypeMic) ? @"麦克风"
                        : (t == WLFromTypeCamera) ? @"摄像头" : @"视频文件";
 
+    // 当前源滤镜初值（向宿主回读，无则默认）
+    NSDictionary *fp = [WLBasicVideoFilter defaultParams];
+    if ([self.settingsDelegate respondsToSelector:@selector(settingsFilterParamsForStreamID:)]) {
+        NSDictionary *got = [self.settingsDelegate settingsFilterParamsForStreamID:sid];
+        if (got.count) fp = got;
+    }
+    self.filterControls = [NSMutableDictionary dictionary];
+    self.filterValueLabels = [NSMutableDictionary dictionary];
+
+    // 滚动容器（控件较多，窗口偏矮时可滚动）
+    NSScrollView *scroll = [[NSScrollView alloc] init];
+    scroll.drawsBackground = NO;
+    scroll.hasVerticalScroller = YES;
+    scroll.autohidesScrollers = YES;
+    WLFlippedView *doc = [[WLFlippedView alloc] init];
+    scroll.documentView = doc;
+
+    NSStackView *col = [[NSStackView alloc] init];
+    col.orientation = NSUserInterfaceLayoutOrientationVertical;
+    col.alignment = NSLayoutAttributeLeading;
+    col.spacing = 8;
+    col.edgeInsets = NSEdgeInsetsMake(22, 24, 24, 24);
+    [doc addSubview:col];
+
+    // —— 标题 ——
     NSTextField *titleLabel = [NSTextField labelWithString:name];
     titleLabel.font = [NSFont boldSystemFontOfSize:15];
     titleLabel.lineBreakMode = NSLineBreakByTruncatingMiddle;
     NSTextField *subLabel = [NSTextField labelWithString:typeName];
     subLabel.textColor = [NSColor secondaryLabelColor];
     subLabel.font = [NSFont systemFontOfSize:11];
+    [col addArrangedSubview:titleLabel];
+    [col addArrangedSubview:subLabel];
+    [col setCustomSpacing:2 afterView:titleLabel];
+    [col setCustomSpacing:18 afterView:subLabel];
 
-    [panel addSubview:titleLabel];
-    [panel addSubview:subLabel];
-    [titleLabel mas_makeConstraints:^(MASConstraintMaker *make) {
-        make.top.equalTo(panel).offset(22);
-        make.left.equalTo(panel).offset(24);
-        make.right.lessThanOrEqualTo(panel).offset(-24);
-    }];
-    [subLabel mas_makeConstraints:^(MASConstraintMaker *make) {
-        make.top.equalTo(titleLabel.mas_bottom).offset(2);
-        make.left.equalTo(titleLabel);
-    }];
-
-    NSView *anchor = subLabel;
-
+    // —— 音量 ——
     if (hasAudio) {
         float vol = 1.0f;
         if ([self.settingsDelegate respondsToSelector:@selector(settingsVolumeForStreamID:)]) {
-            vol = [self.settingsDelegate settingsVolumeForStreamID:item[@"sid"]];
+            vol = [self.settingsDelegate settingsVolumeForStreamID:sid];
         }
-        self.sourceVolPercent = [NSTextField labelWithString:[NSString stringWithFormat:@"%.0f%%", vol * 100]];
+        NSTextField *vLabel = [NSTextField labelWithString:@"音量"];
+        vLabel.alignment = NSTextAlignmentRight;
+        [vLabel.widthAnchor constraintEqualToConstant:64].active = YES;
         self.sourceVolSlider = [NSSlider sliderWithValue:vol minValue:0.0 maxValue:2.0
                                                   target:self action:@selector(sourceVolumeChanged:)];
-        NSView *volRow = [self volumeRowTitle:@"音量" slider:self.sourceVolSlider percent:self.sourceVolPercent];
-        [panel addSubview:volRow];
-        [volRow mas_makeConstraints:^(MASConstraintMaker *make) {
-            make.top.equalTo(subLabel.mas_bottom).offset(22);
-            make.left.equalTo(panel).offset(24);
-            make.right.equalTo(panel).offset(-24);
-            make.height.equalTo(@24);
-        }];
-        anchor = volRow;
+        [self.sourceVolSlider.widthAnchor constraintEqualToConstant:170].active = YES;
+        self.sourceVolPercent = [NSTextField labelWithString:[NSString stringWithFormat:@"%.0f%%", vol * 100]];
+        [self.sourceVolPercent.widthAnchor constraintEqualToConstant:48].active = YES;
+        NSButton *volReset = [self resetButtonWithAction:@selector(resetVolume:) identifier:nil];
+        NSStackView *volRow = [NSStackView stackViewWithViews:@[vLabel, self.sourceVolSlider, self.sourceVolPercent, volReset]];
+        volRow.orientation = NSUserInterfaceLayoutOrientationHorizontal;
+        volRow.spacing = 8;
+        volRow.alignment = NSLayoutAttributeCenterY;
+        [col addArrangedSubview:volRow];
+        [col setCustomSpacing:18 afterView:volRow];
     } else {
         self.sourceVolSlider = nil;
         self.sourceVolPercent = nil;
-        NSTextField *noAudio = [NSTextField labelWithString:@"此源无音频输出"];
-        noAudio.textColor = [NSColor secondaryLabelColor];
-        [panel addSubview:noAudio];
-        [noAudio mas_makeConstraints:^(MASConstraintMaker *make) {
-            make.top.equalTo(subLabel.mas_bottom).offset(22);
-            make.left.equalTo(panel).offset(24);
-        }];
-        anchor = noAudio;
     }
 
-    // 滤镜区占位（为将来 per-source filter 预留位置）
-    NSTextField *filterTitle = [NSTextField labelWithString:@"滤镜"];
-    filterTitle.font = [NSFont boldSystemFontOfSize:12];
-    NSTextField *filterHint = [NSTextField labelWithString:@"镜像 / 裁剪等滤镜即将支持。"];
-    filterHint.textColor = [NSColor secondaryLabelColor];
-    filterHint.font = [NSFont systemFontOfSize:11];
-    [panel addSubview:filterTitle];
-    [panel addSubview:filterHint];
-    [filterTitle mas_makeConstraints:^(MASConstraintMaker *make) {
-        make.top.equalTo(anchor.mas_bottom).offset(28);
-        make.left.equalTo(panel).offset(24);
+    // —— 镜像 ——
+    NSTextField *mirrorTitle = [self filterSectionTitle:@"镜像"];
+    [col addArrangedSubview:mirrorTitle];
+    [col setCustomSpacing:8 afterView:mirrorTitle];
+    NSButton *hMir = [NSButton checkboxWithTitle:@"水平翻转" target:self action:@selector(filterControlChanged:)];
+    NSButton *vMir = [NSButton checkboxWithTitle:@"垂直翻转" target:self action:@selector(filterControlChanged:)];
+    hMir.state = [fp[WLFilterKeyHMirror] boolValue] ? NSControlStateValueOn : NSControlStateValueOff;
+    vMir.state = [fp[WLFilterKeyVMirror] boolValue] ? NSControlStateValueOn : NSControlStateValueOff;
+    self.filterControls[WLFilterKeyHMirror] = hMir;
+    self.filterControls[WLFilterKeyVMirror] = vMir;
+    NSStackView *mirRow = [NSStackView stackViewWithViews:@[hMir, vMir]];
+    mirRow.orientation = NSUserInterfaceLayoutOrientationHorizontal;
+    mirRow.spacing = 18;
+    [col addArrangedSubview:mirRow];
+    [col setCustomSpacing:18 afterView:mirRow];
+
+    // —— 颜色校正 ——
+    NSTextField *colorTitle = [self filterSectionTitle:@"颜色校正"];
+    [col addArrangedSubview:colorTitle];
+    [col setCustomSpacing:8 afterView:colorTitle];
+    NSView *briRow = [self filterSliderRowTitle:@"亮度"   key:WLFilterKeyBrightness min:-1   max:1   value:[fp[WLFilterKeyBrightness] doubleValue]];
+    NSView *conRow = [self filterSliderRowTitle:@"对比度" key:WLFilterKeyContrast   min:0    max:2   value:[fp[WLFilterKeyContrast] doubleValue]];
+    NSView *satRow = [self filterSliderRowTitle:@"饱和度" key:WLFilterKeySaturation min:0    max:2   value:[fp[WLFilterKeySaturation] doubleValue]];
+    NSView *hueRow = [self filterSliderRowTitle:@"色相"   key:WLFilterKeyHue        min:-180 max:180 value:[fp[WLFilterKeyHue] doubleValue]];
+    [col addArrangedSubview:briRow];
+    [col addArrangedSubview:conRow];
+    [col addArrangedSubview:satRow];
+    [col addArrangedSubview:hueRow];
+    [col setCustomSpacing:18 afterView:hueRow];
+
+    // —— 裁剪 ——
+    NSTextField *cropTitle = [self filterSectionTitle:@"裁剪"];
+    [col addArrangedSubview:cropTitle];
+    [col setCustomSpacing:8 afterView:cropTitle];
+    NSView *cropTopRow = [self filterSliderRowTitle:@"上" key:WLFilterKeyCropTop    min:0 max:0.45 value:[fp[WLFilterKeyCropTop] doubleValue]];
+    NSView *cropBotRow = [self filterSliderRowTitle:@"下" key:WLFilterKeyCropBottom min:0 max:0.45 value:[fp[WLFilterKeyCropBottom] doubleValue]];
+    NSView *cropLefRow = [self filterSliderRowTitle:@"左" key:WLFilterKeyCropLeft   min:0 max:0.45 value:[fp[WLFilterKeyCropLeft] doubleValue]];
+    NSView *cropRigRow = [self filterSliderRowTitle:@"右" key:WLFilterKeyCropRight  min:0 max:0.45 value:[fp[WLFilterKeyCropRight] doubleValue]];
+    [col addArrangedSubview:cropTopRow];
+    [col addArrangedSubview:cropBotRow];
+    [col addArrangedSubview:cropLefRow];
+    [col addArrangedSubview:cropRigRow];
+    [col setCustomSpacing:18 afterView:cropRigRow];
+
+    // —— 重置 ——
+    NSButton *resetBtn = [NSButton buttonWithTitle:@"恢复默认滤镜" target:self action:@selector(resetFilters:)];
+    [col addArrangedSubview:resetBtn];
+
+    [col mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.edges.equalTo(doc);
     }];
-    [filterHint mas_makeConstraints:^(MASConstraintMaker *make) {
-        make.top.equalTo(filterTitle.mas_bottom).offset(6);
-        make.left.equalTo(panel).offset(24);
-        make.right.lessThanOrEqualTo(panel).offset(-24);
+    [doc mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.top.left.right.equalTo(scroll.contentView);
+        make.width.equalTo(scroll.contentView);
     }];
-    return panel;
+    return scroll;
+}
+
+// 滤镜分区标题
+- (NSTextField *)filterSectionTitle:(NSString *)title {
+    NSTextField *label = [NSTextField labelWithString:title];
+    label.font = [NSFont boldSystemFontOfSize:12];
+    return label;
+}
+
+// 一行滤镜滑块：右对齐标题 + 滑块 + 当前值；控件登记到 filterControls/filterValueLabels
+- (NSView *)filterSliderRowTitle:(NSString *)title key:(NSString *)key
+                             min:(double)mn max:(double)mx value:(double)val {
+    NSTextField *label = [NSTextField labelWithString:title];
+    label.alignment = NSTextAlignmentRight;
+    [label.widthAnchor constraintEqualToConstant:64].active = YES;
+    NSSlider *slider = [NSSlider sliderWithValue:val minValue:mn maxValue:mx
+                                          target:self action:@selector(filterControlChanged:)];
+    [slider.widthAnchor constraintEqualToConstant:170].active = YES;
+    NSTextField *value = [NSTextField labelWithString:[self filterDisplayForKey:key value:val]];
+    [value.widthAnchor constraintEqualToConstant:48].active = YES;
+    self.filterControls[key] = slider;
+    self.filterValueLabels[key] = value;
+    NSButton *reset = [self resetButtonWithAction:@selector(resetFilterSlider:) identifier:key];
+    NSStackView *row = [NSStackView stackViewWithViews:@[label, slider, value, reset]];
+    row.orientation = NSUserInterfaceLayoutOrientationHorizontal;
+    row.spacing = 8;
+    row.alignment = NSLayoutAttributeCenterY;
+    return row;
+}
+
+// 数值显示：裁剪→百分比、色相→角度、其余→两位小数
+- (NSString *)filterDisplayForKey:(NSString *)key value:(double)v {
+    if ([key hasPrefix:@"crop"]) return [NSString stringWithFormat:@"%.0f%%", v * 100];
+    if ([key isEqualToString:WLFilterKeyHue]) return [NSString stringWithFormat:@"%.0f°", v];
+    return [NSString stringWithFormat:@"%.2f", v];
 }
 
 - (void)sourceVolumeChanged:(NSSlider *)sender {
@@ -357,6 +452,80 @@
         [self.settingsDelegate respondsToSelector:@selector(settingsDidSetVolume:forStreamID:)]) {
         [self.settingsDelegate settingsDidSetVolume:v forStreamID:self.currentSourceSID];
     }
+}
+
+// 任一滤镜控件变化：刷新数值标签 + 收集参数回调宿主
+- (void)filterControlChanged:(id)sender {
+    [self.filterValueLabels enumerateKeysAndObjectsUsingBlock:^(NSString *key, NSTextField *value, BOOL *stop) {
+        NSControl *c = self.filterControls[key];
+        value.stringValue = [self filterDisplayForKey:key value:c.doubleValue];
+    }];
+    if (self.currentSourceSID.length > 0 &&
+        [self.settingsDelegate respondsToSelector:@selector(settingsDidSetFilterParams:forStreamID:)]) {
+        [self.settingsDelegate settingsDidSetFilterParams:[self collectFilterParams]
+                                              forStreamID:self.currentSourceSID];
+    }
+}
+
+// 从当前控件读出完整参数字典（以默认值打底，确保键齐全）
+- (NSDictionary *)collectFilterParams {
+    NSMutableDictionary *params = [[WLBasicVideoFilter defaultParams] mutableCopy];
+    [self.filterControls enumerateKeysAndObjectsUsingBlock:^(NSString *key, NSControl *c, BOOL *stop) {
+        if ([c isKindOfClass:[NSButton class]]) {
+            params[key] = @(((NSButton *)c).state == NSControlStateValueOn);
+        } else {
+            params[key] = @(c.doubleValue);
+        }
+    }];
+    return params;
+}
+
+- (void)resetFilters:(id)sender {
+    NSDictionary *def = [WLBasicVideoFilter defaultParams];
+    [self.filterControls enumerateKeysAndObjectsUsingBlock:^(NSString *key, NSControl *c, BOOL *stop) {
+        NSNumber *dv = def[key];
+        if ([c isKindOfClass:[NSButton class]]) {
+            ((NSButton *)c).state = dv.boolValue ? NSControlStateValueOn : NSControlStateValueOff;
+        } else {
+            c.doubleValue = dv.doubleValue;
+        }
+    }];
+    [self filterControlChanged:nil];
+}
+
+// 单条滑块的「恢复默认」小按钮（SF Symbol：arrow.counterclockwise）
+- (NSButton *)resetButtonWithAction:(SEL)action identifier:(nullable NSString *)ident {
+    NSButton *btn = [[NSButton alloc] init];
+    btn.bordered = NO;
+    btn.imagePosition = NSImageOnly;
+    btn.target = self;
+    btn.action = action;
+    btn.identifier = ident;
+    btn.toolTip = @"恢复默认值";
+    btn.contentTintColor = [NSColor secondaryLabelColor];
+    if (@available(macOS 11.0, *)) {
+        btn.image = [NSImage imageWithSystemSymbolName:@"arrow.counterclockwise"
+                              accessibilityDescription:@"恢复默认值"];
+    }
+    [btn.widthAnchor constraintEqualToConstant:22].active = YES;
+    return btn;
+}
+
+// 把某条滤镜滑块复位到其默认值（按钮 identifier 即参数 key）
+- (void)resetFilterSlider:(NSButton *)sender {
+    NSString *key = (NSString *)sender.identifier;
+    if (key.length == 0) return;
+    NSControl *c = self.filterControls[key];
+    if (![c isKindOfClass:[NSSlider class]]) return;
+    NSNumber *dv = [WLBasicVideoFilter defaultParams][key];
+    ((NSSlider *)c).doubleValue = dv.doubleValue;
+    [self filterControlChanged:nil];
+}
+
+// 音量复位到 100%
+- (void)resetVolume:(id)sender {
+    self.sourceVolSlider.doubleValue = 1.0;
+    [self sourceVolumeChanged:self.sourceVolSlider];
 }
 
 #pragma mark - 面板切换

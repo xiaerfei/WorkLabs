@@ -44,6 +44,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setFilter:(nullable id<WLVideoFilterProtocol>)filter
         forSource:(id<WLStreamSourceProtocol>)source;
 
+// 按单路源（streamID）设置/读取基本滤镜参数（镜像/颜色校正/裁剪）；
+// 内部维护一个 WLBasicVideoFilter，全默认（identity）时自动透传、零渲染。
+- (void)setFilterParams:(NSDictionary *)params forStreamID:(NSString *)streamID;
+- (NSDictionary *)filterParamsForStreamID:(NSString *)streamID;
+
 - (NSString *)streamIDForSource:(id<WLStreamSourceProtocol>)source;
 
 #pragma mark - Layout / Background（同步 canvas + mix）

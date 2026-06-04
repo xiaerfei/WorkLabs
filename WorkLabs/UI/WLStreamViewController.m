@@ -581,6 +581,14 @@ static const CGFloat kIconBgAlpha = 0.05;
     return [self.manager volumeForStreamID:streamID];
 }
 
+- (NSDictionary *)settingsFilterParamsForStreamID:(NSString *)streamID {
+    return [self.manager filterParamsForStreamID:streamID];
+}
+
+- (void)settingsDidSetFilterParams:(NSDictionary *)params forStreamID:(NSString *)streamID {
+    [self.manager setFilterParams:params forStreamID:streamID];
+}
+
 - (void)settingsDidSetPushURL:(NSString *)url streamKey:(NSString *)streamKey {
     self.pushURL = url;
     self.streamKey = streamKey;
