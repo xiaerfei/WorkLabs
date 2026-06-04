@@ -668,7 +668,10 @@ static const CGFloat kIconBgAlpha = 0.05;
 
 // 确保共享编码器在运行（首个输出启动时创建并 start）。返回是否就绪。
 - (BOOL)ensureEncoderRunning {
-    if (self.encoder.isRunning) return YES;
+    if (self.encoder.isRunning) {
+        self.manager.compositingEnabled = YES;   // 已在运行（开第二路输出）：确保合成开着
+        return YES;
+    }
     // 旧的（已停止/未启动）一律丢弃重建，保证全新会话（不复用 VideoToolbox 会话状态）
     self.encoder = [[WLEncoder alloc] init];
     __weak typeof(self) wself = self;
@@ -680,13 +683,18 @@ static const CGFloat kIconBgAlpha = 0.05;
     BOOL ok = [self.encoder startWithVideoSize:self.canvas.canvasSize
                                         config:self.encoderConfig
                                   audioEnabled:[self hasAudioCapableSource]];
-    if (!ok) self.encoder = nil;
+    if (!ok) {
+        self.encoder = nil;
+    } else {
+        self.manager.compositingEnabled = YES;   // 有真实输出消费合成帧，开启合成（纯预览时不空转）
+    }
     return ok;
 }
 
 // 两路都不再活跃时停止并释放编码器（flush 残包后销毁；旧实例由 in-flight block 持有至跑完）。
 - (void)stopEncoderIfIdle {
     if (self.recordActive || self.liveActive) return;
+    self.manager.compositingEnabled = NO;   // 两路都停，回到纯预览：关闭合成避免空转 CoreImage
     WLEncoder *enc = self.encoder;
     self.encoder = nil;            // 立即不再持有 → 下次 ensure 必新建，避免残包污染新会话
     [enc stopWithCompletion:nil];

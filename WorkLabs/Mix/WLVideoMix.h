@@ -22,6 +22,11 @@ NS_ASSUME_NONNULL_BEGIN
 // 所有权遵循 Create Rule：block 收到的 pixelBuffer 所有权转移给 block，需自行 CVPixelBufferRelease。
 @property (nonatomic, copy, nullable) void (^output)(CVPixelBufferRef pixelBuffer, Float64 pts);
 
+// 是否真正进行合成：默认 NO。仅在录制/推流等真正消费合成输出时置 YES。
+// 关闭时 inputVideoFrame 仍持续刷新内部缓存帧（保证开启瞬间首帧即全量），但 renderWithPts 跳过整套
+// CoreImage 合成 —— 纯预览（各路走自己的 WLStreamPreview 上屏）时不空转合成，省 CPU/GPU。
+@property (atomic, assign, getter=isRenderingEnabled) BOOL renderingEnabled;
+
 - (instancetype)initWithCanvasSize:(CGSize)canvasSize;
 
 // 画布背景：纯色 + 整张铺满背景图（传 nil 清除）

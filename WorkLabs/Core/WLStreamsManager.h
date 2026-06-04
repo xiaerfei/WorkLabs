@@ -30,6 +30,10 @@ NS_ASSUME_NONNULL_BEGIN
 // 合成输出帧率上限（默认 60）：限制合成频率，通常设为编码 fps，避免拖动 / 多源时过度合成致编码丢帧。
 @property (nonatomic, assign) int renderFrameRate;
 
+// 是否启用画布合成（WLVideoMix）：默认 NO。纯预览不合成（预览各走自己的 WLStreamPreview 上屏）；
+// 仅在录制/推流等真正消费合成帧时由上层置 YES，避免空转 CoreImage 合成浪费 CPU/GPU。
+@property (nonatomic, assign, getter=isCompositingEnabled) BOOL compositingEnabled;
+
 // 音频输出（本阶段用于录制）。block 收到的 sampleBuffer 仅在调用期间有效（"借用"语义）；
 // 需要持有（如异步编码）请自行 CFRetain / CFRelease。
 @property (nonatomic, copy, nullable) void (^audioBufferOutput)(CMSampleBufferRef sampleBuffer);

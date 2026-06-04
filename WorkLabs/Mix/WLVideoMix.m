@@ -174,6 +174,11 @@ static Float64 WLVideoMixNowSeconds(void) {
 
 - (void)renderWithPts:(Float64)pts {
     self.lastPts = pts;
+
+    // 未启用合成（纯预览）时直接返回：不空转整套 CoreImage 合成（建背景/取帧/变换/render 到 pixelBuffer）。
+    // lastPts 已更新、latestFrames 由 inputVideoFrame 持续刷新，启用瞬间即用最新状态合成首帧，无延迟无丢状态。
+    if (!self.renderingEnabled) return;
+
     CGRect canvasRect = CGRectMake(0, 0, self.canvasSize.width, self.canvasSize.height);
 
     // 无任何内容（背景与源都没有）→ 不输出

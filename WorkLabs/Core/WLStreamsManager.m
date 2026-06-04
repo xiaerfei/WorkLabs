@@ -55,6 +55,7 @@
         [_mix setBackgroundColor:self.canvas.backgroundColor];
         [_mix setBackgroundImage:self.canvas.backgroundImage];
         [_mix setRenderFrameRate:(_renderFrameRate > 0 ? _renderFrameRate : 60)];
+        _mix.renderingEnabled = _compositingEnabled;   // 懒创建时继承当前合成开关状态
         __weak typeof(self) wself = self;
         _mix.output = ^(CVPixelBufferRef pb, Float64 pts) {
             __strong typeof(wself) sself = wself;
@@ -72,6 +73,11 @@
 - (void)setRenderFrameRate:(int)renderFrameRate {
     _renderFrameRate = (renderFrameRate > 0 ? renderFrameRate : 60);
     if (_mix) [_mix setRenderFrameRate:_renderFrameRate];
+}
+
+- (void)setCompositingEnabled:(BOOL)compositingEnabled {
+    _compositingEnabled = compositingEnabled;
+    if (_mix) _mix.renderingEnabled = compositingEnabled;   // 已创建则即时透传；未创建则懒创建时继承
 }
 
 - (WLAudioRenderer *)audioRenderer {
