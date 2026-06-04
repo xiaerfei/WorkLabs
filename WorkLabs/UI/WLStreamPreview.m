@@ -243,12 +243,16 @@ typedef NS_ENUM(NSInteger, WLHandle) {
     }
 
     NSMenu *menu = [[NSMenu alloc] init];
+    [[menu addItemWithTitle:@"属性…"    action:@selector(showProperties:) keyEquivalent:@""] setTarget:self];
+    [menu addItem:[NSMenuItem separatorItem]];
     [[menu addItemWithTitle:@"置顶"     action:@selector(zOrderFront:) keyEquivalent:@""] setTarget:self];
     [[menu addItemWithTitle:@"上移一层" action:@selector(zOrderUp:)    keyEquivalent:@""] setTarget:self];
     [[menu addItemWithTitle:@"下移一层" action:@selector(zOrderDown:)  keyEquivalent:@""] setTarget:self];
     [[menu addItemWithTitle:@"置底"     action:@selector(zOrderBack:)  keyEquivalent:@""] setTarget:self];
     [menu addItem:[NSMenuItem separatorItem]];
     [[menu addItemWithTitle:@"取消选中" action:@selector(deselect:)    keyEquivalent:@""] setTarget:self];
+    [menu addItem:[NSMenuItem separatorItem]];
+    [[menu addItemWithTitle:@"移除源"   action:@selector(removeSelf:)  keyEquivalent:@""] setTarget:self];
     [NSMenu popUpContextMenu:menu withEvent:event forView:self];
 }
 
@@ -266,6 +270,18 @@ typedef NS_ENUM(NSInteger, WLHandle) {
 - (void)deselect:(id)sender {
     if ([self.delegate respondsToSelector:@selector(renderingDidRequestDeselect:)]) {
         [self.delegate renderingDidRequestDeselect:self];
+    }
+}
+
+- (void)removeSelf:(id)sender {
+    if ([self.delegate respondsToSelector:@selector(renderingDidRequestRemove:)]) {
+        [self.delegate renderingDidRequestRemove:self];
+    }
+}
+
+- (void)showProperties:(id)sender {
+    if ([self.delegate respondsToSelector:@selector(renderingDidRequestProperties:)]) {
+        [self.delegate renderingDidRequestProperties:self];
     }
 }
 

@@ -20,6 +20,7 @@
 - (void)dealloc { [self stop]; }
 - (WLFromType)fromType { return WLFromTypeCamera; }
 - (WLNodeType)streamType { return WLNodeTypeVideo; }
+- (NSString *)displayName { return self.config.device.localizedName ?: @"摄像头"; }
 
 - (BOOL)start:(NSError * _Nullable __autoreleasing *)error {
     BOOL ok = [self start];

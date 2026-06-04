@@ -19,6 +19,7 @@
 @property (nonatomic, strong) WLAudioRenderer *audioRenderer;
 @property (nonatomic, strong) WLAudioMixer *mixer;
 @property (nonatomic, strong) NSMutableDictionary<NSNumber *, NSNumber *> *typeVolumes; // fromType → volume
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSNumber *> *sidVolumes;  // streamID → volume
 @property (nonatomic, assign, readwrite, getter=isRunning) BOOL running;
 
 @end
@@ -33,6 +34,7 @@
         _perStreamFilters = [NSMutableDictionary dictionary];
         _previewOutputs = [NSMutableDictionary dictionary];
         _typeVolumes = [NSMutableDictionary dictionary];
+        _sidVolumes = [NSMutableDictionary dictionary];
     }
     return self;
 }
@@ -132,6 +134,7 @@
     [self.mixer removeInput:sid];
     [self.perStreamFilters removeObjectForKey:sid];
     [self.previewOutputs removeObjectForKey:sid];
+    [self.sidVolumes removeObjectForKey:sid];
     if (source.streamType != WLNodeTypeAudio) {
         [self.canvas removeStreamID:sid];
         [self.mix removeStreamID:sid];
@@ -207,6 +210,17 @@
 
 - (float)volumeForFromType:(WLFromType)fromType {
     NSNumber *v = self.typeVolumes[@(fromType)];
+    return v ? v.floatValue : 1.0f;
+}
+
+- (void)setVolume:(float)volume forStreamID:(NSString *)streamID {
+    if (streamID.length == 0) return;
+    self.sidVolumes[streamID] = @(volume);
+    [self.mixer setGain:volume forInput:streamID];
+}
+
+- (float)volumeForStreamID:(NSString *)streamID {
+    NSNumber *v = self.sidVolumes[streamID];
     return v ? v.floatValue : 1.0f;
 }
 

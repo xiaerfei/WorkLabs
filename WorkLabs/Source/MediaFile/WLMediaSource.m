@@ -75,6 +75,8 @@
 @synthesize running = _running;
 @synthesize delegate = _delegate;
 
+- (NSString *)displayName { return self.path.lastPathComponent ?: @"媒体文件"; }
+
 - (void)dealloc {
     [self stop];
 }

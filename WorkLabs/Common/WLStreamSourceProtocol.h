@@ -40,6 +40,9 @@ NS_ASSUME_NONNULL_BEGIN
 // 流来源：Camera / Mic / Media / Network（复用 WLFromType）
 @property (nonatomic, assign, readonly) WLFromType fromType;
 
+// 用于 UI 显示的名称（设备名 / 文件名等）
+@property (nonatomic, copy, readonly) NSString *displayName;
+
 // 生命周期
 @property (nonatomic, assign, readonly, getter=isRunning) BOOL running;
 - (BOOL)start:(NSError **)error;

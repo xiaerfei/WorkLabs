@@ -63,6 +63,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setVolume:(float)volume forFromType:(WLFromType)fromType;
 - (float)volumeForFromType:(WLFromType)fromType;
 
+// 按单路源（streamID）设置/读取混音音量（1.0=原始）；用于「每源独立调音」
+- (void)setVolume:(float)volume forStreamID:(NSString *)streamID;
+- (float)volumeForStreamID:(NSString *)streamID;
+
 // z-order 调整（同步 canvas + mix；调用方负责同步预览 subview 顺序）
 - (void)bringStreamToFront:(NSString *)streamID;
 - (void)sendStreamToBack:(NSString *)streamID;

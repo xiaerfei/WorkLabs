@@ -19,6 +19,7 @@
 - (void)dealloc { [self stop]; }
 - (WLFromType)fromType { return WLFromTypeMic; }
 - (WLNodeType)streamType { return WLNodeTypeAudio; }
+- (NSString *)displayName { return self.device.localizedName ?: @"麦克风"; }
 
 - (instancetype)initWithDevice:(AVCaptureDevice *)device {
     self = [super init];

@@ -21,6 +21,11 @@ NS_ASSUME_NONNULL_BEGIN
 // 打开前由宿主同步当前画布尺寸，用于分辨率下拉的初始选中
 @property (nonatomic, assign) CGSize currentCanvasSize;
 
+// 源增删后刷新左栏源列表（窗口可见时调用）
+- (void)reloadSources;
+// 选中并显示某个源的属性页（供右键「属性…」跳转）
+- (void)selectSourceID:(NSString *)streamID;
+
 @end
 
 @protocol WLSettingsWindowControllerDelegate <NSObject>
@@ -33,9 +38,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)settingsCanChangeCanvasSize;
 - (void)settingsDidSelectCanvasSize:(CGSize)size;
 
-// 按来源类型设置混音音量（1.0=原始）
-- (void)settingsDidSetVolume:(float)volume forFromType:(WLFromType)fromType;
-- (float)settingsVolumeForFromType:(WLFromType)fromType;
+// 当前所有源列表；每项 @{@"sid":NSString, @"name":NSString, @"fromType":@(WLFromType), @"hasAudio":@(BOOL)}
+- (NSArray<NSDictionary *> *)settingsSourceList;
+// 按单路源（streamID）设置/读取混音音量（1.0=原始）
+- (void)settingsDidSetVolume:(float)volume forStreamID:(NSString *)streamID;
+- (float)settingsVolumeForStreamID:(NSString *)streamID;
 
 // 推流：服务器地址 + 密钥（推流码）。编辑结束即回调宿主保存；打开设置时回读做回填。
 - (void)settingsDidSetPushURL:(NSString *)url streamKey:(NSString *)streamKey;

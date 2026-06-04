@@ -29,6 +29,10 @@ typedef NS_ENUM(NSInteger, WLZOrderAction) {
 - (void)rendering:(id<WLStreamRenderingProtocol>)rendering didRequestZOrderAction:(WLZOrderAction)action;
 // 浮层右键请求取消选中（画布被浮层占满、无空白处可点时的兜底）
 - (void)renderingDidRequestDeselect:(id<WLStreamRenderingProtocol>)rendering;
+// 浮层右键请求移除该源（停止源 + 从画布/合成中移除）
+- (void)renderingDidRequestRemove:(id<WLStreamRenderingProtocol>)rendering;
+// 浮层右键请求打开该源的属性设置（音量 / 滤镜等）
+- (void)renderingDidRequestProperties:(id<WLStreamRenderingProtocol>)rendering;
 @end
 
 @protocol WLStreamRenderingProtocol <WLVideoOutputProtocol>

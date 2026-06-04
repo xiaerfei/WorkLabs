@@ -7,21 +7,22 @@
 #import <Masonry/Masonry.h>
 
 @interface WLSettingsWindowController () <NSTableViewDataSource, NSTableViewDelegate>
-@property (nonatomic, strong) NSArray<NSDictionary *> *categories;       // {title, symbol}
-@property (nonatomic, strong) NSArray<NSDictionary *> *resolutionPresets; // {t, w, h}
+@property (nonatomic, strong) NSArray<NSDictionary *> *fixedCategories;    // 固定分类 {kind,title,symbol,panel}
+@property (nonatomic, strong) NSArray<NSDictionary *> *sidebarItems;       // 实际渲染项：固定分类 + group + 各源
+@property (nonatomic, strong) NSArray<NSDictionary *> *resolutionPresets;  // {t, w, h}
 @property (nonatomic, strong) NSTableView *sidebar;
 @property (nonatomic, strong) NSView *contentContainer;
-@property (nonatomic, strong) NSArray<NSView *> *panels;
+@property (nonatomic, strong) NSArray<NSView *> *panels;                   // 固定面板：画布/背景/推流
 @property (nonatomic, strong) NSPopUpButton *resolutionPopup;
 @property (nonatomic, strong) NSColorWell *colorWell;
 @property (nonatomic, strong) NSTextField *bgImageLabel;
-@property (nonatomic, strong) NSSlider *mediaVolSlider;
-@property (nonatomic, strong) NSSlider *micVolSlider;
-@property (nonatomic, strong) NSTextField *mediaPercentLabel;
-@property (nonatomic, strong) NSTextField *micPercentLabel;
 @property (nonatomic, strong) NSTextField *pushURLField;
 @property (nonatomic, strong) NSTextField *streamKeyField;
 @property (nonatomic, strong) NSTextField *pushSavedLabel;
+// 当前正在显示的源属性页
+@property (nonatomic, copy, nullable) NSString *currentSourceSID;
+@property (nonatomic, strong, nullable) NSSlider *sourceVolSlider;
+@property (nonatomic, strong, nullable) NSTextField *sourceVolPercent;
 @end
 
 @implementation WLSettingsWindowController
@@ -37,11 +38,10 @@
     self = [super initWithWindow:window];
     if (self) {
         _currentCanvasSize = CGSizeMake(1920, 1080);
-        _categories = @[
-            @{@"title": @"画布", @"symbol": @"display"},
-            @{@"title": @"背景", @"symbol": @"photo"},
-            @{@"title": @"音频", @"symbol": @"speaker.wave.2"},
-            @{@"title": @"推流", @"symbol": @"antenna.radiowaves.left.and.right"},
+        _fixedCategories = @[
+            @{@"kind": @"category", @"title": @"画布", @"symbol": @"display", @"panel": @0},
+            @{@"kind": @"category", @"title": @"背景", @"symbol": @"photo",   @"panel": @1},
+            @{@"kind": @"category", @"title": @"推流", @"symbol": @"antenna.radiowaves.left.and.right", @"panel": @2},
         ];
         _resolutionPresets = @[
             @{@"t": @"1280×720 (720p)",   @"w": @1280, @"h": @720},
@@ -51,8 +51,10 @@
             @{@"t": @"720×1280 (竖屏)",   @"w": @720,  @"h": @1280},
         ];
         [self buildUI];
+        [self rebuildSidebarItems];
+        [self.sidebar reloadData];
         [self.sidebar selectRowIndexes:[NSIndexSet indexSetWithIndex:0] byExtendingSelection:NO];
-        [self showPanelAtIndex:0];
+        [self showFixedPanelAtIndex:0];
     }
     return self;
 }
@@ -100,7 +102,7 @@
         make.left.equalTo(sidebarBG.mas_right);
     }];
 
-    self.panels = @[[self buildCanvasPanel], [self buildBackgroundPanel], [self buildAudioPanel], [self buildPushPanel]];
+    self.panels = @[[self buildCanvasPanel], [self buildBackgroundPanel], [self buildPushPanel]];
 }
 
 // 一行：左标题 + 右控件
@@ -194,33 +196,6 @@
     return panel;
 }
 
-- (NSView *)buildAudioPanel {
-    NSView *panel = [[NSView alloc] init];
-
-    self.mediaPercentLabel = [NSTextField labelWithString:@"100%"];
-    self.micPercentLabel   = [NSTextField labelWithString:@"100%"];
-    self.mediaVolSlider = [self volumeSliderForType:WLFromTypeMedia];
-    self.micVolSlider   = [self volumeSliderForType:WLFromTypeMic];
-
-    NSView *mediaRow = [self volumeRowTitle:@"媒体音量" slider:self.mediaVolSlider percent:self.mediaPercentLabel];
-    NSView *micRow   = [self volumeRowTitle:@"麦克风音量" slider:self.micVolSlider   percent:self.micPercentLabel];
-
-    [panel addSubview:mediaRow];
-    [panel addSubview:micRow];
-    [mediaRow mas_makeConstraints:^(MASConstraintMaker *make) {
-        make.top.equalTo(panel).offset(24);
-        make.left.equalTo(panel).offset(24);
-        make.right.equalTo(panel).offset(-24);
-        make.height.equalTo(@24);
-    }];
-    [micRow mas_makeConstraints:^(MASConstraintMaker *make) {
-        make.top.equalTo(mediaRow.mas_bottom).offset(16);
-        make.left.right.equalTo(mediaRow);
-        make.height.equalTo(@24);
-    }];
-    return panel;
-}
-
 - (NSView *)buildPushPanel {
     NSView *panel = [[NSView alloc] init];
 
@@ -283,13 +258,7 @@
     return panel;
 }
 
-- (NSSlider *)volumeSliderForType:(WLFromType)type {
-    NSSlider *slider = [NSSlider sliderWithValue:1.0 minValue:0.0 maxValue:2.0
-                                          target:self action:@selector(volumeChanged:)];
-    slider.tag = type;
-    return slider;
-}
-
+// 标题 + 滑块 + 百分比 的一行（音量用）
 - (NSView *)volumeRowTitle:(NSString *)title slider:(NSSlider *)slider percent:(NSTextField *)percent {
     [slider.widthAnchor constraintEqualToConstant:160].active = YES;
     [percent.widthAnchor constraintEqualToConstant:44].active = YES;
@@ -300,38 +269,174 @@
     return [self rowWithTitle:title control:stack];
 }
 
-- (void)volumeChanged:(NSSlider *)sender {
+#pragma mark - 源属性页（每个流的配置容器：音量 + 预留滤镜）
+
+- (NSView *)buildSourcePanelForItem:(NSDictionary *)item {
+    NSView *panel = [[NSView alloc] init];
+    NSString *name = item[@"name"] ?: @"源";
+    BOOL hasAudio = [item[@"hasAudio"] boolValue];
+    WLFromType t = (WLFromType)[item[@"fromType"] integerValue];
+    NSString *typeName = (t == WLFromTypeMic) ? @"麦克风"
+                       : (t == WLFromTypeCamera) ? @"摄像头" : @"视频文件";
+
+    NSTextField *titleLabel = [NSTextField labelWithString:name];
+    titleLabel.font = [NSFont boldSystemFontOfSize:15];
+    titleLabel.lineBreakMode = NSLineBreakByTruncatingMiddle;
+    NSTextField *subLabel = [NSTextField labelWithString:typeName];
+    subLabel.textColor = [NSColor secondaryLabelColor];
+    subLabel.font = [NSFont systemFontOfSize:11];
+
+    [panel addSubview:titleLabel];
+    [panel addSubview:subLabel];
+    [titleLabel mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.top.equalTo(panel).offset(22);
+        make.left.equalTo(panel).offset(24);
+        make.right.lessThanOrEqualTo(panel).offset(-24);
+    }];
+    [subLabel mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.top.equalTo(titleLabel.mas_bottom).offset(2);
+        make.left.equalTo(titleLabel);
+    }];
+
+    NSView *anchor = subLabel;
+
+    if (hasAudio) {
+        float vol = 1.0f;
+        if ([self.settingsDelegate respondsToSelector:@selector(settingsVolumeForStreamID:)]) {
+            vol = [self.settingsDelegate settingsVolumeForStreamID:item[@"sid"]];
+        }
+        self.sourceVolPercent = [NSTextField labelWithString:[NSString stringWithFormat:@"%.0f%%", vol * 100]];
+        self.sourceVolSlider = [NSSlider sliderWithValue:vol minValue:0.0 maxValue:2.0
+                                                  target:self action:@selector(sourceVolumeChanged:)];
+        NSView *volRow = [self volumeRowTitle:@"音量" slider:self.sourceVolSlider percent:self.sourceVolPercent];
+        [panel addSubview:volRow];
+        [volRow mas_makeConstraints:^(MASConstraintMaker *make) {
+            make.top.equalTo(subLabel.mas_bottom).offset(22);
+            make.left.equalTo(panel).offset(24);
+            make.right.equalTo(panel).offset(-24);
+            make.height.equalTo(@24);
+        }];
+        anchor = volRow;
+    } else {
+        self.sourceVolSlider = nil;
+        self.sourceVolPercent = nil;
+        NSTextField *noAudio = [NSTextField labelWithString:@"此源无音频输出"];
+        noAudio.textColor = [NSColor secondaryLabelColor];
+        [panel addSubview:noAudio];
+        [noAudio mas_makeConstraints:^(MASConstraintMaker *make) {
+            make.top.equalTo(subLabel.mas_bottom).offset(22);
+            make.left.equalTo(panel).offset(24);
+        }];
+        anchor = noAudio;
+    }
+
+    // 滤镜区占位（为将来 per-source filter 预留位置）
+    NSTextField *filterTitle = [NSTextField labelWithString:@"滤镜"];
+    filterTitle.font = [NSFont boldSystemFontOfSize:12];
+    NSTextField *filterHint = [NSTextField labelWithString:@"镜像 / 裁剪等滤镜即将支持。"];
+    filterHint.textColor = [NSColor secondaryLabelColor];
+    filterHint.font = [NSFont systemFontOfSize:11];
+    [panel addSubview:filterTitle];
+    [panel addSubview:filterHint];
+    [filterTitle mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.top.equalTo(anchor.mas_bottom).offset(28);
+        make.left.equalTo(panel).offset(24);
+    }];
+    [filterHint mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.top.equalTo(filterTitle.mas_bottom).offset(6);
+        make.left.equalTo(panel).offset(24);
+        make.right.lessThanOrEqualTo(panel).offset(-24);
+    }];
+    return panel;
+}
+
+- (void)sourceVolumeChanged:(NSSlider *)sender {
     float v = sender.floatValue;
-    NSString *pct = [NSString stringWithFormat:@"%.0f%%", v * 100];
-    if (sender.tag == WLFromTypeMedia)      self.mediaPercentLabel.stringValue = pct;
-    else if (sender.tag == WLFromTypeMic)   self.micPercentLabel.stringValue = pct;
-    if ([self.settingsDelegate respondsToSelector:@selector(settingsDidSetVolume:forFromType:)]) {
-        [self.settingsDelegate settingsDidSetVolume:v forFromType:(WLFromType)sender.tag];
+    self.sourceVolPercent.stringValue = [NSString stringWithFormat:@"%.0f%%", v * 100];
+    if (self.currentSourceSID.length > 0 &&
+        [self.settingsDelegate respondsToSelector:@selector(settingsDidSetVolume:forStreamID:)]) {
+        [self.settingsDelegate settingsDidSetVolume:v forStreamID:self.currentSourceSID];
     }
 }
 
-- (void)savePushSettings:(id)sender {
-    if ([self.settingsDelegate respondsToSelector:@selector(settingsDidSetPushURL:streamKey:)]) {
-        [self.settingsDelegate settingsDidSetPushURL:(self.pushURLField.stringValue ?: @"")
-                                           streamKey:(self.streamKeyField.stringValue ?: @"")];
-    }
-    self.pushSavedLabel.stringValue = @"✓ 已保存";
-    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(clearPushSavedLabel) object:nil];
-    [self performSelector:@selector(clearPushSavedLabel) withObject:nil afterDelay:2.0];
-}
+#pragma mark - 面板切换
 
-- (void)clearPushSavedLabel {
-    self.pushSavedLabel.stringValue = @"";
-}
-
-- (void)showPanelAtIndex:(NSInteger)idx {
+- (void)showFixedPanelAtIndex:(NSInteger)idx {
     if (idx < 0 || idx >= (NSInteger)self.panels.count) return;
+    self.currentSourceSID = nil;
     for (NSView *v in self.contentContainer.subviews) [v removeFromSuperview];
     NSView *panel = self.panels[idx];
     [self.contentContainer addSubview:panel];
     [panel mas_remakeConstraints:^(MASConstraintMaker *make) {
         make.edges.equalTo(self.contentContainer);
     }];
+}
+
+- (void)showSourcePanelForItem:(NSDictionary *)item {
+    self.currentSourceSID = item[@"sid"];
+    for (NSView *v in self.contentContainer.subviews) [v removeFromSuperview];
+    NSView *panel = [self buildSourcePanelForItem:item];
+    [self.contentContainer addSubview:panel];
+    [panel mas_remakeConstraints:^(MASConstraintMaker *make) {
+        make.edges.equalTo(self.contentContainer);
+    }];
+}
+
+#pragma mark - sidebar 数据（固定分类 + 动态源）
+
+- (void)rebuildSidebarItems {
+    NSMutableArray<NSDictionary *> *items = [self.fixedCategories mutableCopy];
+    NSArray<NSDictionary *> *sources = nil;
+    if ([self.settingsDelegate respondsToSelector:@selector(settingsSourceList)]) {
+        sources = [self.settingsDelegate settingsSourceList];
+    }
+    if (sources.count > 0) {
+        [items addObject:@{@"kind": @"group", @"title": @"输入源"}];
+        for (NSDictionary *s in sources) {
+            WLFromType t = (WLFromType)[s[@"fromType"] integerValue];
+            NSString *sym = (t == WLFromTypeMic) ? @"mic.fill"
+                          : (t == WLFromTypeCamera) ? @"video.fill" : @"film.fill";
+            [items addObject:@{@"kind": @"source",
+                               @"sid": s[@"sid"] ?: @"",
+                               @"name": s[@"name"] ?: @"源",
+                               @"symbol": sym,
+                               @"fromType": s[@"fromType"] ?: @0,
+                               @"hasAudio": s[@"hasAudio"] ?: @NO}];
+        }
+    }
+    self.sidebarItems = items;
+}
+
+// 源增删后由宿主调用：刷新左栏并尽量保持当前选中
+- (void)reloadSources {
+    NSString *keepSID = self.currentSourceSID;
+    [self rebuildSidebarItems];
+    [self.sidebar reloadData];
+    if (keepSID.length > 0) {
+        for (NSInteger i = 0; i < (NSInteger)self.sidebarItems.count; i++) {
+            NSDictionary *it = self.sidebarItems[i];
+            if ([it[@"kind"] isEqualToString:@"source"] && [it[@"sid"] isEqualToString:keepSID]) {
+                [self.sidebar selectRowIndexes:[NSIndexSet indexSetWithIndex:i] byExtendingSelection:NO];
+                return;
+            }
+        }
+        // 原选中的源已被移除 → 回到第一项
+        [self.sidebar selectRowIndexes:[NSIndexSet indexSetWithIndex:0] byExtendingSelection:NO];
+        [self showFixedPanelAtIndex:0];
+    }
+}
+
+// 供右键「属性…」跳转：选中并显示某个源的属性页
+- (void)selectSourceID:(NSString *)streamID {
+    [self rebuildSidebarItems];
+    [self.sidebar reloadData];
+    for (NSInteger i = 0; i < (NSInteger)self.sidebarItems.count; i++) {
+        NSDictionary *it = self.sidebarItems[i];
+        if ([it[@"kind"] isEqualToString:@"source"] && [it[@"sid"] isEqualToString:streamID]) {
+            [self.sidebar selectRowIndexes:[NSIndexSet indexSetWithIndex:i] byExtendingSelection:NO];
+            return;
+        }
+    }
 }
 
 #pragma mark - currentCanvasSize → 同步下拉选中
@@ -354,18 +459,8 @@
 
 - (void)showWindow:(id)sender {
     [super showWindow:sender];
-    [self syncVolumesFromDelegate];
     [self syncPushFromDelegate];
-}
-
-- (void)syncVolumesFromDelegate {
-    if (![self.settingsDelegate respondsToSelector:@selector(settingsVolumeForFromType:)]) return;
-    float mv = [self.settingsDelegate settingsVolumeForFromType:WLFromTypeMedia];
-    float kv = [self.settingsDelegate settingsVolumeForFromType:WLFromTypeMic];
-    self.mediaVolSlider.floatValue = mv;
-    self.micVolSlider.floatValue = kv;
-    self.mediaPercentLabel.stringValue = [NSString stringWithFormat:@"%.0f%%", mv * 100];
-    self.micPercentLabel.stringValue = [NSString stringWithFormat:@"%.0f%%", kv * 100];
+    [self reloadSources];
 }
 
 - (void)syncPushFromDelegate {
@@ -431,13 +526,61 @@
     }
 }
 
+- (void)savePushSettings:(id)sender {
+    if ([self.settingsDelegate respondsToSelector:@selector(settingsDidSetPushURL:streamKey:)]) {
+        [self.settingsDelegate settingsDidSetPushURL:(self.pushURLField.stringValue ?: @"")
+                                           streamKey:(self.streamKeyField.stringValue ?: @"")];
+    }
+    self.pushSavedLabel.stringValue = @"✓ 已保存";
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(clearPushSavedLabel) object:nil];
+    [self performSelector:@selector(clearPushSavedLabel) withObject:nil afterDelay:2.0];
+}
+
+- (void)clearPushSavedLabel {
+    self.pushSavedLabel.stringValue = @"";
+}
+
 #pragma mark - NSTableView (sidebar)
 
 - (NSInteger)numberOfRowsInTableView:(NSTableView *)tableView {
-    return self.categories.count;
+    return self.sidebarItems.count;
+}
+
+- (BOOL)tableView:(NSTableView *)tableView isGroupRow:(NSInteger)row {
+    if (row < 0 || row >= (NSInteger)self.sidebarItems.count) return NO;
+    return [self.sidebarItems[row][@"kind"] isEqualToString:@"group"];
+}
+
+- (BOOL)tableView:(NSTableView *)tableView shouldSelectRow:(NSInteger)row {
+    if (row < 0 || row >= (NSInteger)self.sidebarItems.count) return NO;
+    return ![self.sidebarItems[row][@"kind"] isEqualToString:@"group"];
 }
 
 - (NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(NSTableColumn *)tableColumn row:(NSInteger)row {
+    NSDictionary *item = self.sidebarItems[row];
+    NSString *kind = item[@"kind"];
+
+    if ([kind isEqualToString:@"group"]) {
+        static NSString *kGroupId = @"WLSettingsGroupCell";
+        NSTableCellView *cell = [tableView makeViewWithIdentifier:kGroupId owner:self];
+        if (!cell) {
+            cell = [[NSTableCellView alloc] init];
+            cell.identifier = kGroupId;
+            NSTextField *tf = [NSTextField labelWithString:@""];
+            tf.font = [NSFont boldSystemFontOfSize:11];
+            tf.textColor = [NSColor secondaryLabelColor];
+            [cell addSubview:tf];
+            cell.textField = tf;
+            [tf mas_makeConstraints:^(MASConstraintMaker *make) {
+                make.left.equalTo(cell).offset(4);
+                make.centerY.equalTo(cell);
+                make.right.lessThanOrEqualTo(cell);
+            }];
+        }
+        cell.textField.stringValue = item[@"title"];
+        return cell;
+    }
+
     static NSString *kId = @"WLSettingsCatCell";
     NSTableCellView *cell = [tableView makeViewWithIdentifier:kId owner:self];
     if (!cell) {
@@ -460,17 +603,24 @@
             make.right.lessThanOrEqualTo(cell);
         }];
     }
-    NSDictionary *cat = self.categories[row];
-    cell.textField.stringValue = cat[@"title"];
+    cell.textField.stringValue = item[@"name"] ?: item[@"title"];
+    cell.textField.lineBreakMode = NSLineBreakByTruncatingMiddle;
     if (@available(macOS 11.0, *)) {
-        cell.imageView.image = [NSImage imageWithSystemSymbolName:cat[@"symbol"] accessibilityDescription:nil];
+        cell.imageView.image = [NSImage imageWithSystemSymbolName:item[@"symbol"] accessibilityDescription:nil];
     }
     return cell;
 }
 
 - (void)tableViewSelectionDidChange:(NSNotification *)notification {
     NSInteger row = self.sidebar.selectedRow;
-    if (row >= 0) [self showPanelAtIndex:row];
+    if (row < 0 || row >= (NSInteger)self.sidebarItems.count) return;
+    NSDictionary *item = self.sidebarItems[row];
+    NSString *kind = item[@"kind"];
+    if ([kind isEqualToString:@"category"]) {
+        [self showFixedPanelAtIndex:[item[@"panel"] integerValue]];
+    } else if ([kind isEqualToString:@"source"]) {
+        [self showSourcePanelForItem:item];
+    }
 }
 
 @end

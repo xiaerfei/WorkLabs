@@ -381,6 +381,7 @@ static const CGFloat kIconBgAlpha = 0.05;
 
     [self.previewToSID setObject:sid forKey:preview];
     self.sidToSource[sid] = source;
+    [self.settingsWC reloadSources];
 
     [self.canvasView addSubview:preview];
 
@@ -425,6 +426,7 @@ static const CGFloat kIconBgAlpha = 0.05;
 
     [self.previewToSID setObject:sid forKey:preview];
     self.sidToSource[sid] = source;
+    [self.settingsWC reloadSources];
 
     [self.canvasView addSubview:preview];
 
@@ -459,6 +461,32 @@ static const CGFloat kIconBgAlpha = 0.05;
 
 - (void)renderingDidRequestDeselect:(id<WLStreamRenderingProtocol>)rendering {
     [self deselectAllPreviews];
+}
+
+- (void)renderingDidRequestRemove:(id<WLStreamRenderingProtocol>)rendering {
+    if (![rendering isKindOfClass:[WLStreamPreview class]]) return;
+    WLStreamPreview *preview = (WLStreamPreview *)rendering;
+    NSString *sid = [self.previewToSID objectForKey:preview];
+    if (sid.length == 0) return;
+    id<WLStreamSourceProtocol> source = self.sidToSource[sid];
+
+    if (source) [self.manager removeSource:source];   // 停源 + 从 mixer/canvas/mix 移除
+    preview.selected = NO;
+    [preview flush];
+    [preview removeFromSuperview];
+    [self.previewToSID removeObjectForKey:preview];
+    [self.sidToSource removeObjectForKey:sid];
+    [self syncPreviewZOrder];
+    [self.settingsWC reloadSources];
+    NSLog(@"[WLStreamViewController] 已移除源 sid=%@", sid);
+}
+
+- (void)renderingDidRequestProperties:(id<WLStreamRenderingProtocol>)rendering {
+    if (![rendering isKindOfClass:[WLStreamPreview class]]) return;
+    NSString *sid = [self.previewToSID objectForKey:(WLStreamPreview *)rendering];
+    if (sid.length == 0) return;
+    [self settingsClicked:nil];            // 打开设置窗口
+    [self.settingsWC selectSourceID:sid];  // 跳到该源属性页
 }
 
 - (void)rendering:(id<WLStreamRenderingProtocol>)rendering
@@ -532,12 +560,25 @@ static const CGFloat kIconBgAlpha = 0.05;
     [self applyCanvasSize:size];
 }
 
-- (void)settingsDidSetVolume:(float)volume forFromType:(WLFromType)fromType {
-    [self.manager setVolume:volume forFromType:fromType];
+- (NSArray<NSDictionary *> *)settingsSourceList {
+    NSMutableArray<NSDictionary *> *list = [NSMutableArray array];
+    for (NSString *sid in self.sidToSource) {
+        id<WLStreamSourceProtocol> s = self.sidToSource[sid];
+        BOOL hasAudio = (s.fromType == WLFromTypeMedia || s.fromType == WLFromTypeMic);
+        [list addObject:@{@"sid": sid,
+                          @"name": (s.displayName ?: @"源"),
+                          @"fromType": @(s.fromType),
+                          @"hasAudio": @(hasAudio)}];
+    }
+    return list;
 }
 
-- (float)settingsVolumeForFromType:(WLFromType)fromType {
-    return [self.manager volumeForFromType:fromType];
+- (void)settingsDidSetVolume:(float)volume forStreamID:(NSString *)streamID {
+    [self.manager setVolume:volume forStreamID:streamID];
+}
+
+- (float)settingsVolumeForStreamID:(NSString *)streamID {
+    return [self.manager volumeForStreamID:streamID];
 }
 
 - (void)settingsDidSetPushURL:(NSString *)url streamKey:(NSString *)streamKey {
@@ -845,6 +886,7 @@ static const CGFloat kIconBgAlpha = 0.05;
     NSString *sid = [self.manager addSource:source previewOutput:nil]; // 纯音频，无画面
     if (sid.length == 0) return;
     self.sidToSource[sid] = source;
+    [self.settingsWC reloadSources];
 
     NSError *err = nil;
     if (![source start:&err]) {
