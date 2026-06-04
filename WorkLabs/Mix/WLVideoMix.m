@@ -6,6 +6,14 @@
 #import "WLVideoMix.h"
 #import <CoreImage/CoreImage.h>
 #import <Metal/Metal.h>
+#include <mach/mach_time.h>
+
+// 单调墙钟（秒），用于合成输出节流
+static Float64 WLVideoMixNowSeconds(void) {
+    static mach_timebase_info_data_t tb = {0, 0};
+    if (tb.denom == 0) mach_timebase_info(&tb);
+    return (Float64)mach_absolute_time() * tb.numer / tb.denom / 1.0e9;
+}
 
 @interface WLVideoMix ()
 @property (nonatomic, strong) CIContext *ciContext;
@@ -22,6 +30,8 @@
 @property (nonatomic, strong, nullable) CIColor *bgColor;
 @property (nonatomic, strong, nullable) CIImage *bgImage;
 @property (nonatomic, assign) Float64 lastPts;
+@property (nonatomic, assign) Float64 lastRenderTime;     // 上次实际合成输出的墙钟（节流用）
+@property (nonatomic, assign) Float64 minRenderInterval;  // 合成最小间隔 = 1 / 帧率上限
 
 @property (nonatomic, assign) CVPixelBufferPoolRef pixelBufferPool;
 @property (nonatomic, assign) CGColorSpaceRef colorSpace; // 输出色彩空间(sRGB)，避免输出线性 RGB 致画面偏暗
@@ -41,6 +51,7 @@
         _colorSpace = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
 
         _serialQueue = dispatch_queue_create("com.worklabs.videomix", DISPATCH_QUEUE_SERIAL);
+        _minRenderInterval = 1.0 / 60.0;   // 默认合成帧率上限 60fps（可由 setRenderFrameRate: 调整）
         _latestFrames = [NSMutableDictionary dictionary];
         _layouts = [NSMutableDictionary dictionary];
         _streamOrder = [NSMutableArray array];
@@ -152,18 +163,33 @@
     });
 }
 
+- (void)setRenderFrameRate:(int)fps {
+    Float64 interval = (fps > 0) ? (1.0 / (Float64)fps) : (1.0 / 60.0);
+    dispatch_async(self.serialQueue, ^{
+        self.minRenderInterval = interval;
+    });
+}
+
 #pragma mark - Render
 
 - (void)renderWithPts:(Float64)pts {
     self.lastPts = pts;
     CGRect canvasRect = CGRectMake(0, 0, self.canvasSize.width, self.canvasSize.height);
 
-    CIImage *composed = nil;
+    // 无任何内容（背景与源都没有）→ 不输出
+    if (!self.bgColor && !self.bgImage && self.streamOrder.count == 0) return;
 
-    // 1) 背景色：铺满画布
-    if (self.bgColor) {
-        composed = [[CIImage imageWithColor:self.bgColor] imageByCroppingToRect:canvasRect];
-    }
+    // 输出节流：合成由输入事件驱动（源帧 + 拖动时高频 setLayoutFrame 等），频率可达数百 Hz、
+    //   远超编码吞吐。按帧率上限节流；被跳过的输入已更新 latestFrames/layouts 缓存，
+    //   后续帧会用最新状态合成，不丢最终画面。
+    Float64 now = WLVideoMixNowSeconds();
+    if (self.lastRenderTime > 0 && (now - self.lastRenderTime) < self.minRenderInterval) return;
+    self.lastRenderTime = now;
+
+    // 1) 始终以不透明背景起底、铺满画布：确保 CIContext 渲染覆盖整个 pool 复用 buffer，
+    //    否则源未覆盖的区域会残留上一帧内容（拖动源时表现为残影）。默认黑底，或用户设的背景色。
+    CIImage *composed = [[CIImage imageWithColor:(self.bgColor ?: [CIColor blackColor])]
+                         imageByCroppingToRect:canvasRect];
 
     // 2) 背景图：缩放铺满，叠在背景色之上
     if (self.bgImage) {
@@ -198,9 +224,6 @@
 
         composed = composed ? [placed imageByCompositingOverImage:composed] : placed;
     }
-
-    // 无背景且无流 → 不输出
-    if (composed == nil) return;
 
     composed = [composed imageByCroppingToRect:canvasRect];
 

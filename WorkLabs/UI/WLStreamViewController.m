@@ -18,6 +18,7 @@
 #import "WLCameraSourceConfig.h"
 #import "WLDevicesManager.h"
 #import "WLRecorder.h"
+#import "WLEncoder.h"
 #import "WLEncoderConfig.h"
 
 static const CGFloat kIconBgAlpha = 0.05;
@@ -169,6 +170,11 @@ static const CGFloat kIconBgAlpha = 0.05;
 // 编码配置（码率/关键帧间隔/帧率/音频码率，推流 + 录制共用一套）
 @property (nonatomic, strong) WLEncoderConfig *encoderConfig;
 
+// 共享编码器：编一次，分发给录制(mp4)/推流(flv)两路 muxer。仅在录制或推流时存在（按需创建、闲置即销毁）。
+@property (nonatomic, strong, nullable) WLEncoder *encoder;
+@property (nonatomic, assign) BOOL recordActive;   // 录制意图（主线程维护，作 UI 判断与「是否最后一路」依据）
+@property (nonatomic, assign) BOOL liveActive;     // 推流意图（主线程维护）
+
 // 设置窗口
 @property (nonatomic, strong) WLSettingsWindowController *settingsWC;
 
@@ -209,18 +215,16 @@ static const CGFloat kIconBgAlpha = 0.05;
     _pushURL   = [[NSUserDefaults standardUserDefaults] stringForKey:@"WLPushURL"];
     _streamKey = [[NSUserDefaults standardUserDefaults] stringForKey:@"WLStreamKey"];
     _encoderConfig = [WLEncoderConfig loadFromDefaults];
-    (void)self.recorder;   // 预热（消除合成线程与主线程 lazy 创建竞争）
+    self.manager.renderFrameRate = _encoderConfig.fps;   // 合成帧率上限对齐编码 fps，避免拖动/多源时过度合成致编码丢帧
 
-    // 合成帧 / 混音音频 → 同时分发给录制器与推流器（各自内部按 isRecording/isPushing 判断）
+    // 合成帧 / 混音音频 → 共享编码器（编一次）。编码器仅在录制/推流时存在，否则为 nil（消息发往 nil 无操作）。
     __weak typeof(self) wself = self;
     self.manager.mixedFrameOutput = ^(CVPixelBufferRef pb, Float64 pts) {
-        [wself.recorder appendVideoPixelBuffer:pb pts:pts];
-        [wself.pusher   appendVideoPixelBuffer:pb pts:pts];
-        CVPixelBufferRelease(pb); // 所有权转移给 block（两个消费者各自 retain）
+        [wself.encoder appendVideoPixelBuffer:pb pts:pts];
+        CVPixelBufferRelease(pb); // 所有权转移给 block
     };
     self.manager.audioBufferOutput = ^(CMSampleBufferRef sb) {
-        [wself.recorder appendAudioSampleBuffer:sb];
-        [wself.pusher   appendAudioSampleBuffer:sb];
+        [wself.encoder appendAudioSampleBuffer:sb];
     };
 
     [self setupCanvas];
@@ -558,7 +562,8 @@ static const CGFloat kIconBgAlpha = 0.05;
 }
 
 - (BOOL)settingsCanChangeCanvasSize {
-    return !self.recorder.isRecording;
+    // 编码器一旦 open，width/height 即固化 → 录制或推流期间禁止改画布尺寸（否则 sws 输入/输出错配）
+    return !(self.recordActive || self.liveActive || self.encoder.isRunning);
 }
 
 - (void)settingsDidSelectCanvasSize:(CGSize)size {
@@ -609,6 +614,7 @@ static const CGFloat kIconBgAlpha = 0.05;
 
 - (void)settingsDidUpdateEncoderConfig:(WLEncoderConfig *)config {
     [config saveToDefaults];   // config 即 self.encoderConfig（同一对象），保存供下次录制/推流读取
+    self.manager.renderFrameRate = config.fps;   // fps 改动即时同步合成帧率上限
 }
 
 - (void)applyCanvasSize:(CGSize)size {
@@ -658,26 +664,38 @@ static const CGFloat kIconBgAlpha = 0.05;
     return NO;
 }
 
+#pragma mark - 共享编码器生命周期（编一次，分发录制/推流两路）
+
+// 确保共享编码器在运行（首个输出启动时创建并 start）。返回是否就绪。
+- (BOOL)ensureEncoderRunning {
+    if (self.encoder.isRunning) return YES;
+    // 旧的（已停止/未启动）一律丢弃重建，保证全新会话（不复用 VideoToolbox 会话状态）
+    self.encoder = [[WLEncoder alloc] init];
+    __weak typeof(self) wself = self;
+    self.encoder.packetOutput = ^(WLEncodedPacket *pkt) {
+        // 在编码器 queue 上回调；无脑分发两路，由各 muxer 内部 state 决定写不写（安全网在 muxer queue）
+        [wself.recorder writePacket:pkt];
+        [wself.pusher   writePacket:pkt];
+    };
+    BOOL ok = [self.encoder startWithVideoSize:self.canvas.canvasSize
+                                        config:self.encoderConfig
+                                  audioEnabled:[self hasAudioCapableSource]];
+    if (!ok) self.encoder = nil;
+    return ok;
+}
+
+// 两路都不再活跃时停止并释放编码器（flush 残包后销毁；旧实例由 in-flight block 持有至跑完）。
+- (void)stopEncoderIfIdle {
+    if (self.recordActive || self.liveActive) return;
+    WLEncoder *enc = self.encoder;
+    self.encoder = nil;            // 立即不再持有 → 下次 ensure 必新建，避免残包污染新会话
+    [enc stopWithCompletion:nil];
+}
+
+#pragma mark - Actions（录制）
+
 - (void)recordClicked:(id)sender {
-    if (self.recorder.isRecording) {
-        [self.recorder stopRecording];
-        [self setRecordButtonActive:NO];
-        NSString *path = self.currentRecordPath;
-        self.currentRecordPath = nil;
-        NSLog(@"[WLStreamViewController] 录制已停止: %@", path);
-        if (path) {
-            NSAlert *alert = [[NSAlert alloc] init];
-            alert.messageText = @"录制完成";
-            alert.informativeText = [NSString stringWithFormat:@"已保存到：\n%@", path];
-            [alert addButtonWithTitle:@"好"];
-            [alert addButtonWithTitle:@"在 Finder 中显示"];
-            if ([alert runModal] == NSAlertSecondButtonReturn) {
-                [[NSWorkspace sharedWorkspace]
-                    activateFileViewerSelectingURLs:@[[NSURL fileURLWithPath:path]]];
-            }
-        }
-        return;
-    }
+    if (self.recordActive) { [self stopRecording]; return; }
 
     NSSavePanel *panel = [NSSavePanel savePanel];
     panel.allowedFileTypes = @[@"mp4"];
@@ -685,31 +703,57 @@ static const CGFloat kIconBgAlpha = 0.05;
     __weak typeof(self) wself = self;
     [panel beginWithCompletionHandler:^(NSModalResponse result) {
         if (result != NSModalResponseOK || !panel.URL) return;
-        NSError *err = nil;
-        BOOL audioEnabled = [wself hasAudioCapableSource];
-        if ([wself.recorder startRecordingToPath:panel.URL.path
-                                       videoSize:wself.canvas.canvasSize
-                                          config:wself.encoderConfig
-                                    audioEnabled:audioEnabled
-                                           error:&err]) {
-            wself.currentRecordPath = panel.URL.path;
-            [wself setRecordButtonActive:YES];
-            NSLog(@"[WLStreamViewController] 开始录制 → %@ (audio=%d)", panel.URL.path, audioEnabled);
-        } else {
-            NSAlert *alert = [[NSAlert alloc] init];
-            alert.messageText = @"无法开始录制";
-            alert.informativeText = err.localizedDescription ?: @"未知错误";
-            [alert addButtonWithTitle:@"好"];
-            [alert runModal];
-        }
+        [wself startRecordingToPath:panel.URL.path];
     }];
 }
 
-- (void)liveClicked:(id)sender {
-    if (self.pusher.isPushing) {
-        [self.pusher stop];
+- (void)startRecordingToPath:(NSString *)path {
+    if (![self ensureEncoderRunning]) {
+        [self showAlertTitle:@"无法开始录制" message:@"编码器启动失败"];
         return;
     }
+    NSError *err = nil;
+    if ([self.recorder startToPath:path error:&err]) {
+        self.currentRecordPath = path;
+        self.recordActive = YES;
+        [self.encoder requestKeyframe];   // 录制 muxer 已等待关键帧 → 请求快速对齐 GOP 起点
+        [self setRecordButtonActive:YES];
+        NSLog(@"[WLStreamViewController] 开始录制 → %@", path);
+    } else {
+        [self stopEncoderIfIdle];         // 录制没起来，若推流也未开则停编码器
+        [self showAlertTitle:@"无法开始录制" message:(err.localizedDescription ?: @"未知错误")];
+    }
+}
+
+- (void)stopRecording {
+    NSString *path = self.currentRecordPath;
+    self.currentRecordPath = nil;
+    self.recordActive = NO;
+    [self setRecordButtonActive:NO];
+
+    WLRecorder *rec = self.recorder;
+    void (^afterClose)(void) = ^{        // mp4 写完 trailer + close 后回主线程再提示，避免文件未完成
+        if (path) [self showRecordFinishedAlertForPath:path];
+    };
+
+    if (!self.liveActive) {
+        // 最后一路：先 flush 编码器（残包先进 recorder queue），再收尾 muxer（trailer 经 FIFO 排其后），随后释放编码器
+        WLEncoder *enc = self.encoder;
+        self.encoder = nil;
+        [enc stopWithCompletion:^{
+            [rec stopWithCompletion:afterClose];
+        }];
+    } else {
+        // 推流仍在：编码器继续供推流，仅收尾录制 muxer
+        [rec stopWithCompletion:afterClose];
+    }
+    NSLog(@"[WLStreamViewController] 录制停止收尾中: %@", path);
+}
+
+#pragma mark - Actions（推流）
+
+- (void)liveClicked:(id)sender {
+    if (self.liveActive) { [self stopLive]; return; }
 
     NSString *url = [self fullPushURL];
     if (url.length == 0) {
@@ -723,10 +767,50 @@ static const CGFloat kIconBgAlpha = 0.05;
         return;
     }
 
-    BOOL audioEnabled = [self hasAudioCapableSource];
+    if (![self ensureEncoderRunning]) {
+        [self showAlertTitle:@"无法开始推流" message:@"编码器启动失败"];
+        return;
+    }
+    self.liveActive = YES;
     [self setLiveButtonActive:YES];   // 连接中即给红色反馈
-    [self.pusher startWithURL:url videoSize:self.canvas.canvasSize config:self.encoderConfig audioEnabled:audioEnabled];
-    NSLog(@"[WLStreamViewController] 推流连接中 → %@ (audio=%d)", url, audioEnabled);
+    [self.pusher startWithURL:url];   // 异步连接；结果经 delegate 回调，关键帧在 pusherDidStart 请求
+    NSLog(@"[WLStreamViewController] 推流连接中 → %@", url);
+}
+
+- (void)stopLive {
+    self.liveActive = NO;
+    [self setLiveButtonActive:NO];
+    if (!self.recordActive) {
+        // 最后一路：flush 编码器后收尾推流 muxer，随后释放编码器
+        WLEncoder *enc = self.encoder;
+        WLPusher *p = self.pusher;
+        self.encoder = nil;
+        [enc stopWithCompletion:^{ [p stop]; }];
+    } else {
+        // 录制仍在：编码器继续供录制，仅收尾推流 muxer
+        [self.pusher stop];
+    }
+}
+
+#pragma mark - 弹窗辅助
+
+- (void)showAlertTitle:(NSString *)title message:(NSString *)message {
+    NSAlert *alert = [[NSAlert alloc] init];
+    alert.messageText = title;
+    alert.informativeText = message ?: @"";
+    [alert addButtonWithTitle:@"好"];
+    [alert runModal];
+}
+
+- (void)showRecordFinishedAlertForPath:(NSString *)path {
+    NSAlert *alert = [[NSAlert alloc] init];
+    alert.messageText = @"录制完成";
+    alert.informativeText = [NSString stringWithFormat:@"已保存到：\n%@", path];
+    [alert addButtonWithTitle:@"好"];
+    [alert addButtonWithTitle:@"在 Finder 中显示"];
+    if ([alert runModal] == NSAlertSecondButtonReturn) {
+        [[NSWorkspace sharedWorkspace] activateFileViewerSelectingURLs:@[[NSURL fileURLWithPath:path]]];
+    }
 }
 
 // 拼接「推流地址 / 密钥」为完整 RTMP URL：去掉相接处多余斜杠；密钥为空则用纯地址。
@@ -758,11 +842,15 @@ static const CGFloat kIconBgAlpha = 0.05;
 
 - (void)pusherDidStart:(WLPusher *)pusher {
     [self setLiveButtonActive:YES];
+    [self.encoder requestKeyframe];   // 连接成功、推流 muxer 进入等待关键帧 → 请求快速出画
     NSLog(@"[WLStreamViewController] 推流已开始");
 }
 
 - (void)pusher:(WLPusher *)pusher didFailWithError:(NSError *)error {
+    // 连接失败 / 推流中断：pusher 已自行收尾。清推流意图；若录制仍在跑则编码器继续（推流断、录制不受影响）
+    self.liveActive = NO;
     [self setLiveButtonActive:NO];
+    [self stopEncoderIfIdle];
     NSAlert *alert = [[NSAlert alloc] init];
     alert.messageText = @"推流出错";
     alert.informativeText = error.localizedDescription ?: @"未知错误";

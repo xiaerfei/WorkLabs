@@ -2,19 +2,17 @@
 //  WLPusher.h
 //  WorkLabs
 //
-//  RTMP 推流器 — 把合成画面（BGRA CVPixelBuffer）与混音音频（LPCM）经 ffmpeg
-//  编码（h264_videotoolbox + aac_at）封装为 FLV 推送到 rtmp:// 服务器。
-//  编码/时序逻辑与 WLRecorder 一致（墙钟视频 pts + 音频 FIFO + header 延迟首视频包），
-//  差异在 FLV muxer、rtmp 输出、异步连接与断流检测。
+//  RTMP 推流 muxer —— 不再自行编码。从共享编码器（WLEncoder）接收已编码的 WLEncodedPacket
+//  （微秒时间基），用 FLV muxer 推送到 rtmp:// 服务器。结构与 WLRecorder 一致（等首关键帧
+//  建流写头 + 公共零点），差异在 FLV/rtmp、异步连接与断流检测。
 //
 
 #import <Foundation/Foundation.h>
-#import <AVFoundation/AVFoundation.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
 @class WLPusher;
-@class WLEncoderConfig;
+@class WLEncodedPacket;
 
 @protocol WLPusherDelegate <NSObject>
 @optional
@@ -28,17 +26,12 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, weak) id<WLPusherDelegate> delegate;
 @property (atomic, assign, readonly, getter=isPushing) BOOL pushing;
 
-// 异步连接 rtmp 并开始推流（网络连接在后台进行，不阻塞调用线程）；结果经 delegate（主线程）回调。
-- (void)startWithURL:(NSString *)url
-           videoSize:(CGSize)videoSize
-              config:(WLEncoderConfig *)config
-        audioEnabled:(BOOL)audioEnabled;
+// 异步连接 rtmp（后台进行，不阻塞调用线程）；结果经 delegate（主线程）回调。
+// 连接成功后进入「等待首个关键帧」状态，由 writePacket: 喂入编码后的包。
+- (void)startWithURL:(NSString *)url;
 
-// 追加一帧合成画面（BGRA CVPixelBuffer）；内部异步编码，调用方保留自身所有权。
-- (void)appendVideoPixelBuffer:(CVPixelBufferRef)pixelBuffer pts:(Float64)pts;
-
-// 追加一段 PCM 音频（混音输出，Float32 交错）；内部异步重采样+编码，调用方保留自身所有权。
-- (void)appendAudioSampleBuffer:(CMSampleBufferRef)sampleBuffer;
+// 写入一个编码后的包（来自共享编码器）。内部异步投递到自己的 queue；包是不可变 OC 对象，跨 queue 安全。
+- (void)writePacket:(WLEncodedPacket *)packet;
 
 - (void)stop;
 

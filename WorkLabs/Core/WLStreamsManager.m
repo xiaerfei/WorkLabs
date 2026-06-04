@@ -38,6 +38,7 @@
         _typeVolumes = [NSMutableDictionary dictionary];
         _sidVolumes = [NSMutableDictionary dictionary];
         _sidFilters = [NSMutableDictionary dictionary];
+        _renderFrameRate = 60;
     }
     return self;
 }
@@ -53,6 +54,7 @@
         _mix = [[WLVideoMix alloc] initWithCanvasSize:self.canvas.canvasSize];
         [_mix setBackgroundColor:self.canvas.backgroundColor];
         [_mix setBackgroundImage:self.canvas.backgroundImage];
+        [_mix setRenderFrameRate:(_renderFrameRate > 0 ? _renderFrameRate : 60)];
         __weak typeof(self) wself = self;
         _mix.output = ^(CVPixelBufferRef pb, Float64 pts) {
             __strong typeof(wself) sself = wself;
@@ -65,6 +67,11 @@
         };
     }
     return _mix;
+}
+
+- (void)setRenderFrameRate:(int)renderFrameRate {
+    _renderFrameRate = (renderFrameRate > 0 ? renderFrameRate : 60);
+    if (_mix) [_mix setRenderFrameRate:_renderFrameRate];
 }
 
 - (WLAudioRenderer *)audioRenderer {

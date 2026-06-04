@@ -46,6 +46,9 @@ NS_ASSUME_NONNULL_BEGIN
 // 更新画布尺寸（重建 pixelBufferPool）
 - (void)updateCanvasSize:(CGSize)canvasSize;
 
+// 设置合成输出帧率上限（默认 60）：限制 render 频率，避免输入事件（源帧 / 拖动）驱动的过度合成。
+- (void)setRenderFrameRate:(int)fps;
+
 @end
 
 NS_ASSUME_NONNULL_END
