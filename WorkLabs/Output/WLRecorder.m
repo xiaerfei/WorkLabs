@@ -4,6 +4,7 @@
 //
 
 #import "WLRecorder.h"
+#import "WLEncoderConfig.h"
 #include <mach/mach_time.h>       // mach_absolute_time（单调墙钟）
 #include <math.h>
 #include "libavformat/avformat.h"
@@ -51,6 +52,7 @@ static const int kWLAacFrame    = 1024;   // AAC LC 每帧样本数
     int                  _swrSrcRate;     // 当前 swr 输入采样率（变化则重建）
     int                  _swrSrcChannels;
     int64_t              _aNextPts;       // 音频累计 pts（单位 1/kWLAacRate）
+    WLEncoderConfig     *_config;         // 编码参数（码率/关键帧间隔/帧率/音频码率）
 }
 @property (nonatomic, assign, readwrite, getter=isRecording) BOOL recording;
 @property (nonatomic, strong) dispatch_queue_t queue;
@@ -74,7 +76,7 @@ static const int kWLAacFrame    = 1024;   // AAC LC 每帧样本数
 
 - (BOOL)startRecordingToPath:(NSString *)path
                    videoSize:(CGSize)videoSize
-                         fps:(int)fps
+                      config:(WLEncoderConfig *)config
                 audioEnabled:(BOOL)audioEnabled
                        error:(NSError * _Nullable * _Nullable)error {
     if (self.recording || path.length == 0) return NO;
@@ -83,10 +85,10 @@ static const int kWLAacFrame    = 1024;   // AAC LC 每帧样本数
     __block NSString *errMsg = nil;
     dispatch_sync(self.queue, ^{
         self->_audioEnabled = audioEnabled;
+        self->_config = config ?: [WLEncoderConfig defaultConfig];
         ok = [self setupWithPath:path
                            width:(int)videoSize.width
                           height:(int)videoSize.height
-                             fps:fps
                           errMsg:&errMsg];
         if (ok) {
             self->_ptsBaseSet = NO;
@@ -150,10 +152,9 @@ static const int kWLAacFrame    = 1024;   // AAC LC 每帧样本数
 - (BOOL)setupWithPath:(NSString *)path
                 width:(int)w
                height:(int)h
-                  fps:(int)fps
                errMsg:(NSString * __strong *)errMsg {
     if (w <= 0 || h <= 0) { *errMsg = @"画布尺寸非法"; return NO; }
-    _width = w; _height = h; _fps = (fps > 0 ? fps : 30);
+    _width = w; _height = h; _fps = (_config.fps > 0 ? _config.fps : 30);
 
     const char *cpath = path.fileSystemRepresentation;
 
@@ -178,8 +179,8 @@ static const int kWLAacFrame    = 1024;   // AAC LC 每帧样本数
     _vcodec->color_trc       = AVCOL_TRC_BT709;
     _vcodec->time_base  = (AVRational){1, 1000};    // 毫秒精度
     _vcodec->framerate  = (AVRational){_fps, 1};
-    _vcodec->gop_size   = _fps * 2;
-    _vcodec->bit_rate   = (int64_t)w * h * 4;        // 粗略码率（1080p≈8Mbps）
+    _vcodec->gop_size   = _fps * (_config.keyframeIntervalSeconds > 0 ? _config.keyframeIntervalSeconds : 2);
+    _vcodec->bit_rate   = [_config effectiveVideoBitrateForWidth:w height:h]; // config 指定或按分辨率自动
     _vcodec->max_b_frames = 0;
 
     if (_fmt->oformat->flags & AVFMT_GLOBALHEADER) {
@@ -240,7 +241,7 @@ static const int kWLAacFrame    = 1024;   // AAC LC 每帧样本数
     AVChannelLayout stereo = (AVChannelLayout)AV_CHANNEL_LAYOUT_STEREO;
     av_channel_layout_copy(&_acodec->ch_layout, &stereo);
     _acodec->sample_fmt = (aenc->sample_fmts ? aenc->sample_fmts[0] : AV_SAMPLE_FMT_FLTP);
-    _acodec->bit_rate   = 128000;
+    _acodec->bit_rate   = (_config.audioBitrate > 0 ? _config.audioBitrate : 128000);
     _acodec->time_base  = (AVRational){1, kWLAacRate};
 
     if (_fmt->oformat->flags & AVFMT_GLOBALHEADER) {
@@ -282,6 +283,7 @@ static const int kWLAacFrame    = 1024;   // AAC LC 每帧样本数
     _lastPts = -1;
     _aNextPts = 0;
     _swrSrcRate = 0; _swrSrcChannels = 0;
+    _config = nil;
 }
 
 #pragma mark - Video Encode（在 self.queue 内调用）

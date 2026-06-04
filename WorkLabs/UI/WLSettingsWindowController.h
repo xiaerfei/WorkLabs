@@ -12,6 +12,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+@class WLEncoderConfig;
 @protocol WLSettingsWindowControllerDelegate;
 
 @interface WLSettingsWindowController : NSWindowController
@@ -52,6 +53,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)settingsDidSetPushURL:(NSString *)url streamKey:(NSString *)streamKey;
 - (nullable NSString *)settingsPushURL;
 - (nullable NSString *)settingsStreamKey;
+
+// 编码配置（码率/关键帧间隔/帧率/音频码率，推流 + 录制共用一套）
+- (nullable WLEncoderConfig *)settingsEncoderConfig;
+- (void)settingsDidUpdateEncoderConfig:(WLEncoderConfig *)config;
 
 @end
 

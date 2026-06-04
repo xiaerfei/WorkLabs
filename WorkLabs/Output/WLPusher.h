@@ -14,6 +14,7 @@
 NS_ASSUME_NONNULL_BEGIN
 
 @class WLPusher;
+@class WLEncoderConfig;
 
 @protocol WLPusherDelegate <NSObject>
 @optional
@@ -30,7 +31,7 @@ NS_ASSUME_NONNULL_BEGIN
 // 异步连接 rtmp 并开始推流（网络连接在后台进行，不阻塞调用线程）；结果经 delegate（主线程）回调。
 - (void)startWithURL:(NSString *)url
            videoSize:(CGSize)videoSize
-                 fps:(int)fps
+              config:(WLEncoderConfig *)config
         audioEnabled:(BOOL)audioEnabled;
 
 // 追加一帧合成画面（BGRA CVPixelBuffer）；内部异步编码，调用方保留自身所有权。

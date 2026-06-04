@@ -4,6 +4,7 @@
 //
 
 #import "WLPusher.h"
+#import "WLEncoderConfig.h"
 #include <mach/mach_time.h>
 #include <math.h>
 #include "libavformat/avformat.h"
@@ -49,6 +50,7 @@ static const int kAacFrame    = 1024;
     int                  _swrSrcRate;
     int                  _swrSrcChannels;
     int64_t              _aNextPts;
+    WLEncoderConfig     *_config;         // 编码参数（码率/关键帧间隔/帧率/音频码率）
 }
 @property (atomic, assign, readwrite, getter=isPushing) BOOL pushing;
 @property (atomic, assign) BOOL connecting;
@@ -82,7 +84,7 @@ static const int kAacFrame    = 1024;
 
 - (void)startWithURL:(NSString *)url
            videoSize:(CGSize)videoSize
-                 fps:(int)fps
+              config:(WLEncoderConfig *)config
         audioEnabled:(BOOL)audioEnabled {
     if (self.pushing || self.connecting || url.length == 0) return;
     self.connecting = YES;
@@ -91,8 +93,9 @@ static const int kAacFrame    = 1024;
     int w = (int)videoSize.width, h = (int)videoSize.height;
     dispatch_async(self.queue, ^{
         self->_audioEnabled = audioEnabled;
+        self->_config = config ?: [WLEncoderConfig defaultConfig];
         NSString *errMsg = nil;
-        BOOL ok = [self setupWithURL:url width:w height:h fps:fps errMsg:&errMsg];
+        BOOL ok = [self setupWithURL:url width:w height:h errMsg:&errMsg];
         if (ok) {
             self->_ptsBaseSet = NO;
             self->_lastPts = -1;
@@ -203,10 +206,9 @@ static const int kAacFrame    = 1024;
 - (BOOL)setupWithURL:(NSString *)url
                width:(int)w
               height:(int)h
-                 fps:(int)fps
               errMsg:(NSString * __strong *)errMsg {
     if (w <= 0 || h <= 0) { *errMsg = @"画布尺寸非法"; return NO; }
-    _width = w; _height = h; _fps = (fps > 0 ? fps : 30);
+    _width = w; _height = h; _fps = (_config.fps > 0 ? _config.fps : 30);
 
     const char *curl = url.UTF8String;
 
@@ -232,8 +234,8 @@ static const int kAacFrame    = 1024;
     _vcodec->color_trc       = AVCOL_TRC_BT709;
     _vcodec->time_base  = (AVRational){1, 1000};
     _vcodec->framerate  = (AVRational){_fps, 1};
-    _vcodec->gop_size   = _fps * 2;          // 直播 ~2 秒关键帧间隔
-    _vcodec->bit_rate   = (int64_t)w * h * 4;
+    _vcodec->gop_size   = _fps * (_config.keyframeIntervalSeconds > 0 ? _config.keyframeIntervalSeconds : 2);
+    _vcodec->bit_rate   = [_config effectiveVideoBitrateForWidth:w height:h];
     _vcodec->max_b_frames = 0;
     // 直播低延迟：videotoolbox realtime 模式
     av_opt_set(_vcodec->priv_data, "realtime", "1", 0);
@@ -298,7 +300,7 @@ static const int kAacFrame    = 1024;
     AVChannelLayout stereo = (AVChannelLayout)AV_CHANNEL_LAYOUT_STEREO;
     av_channel_layout_copy(&_acodec->ch_layout, &stereo);
     _acodec->sample_fmt = (aenc->sample_fmts ? aenc->sample_fmts[0] : AV_SAMPLE_FMT_FLTP);
-    _acodec->bit_rate   = 128000;
+    _acodec->bit_rate   = (_config.audioBitrate > 0 ? _config.audioBitrate : 128000);
     _acodec->time_base  = (AVRational){1, kAacRate};
 
     if (_fmt->oformat->flags & AVFMT_GLOBALHEADER) {
@@ -338,6 +340,7 @@ static const int kAacFrame    = 1024;
     _lastPts = -1;
     _aNextPts = 0;
     _swrSrcRate = 0; _swrSrcChannels = 0;
+    _config = nil;
 }
 
 #pragma mark - Video Encode（queue 内）

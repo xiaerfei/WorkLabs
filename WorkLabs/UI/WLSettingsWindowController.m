@@ -6,6 +6,7 @@
 #import "WLSettingsWindowController.h"
 #import <Masonry/Masonry.h>
 #import "WLBasicVideoFilter.h"
+#import "WLEncoderConfig.h"
 
 // scrollView documentView：翻转坐标系，使内容自上而下排布、初始显示在顶部
 @interface WLFlippedView : NSView
@@ -34,6 +35,14 @@
 // 当前源属性页的滤镜控件（key 见 WLBasicVideoFilter）→ 控件 / 数值标签
 @property (nonatomic, strong, nullable) NSMutableDictionary<NSString *, NSControl *> *filterControls;
 @property (nonatomic, strong, nullable) NSMutableDictionary<NSString *, NSTextField *> *filterValueLabels;
+// 编码页
+@property (nonatomic, strong, nullable) WLEncoderConfig *encoderConfig;
+@property (nonatomic, strong, nullable) NSSlider *encVideoSlider;
+@property (nonatomic, strong, nullable) NSTextField *encVideoLabel;
+@property (nonatomic, strong, nullable) NSSlider *encKeyframeSlider;
+@property (nonatomic, strong, nullable) NSTextField *encKeyframeLabel;
+@property (nonatomic, strong, nullable) NSPopUpButton *encFpsPopup;
+@property (nonatomic, strong, nullable) NSPopUpButton *encAudioPopup;
 @end
 
 @implementation WLSettingsWindowController
@@ -53,6 +62,7 @@
             @{@"kind": @"category", @"title": @"画布", @"symbol": @"display", @"panel": @0},
             @{@"kind": @"category", @"title": @"背景", @"symbol": @"photo",   @"panel": @1},
             @{@"kind": @"category", @"title": @"推流", @"symbol": @"antenna.radiowaves.left.and.right", @"panel": @2},
+            @{@"kind": @"category", @"title": @"编码", @"symbol": @"slider.horizontal.3", @"panel": @3},
         ];
         _resolutionPresets = @[
             @{@"t": @"1280×720 (720p)",   @"w": @1280, @"h": @720},
@@ -113,7 +123,7 @@
         make.left.equalTo(sidebarBG.mas_right);
     }];
 
-    self.panels = @[[self buildCanvasPanel], [self buildBackgroundPanel], [self buildPushPanel]];
+    self.panels = @[[self buildCanvasPanel], [self buildBackgroundPanel], [self buildPushPanel], [self buildEncoderPanel]];
 }
 
 // 一行：左标题 + 右控件
@@ -267,6 +277,141 @@
         make.right.equalTo(saveBtn.mas_left).offset(-10);
     }];
     return panel;
+}
+
+#pragma mark - 编码页（码率/关键帧间隔/帧率/音频码率，推流 + 录制共用）
+
+- (NSView *)buildEncoderPanel {
+    NSView *panel = [[NSView alloc] init];
+
+    WLEncoderConfig *c = nil;
+    if ([self.settingsDelegate respondsToSelector:@selector(settingsEncoderConfig)]) {
+        c = [self.settingsDelegate settingsEncoderConfig];
+    }
+    if (!c) c = [WLEncoderConfig defaultConfig];
+    self.encoderConfig = c;
+
+    // 视频码率（Mbps）
+    double mbps = c.videoBitrate / 1.0e6; if (mbps < 1) mbps = 8;
+    self.encVideoLabel = [NSTextField labelWithString:[NSString stringWithFormat:@"%.1f Mbps", mbps]];
+    self.encVideoSlider = [NSSlider sliderWithValue:mbps minValue:1 maxValue:20
+                                             target:self action:@selector(encoderControlChanged:)];
+    NSView *vRow = [self encSliderRow:@"视频码率" slider:self.encVideoSlider value:self.encVideoLabel resetID:@"video"];
+
+    // 关键帧间隔（秒）
+    self.encKeyframeLabel = [NSTextField labelWithString:[NSString stringWithFormat:@"%d 秒", c.keyframeIntervalSeconds]];
+    self.encKeyframeSlider = [NSSlider sliderWithValue:c.keyframeIntervalSeconds minValue:1 maxValue:10
+                                                target:self action:@selector(encoderControlChanged:)];
+    self.encKeyframeSlider.numberOfTickMarks = 10;
+    self.encKeyframeSlider.allowsTickMarkValuesOnly = YES;
+    NSView *kRow = [self encSliderRow:@"关键帧间隔" slider:self.encKeyframeSlider value:self.encKeyframeLabel resetID:@"keyframe"];
+
+    // 帧率
+    self.encFpsPopup = [[NSPopUpButton alloc] init];
+    for (NSNumber *f in @[@24, @25, @30, @48, @50, @60]) {
+        [self.encFpsPopup addItemWithTitle:[NSString stringWithFormat:@"%@ fps", f]];
+        self.encFpsPopup.lastItem.representedObject = f;
+    }
+    [self selectPopup:self.encFpsPopup value:@(c.fps)];
+    self.encFpsPopup.target = self;
+    self.encFpsPopup.action = @selector(encoderControlChanged:);
+    NSView *fRow = [self rowWithTitle:@"帧率" control:self.encFpsPopup];
+
+    // 音频码率
+    self.encAudioPopup = [[NSPopUpButton alloc] init];
+    for (NSNumber *kb in @[@96, @128, @160, @192, @256]) {
+        [self.encAudioPopup addItemWithTitle:[NSString stringWithFormat:@"%@ kbps", kb]];
+        self.encAudioPopup.lastItem.representedObject = @(kb.intValue * 1000);
+    }
+    [self selectPopup:self.encAudioPopup value:@(c.audioBitrate)];
+    self.encAudioPopup.target = self;
+    self.encAudioPopup.action = @selector(encoderControlChanged:);
+    NSView *aRow = [self rowWithTitle:@"音频码率" control:self.encAudioPopup];
+
+    NSTextField *hint = [NSTextField labelWithString:@"编码参数在下次开始录制 / 推流时生效；推流与录制共用同一套。"];
+    hint.textColor = [NSColor secondaryLabelColor];
+    hint.font = [NSFont systemFontOfSize:11];
+    hint.lineBreakMode = NSLineBreakByWordWrapping;
+    hint.maximumNumberOfLines = 0;
+
+    [panel addSubview:vRow];
+    [panel addSubview:kRow];
+    [panel addSubview:fRow];
+    [panel addSubview:aRow];
+    [panel addSubview:hint];
+    [vRow mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.top.equalTo(panel).offset(24);
+        make.left.equalTo(panel).offset(24);
+        make.right.equalTo(panel).offset(-24);
+        make.height.equalTo(@24);
+    }];
+    [kRow mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.top.equalTo(vRow.mas_bottom).offset(16);
+        make.left.right.equalTo(vRow);
+        make.height.equalTo(@24);
+    }];
+    [fRow mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.top.equalTo(kRow.mas_bottom).offset(16);
+        make.left.right.equalTo(vRow);
+        make.height.equalTo(@24);
+    }];
+    [aRow mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.top.equalTo(fRow.mas_bottom).offset(16);
+        make.left.right.equalTo(vRow);
+        make.height.equalTo(@24);
+    }];
+    [hint mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.top.equalTo(aRow.mas_bottom).offset(18);
+        make.left.equalTo(vRow).offset(102);
+        make.right.equalTo(vRow);
+    }];
+    return panel;
+}
+
+// 编码页一行滑块：标题 + 滑块(160) + 数值(72) + 恢复默认小按钮
+- (NSView *)encSliderRow:(NSString *)title slider:(NSSlider *)slider value:(NSTextField *)value resetID:(NSString *)resetID {
+    [slider.widthAnchor constraintEqualToConstant:160].active = YES;
+    [value.widthAnchor constraintEqualToConstant:72].active = YES;
+    NSButton *reset = [self resetButtonWithAction:@selector(resetEncoderSlider:) identifier:resetID];
+    NSStackView *stack = [NSStackView stackViewWithViews:@[slider, value, reset]];
+    stack.orientation = NSUserInterfaceLayoutOrientationHorizontal;
+    stack.spacing = 10;
+    stack.alignment = NSLayoutAttributeCenterY;
+    return [self rowWithTitle:title control:stack];
+}
+
+- (void)selectPopup:(NSPopUpButton *)popup value:(NSNumber *)value {
+    for (NSMenuItem *it in popup.itemArray) {
+        if ([it.representedObject isEqual:value]) { [popup selectItem:it]; return; }
+    }
+}
+
+- (void)encoderControlChanged:(id)sender {
+    WLEncoderConfig *c = self.encoderConfig;
+    if (!c) return;
+    double mbps = self.encVideoSlider.doubleValue;
+    c.videoBitrate = (int)llround(mbps * 1.0e6);
+    self.encVideoLabel.stringValue = [NSString stringWithFormat:@"%.1f Mbps", mbps];
+    int kf = (int)llround(self.encKeyframeSlider.doubleValue);
+    c.keyframeIntervalSeconds = kf;
+    self.encKeyframeLabel.stringValue = [NSString stringWithFormat:@"%d 秒", kf];
+    c.fps = [[self.encFpsPopup.selectedItem representedObject] intValue];
+    c.audioBitrate = [[self.encAudioPopup.selectedItem representedObject] intValue];
+    if ([self.settingsDelegate respondsToSelector:@selector(settingsDidUpdateEncoderConfig:)]) {
+        [self.settingsDelegate settingsDidUpdateEncoderConfig:c];
+    }
+}
+
+// 单条编码滑块复位到默认值（identifier 区分 video / keyframe）
+- (void)resetEncoderSlider:(NSButton *)sender {
+    WLEncoderConfig *def = [WLEncoderConfig defaultConfig];
+    NSString *which = (NSString *)sender.identifier;
+    if ([which isEqualToString:@"video"]) {
+        self.encVideoSlider.doubleValue = def.videoBitrate / 1.0e6;
+    } else if ([which isEqualToString:@"keyframe"]) {
+        self.encKeyframeSlider.doubleValue = def.keyframeIntervalSeconds;
+    }
+    [self encoderControlChanged:nil];
 }
 
 // 标题 + 滑块 + 百分比 的一行（音量用）

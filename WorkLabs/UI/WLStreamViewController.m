@@ -18,6 +18,7 @@
 #import "WLCameraSourceConfig.h"
 #import "WLDevicesManager.h"
 #import "WLRecorder.h"
+#import "WLEncoderConfig.h"
 
 static const CGFloat kIconBgAlpha = 0.05;
 
@@ -165,6 +166,9 @@ static const CGFloat kIconBgAlpha = 0.05;
 @property (nonatomic, copy, nullable) NSString *pushURL;     // 服务器地址，如 rtmp://server/app
 @property (nonatomic, copy, nullable) NSString *streamKey;   // 推流码 / Stream Key
 
+// 编码配置（码率/关键帧间隔/帧率/音频码率，推流 + 录制共用一套）
+@property (nonatomic, strong) WLEncoderConfig *encoderConfig;
+
 // 设置窗口
 @property (nonatomic, strong) WLSettingsWindowController *settingsWC;
 
@@ -204,6 +208,7 @@ static const CGFloat kIconBgAlpha = 0.05;
     _pusher.delegate = self;
     _pushURL   = [[NSUserDefaults standardUserDefaults] stringForKey:@"WLPushURL"];
     _streamKey = [[NSUserDefaults standardUserDefaults] stringForKey:@"WLStreamKey"];
+    _encoderConfig = [WLEncoderConfig loadFromDefaults];
     (void)self.recorder;   // 预热（消除合成线程与主线程 lazy 创建竞争）
 
     // 合成帧 / 混音音频 → 同时分发给录制器与推流器（各自内部按 isRecording/isPushing 判断）
@@ -600,6 +605,12 @@ static const CGFloat kIconBgAlpha = 0.05;
 - (NSString *)settingsPushURL { return self.pushURL; }
 - (NSString *)settingsStreamKey { return self.streamKey; }
 
+- (WLEncoderConfig *)settingsEncoderConfig { return self.encoderConfig; }
+
+- (void)settingsDidUpdateEncoderConfig:(WLEncoderConfig *)config {
+    [config saveToDefaults];   // config 即 self.encoderConfig（同一对象），保存供下次录制/推流读取
+}
+
 - (void)applyCanvasSize:(CGSize)size {
     [self.manager setCanvasSize:size];      // 缩放 layout + 同步 canvas/mix
     [self updateCanvasAspect];              // 更新画布预览宽高比
@@ -678,7 +689,7 @@ static const CGFloat kIconBgAlpha = 0.05;
         BOOL audioEnabled = [wself hasAudioCapableSource];
         if ([wself.recorder startRecordingToPath:panel.URL.path
                                        videoSize:wself.canvas.canvasSize
-                                             fps:30
+                                          config:wself.encoderConfig
                                     audioEnabled:audioEnabled
                                            error:&err]) {
             wself.currentRecordPath = panel.URL.path;
@@ -714,7 +725,7 @@ static const CGFloat kIconBgAlpha = 0.05;
 
     BOOL audioEnabled = [self hasAudioCapableSource];
     [self setLiveButtonActive:YES];   // 连接中即给红色反馈
-    [self.pusher startWithURL:url videoSize:self.canvas.canvasSize fps:30 audioEnabled:audioEnabled];
+    [self.pusher startWithURL:url videoSize:self.canvas.canvasSize config:self.encoderConfig audioEnabled:audioEnabled];
     NSLog(@"[WLStreamViewController] 推流连接中 → %@ (audio=%d)", url, audioEnabled);
 }
 

@@ -12,17 +12,19 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+@class WLEncoderConfig;
+
 @interface WLRecorder : NSObject
 
 @property (nonatomic, assign, readonly, getter=isRecording) BOOL recording;
 
 // 开始录制到指定 mp4 路径；videoSize 为合成画布尺寸；
-// fps 仅用于编码器 GOP/码率估算（实际时间戳按真实 pts，支持可变帧率）。
+// config 提供码率/关键帧间隔/帧率/音频码率（实际时间戳仍按真实 pts，支持可变帧率）。
 // audioEnabled=YES 时建立一路 AAC 音频流，由 appendAudioSampleBuffer: 喂入；
 // 若整段录制未收到音频，则该路无数据（仍是合法 mp4）。
 - (BOOL)startRecordingToPath:(NSString *)path
                    videoSize:(CGSize)videoSize
-                         fps:(int)fps
+                      config:(WLEncoderConfig *)config
                 audioEnabled:(BOOL)audioEnabled
                        error:(NSError * _Nullable * _Nullable)error;
 
