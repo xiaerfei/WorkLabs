@@ -207,7 +207,74 @@ WLStreamsManager.source:didOutputVideoFrame:        WLStreamsManager.m:312-344
 
 ---
 
-## 7. 关键代码位置速查
+## 7. 专题：直接绑纹理（零拷贝纹理绑定）
+
+> 承接 §2.3「渲染与帧定时」中提到的 IOSurface 零拷贝，本专题深入「直接绑纹理」机制及其对 WorkLabs 的适用性。
+
+### 7.1 原理：为什么零拷贝
+
+`CVPixelBuffer` 若由 **IOSurface** 背书，其像素内存就是一块 GPU 可直接寻址的共享内存。「直接绑纹理」= 把这块 IOSurface 内存**包装**成纹理对象交给 GPU 采样，**全程不拷贝像素**。
+
+对比普通上传（`glTexImage2D` / `MTLTexture replaceRegion`）：CPU 内存 → GPU 显存的 memcpy（外加可能的格式转换）。1080p BGRA 每帧约 8 MB、60fps ≈ 480 MB/s 的拷贝量。直接绑纹理把这部分降到 **0**。
+
+### 7.2 mpv 实现（两条路径，均按平面绑定）
+
+**GL 路径** — `video/out/hwdec/hwdec_mac_gl.c:84-148`：
+
+```c
+p->pbuf = (CVPixelBufferRef)mapper->src->planes[3];        // VT 硬解帧
+IOSurfaceRef surface = CVPixelBufferGetIOSurface(p->pbuf);
+for (每个平面 i)                                            // NV12 → 2 平面
+    CGLTexImageIOSurface2D(ctx, GL_TEXTURE_RECTANGLE, internal_format,
+                           IOSurfaceGetWidthOfPlane(surface, i), ...,
+                           surface, i);                     // IOSurface 第 i 面 → 纹理，零拷贝
+```
+
+**Metal 路径** — `video/out/hwdec/hwdec_vt_pl.m:214-286`：
+
+```objc
+p->pbuf = (CVPixelBufferRef)mapper->src->planes[3];
+for (每个平面 i)
+    CVMetalTextureCacheCreateTextureFromImage(cache, p->pbuf, NULL, format,
+                                              widthOfPlane, heightOfPlane, i,
+                                              &mtl_planes[i]);               // 零拷贝
+    MTLTexture tex = CVMetalTextureGetTexture(mtl_planes[i]);               // 交给 shader
+```
+
+共性：**NV12 拆成 Y(R8) + CbCr(RG8) 两个纹理分别绑**，YUV→RGB 在 fragment shader 一遍算完，CPU 全程不碰像素。
+
+### 7.3 WorkLabs 现状对照
+
+| 组件 | 是否直接绑纹理 | 说明 |
+|---|---|---|
+| `WLMediaSourcePreview.m:184-235` | ✅ **与 mpv Metal 路径完全相同** | `CVMetalTextureCacheCreateTextureFromImage` 双平面（Y=R8 / CbCr=RG8）+ shader YUV→RGB，实现正确。但 **canvas 不消费它**（预览走 `WLStreamPreview`），即 §6 待办③所指冗余件。 |
+| `WLStreamPreview`（实际预览路径） | ✅ 系统内部零拷贝 | `AVSampleBufferDisplayLayer` 内部自行绑 IOSurface 纹理并上屏，无需手写。 |
+| `WLVideoMix`（合成器） | ⚠️ 半零拷贝 | `CIImage imageWithCVPixelBuffer` + `CIContext render`：CoreImage 内部也走 IOSurface/Metal 纹理（非 CPU 拷贝），但额外背 CIContext / filter-graph / 中间纹理开销。 |
+
+**IOSurface 前提（一个隐藏拷贝点）** — 零拷贝绑纹理要求 buffer 为 **IOSurface-backed**：
+
+- VT 硬解帧 ✅（`frame->data[3]` 天然带 IOSurface）；
+- `WLVideoMix` 输出 pool ✅（`ensurePool` 指定了 `kCVPixelBufferIOSurfacePropertiesKey`）；
+- **软解帧 `WLMediaSource.m:420` `CVPixelBufferCreate(..., NULL, ...)` attrs 为 NULL → 非 IOSurface-backed** → 下游（CIImage / 绑纹理 / `AVSampleBufferDisplayLayer`）可能触发 CPU 拷贝。软解是 fallback、优先级低，但可一行修复（补 IOSurface 属性）。
+
+### 7.4 应用价值与取舍
+
+- **预览**：已零拷贝（系统代劳 + 一份未启用的手写范本），「直接绑纹理」无增量空间。
+- **唯一增量价值 = 自研 Metal 合成器替换 `WLVideoMix` 的 CoreImage**（仅作用于录制/推流；预览侧已被优化①关掉合成）：
+  - 输入：各路源 CVPixelBuffer → `CVMetalTextureCache` 绑纹理（读）；
+  - 输出：画布 CVPixelBuffer 用 `CVMetalTextureCache` 反向绑成 **render target**（写），合成结果直接落进 IOSurface，再零拷贝给编码器；
+  - 一个 shader 完成 YUV→RGB + 缩放 + 按 layout/z-order 叠加 + 背景，一遍过、零中间纹理；
+  - **起点**：`WLMediaSourcePreview` 的绑纹理 + YUV→RGB shader 可升级复用 —— 与 §6 待办③「删除」构成两种取向：**删冗余 vs 升级为合成器内核**。
+  - **代价**：多源叠加 / alpha / 缩放 / z-order / 背景这些 CoreImage 现成能力需自写 shader 与 pass 管理；收益仅限录制/推流。
+- **低成本顺手项**：软解帧 `CVPixelBufferCreate` 加 IOSurface 属性，使软解路径也零拷贝。
+
+### 7.5 小结
+
+预览侧的零拷贝已吃满。「直接绑纹理」对 WorkLabs 的唯一增量价值在**自研 Metal 合成器替换 CoreImage** —— 中等工作量、收益限录制/推流场景。
+
+---
+
+## 8. 关键代码位置速查
 
 ### mpv（v0.41）
 
