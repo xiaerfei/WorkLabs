@@ -9,7 +9,6 @@
 #import <CoreMedia/CoreMedia.h>
 #import <CoreVideo/CoreVideo.h>
 #include "libavutil/frame.h"
-#import "WLMediaSourcePreview.h"
 #import "WLStreamSourceProtocol.h"
 
 NS_ASSUME_NONNULL_BEGIN
@@ -28,8 +27,6 @@ typedef NS_ENUM(NSUInteger, WLMediaSourceState) {
 @property (nonatomic,   copy, readonly) NSString *path;
 @property (nonatomic, assign, readonly) WLMediaSourceState state;
 @property (nonatomic, assign, readonly) Float64 totalDuration;
-
-@property (nonatomic, strong, readonly) WLMediaSourcePreview *preview;
 
 - (instancetype)initWithPath:(NSString *)path;
 

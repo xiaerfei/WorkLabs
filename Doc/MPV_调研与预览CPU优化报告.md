@@ -15,7 +15,8 @@
 | **次因** | 渲染线程用 `usleep` 轮询而非条件变量精确等待；`WLMediaSourcePreview` 建了整套 Metal 管线却不被画布消费。 |
 | **做对的地方** | VideoToolbox 硬解走 `frame->data[3]` 零拷贝拿 `CVPixelBuffer`，与 mpv 的 IOSurface 零拷贝同理，这条路不亏。 |
 | **已实施①** | `WLVideoMix` 加 `renderingEnabled` 开关：纯预览跳过合成，仅录制/推流时开启。**实测 CPU 从 20%+ 降至 ~11%**，已对齐/略优于 mpv（~12%），预览结构对齐其「硬解 → 直接上屏」。 |
-| **待办②③** | ② 渲染线程改条件变量/绝对时间精确等待；③ 删除冗余 `WLMediaSourcePreview` Metal 管线。 |
+| **已实施③** | `WLMediaSource` 不再实例化无人消费的 `WLMediaSourcePreview`：省一套 Metal device/queue/cache/pipeline 的运行时创建。编译通过；类文件保留为未来自研 Metal 合成器的复用范本（见 §7.4）。 |
+| **待办②** | 渲染线程改条件变量/绝对时间精确等待。 |
 
 ---
 
@@ -144,7 +145,7 @@ WLStreamsManager.source:didOutputVideoFrame:        WLStreamsManager.m:312-344
 | **① 空转合成** ⭐主因 | 预览时仍 60fps 跑完整 CoreImage 合成后丢弃 | 无"合成"概念 | `WLVideoMix.m:175`、`WLStreamsManager.m:341` |
 | ② 渲染线程等待 | `usleep(10ms)` + `peek` 轮询；每轮 `CFAbsoluteTimeGetCurrent` | 条件变量 + 绝对时间精确 sleep，空闲≈0 唤醒 | `WLMediaSource.m:311,336,357,381` |
 | 硬解上屏 | `frame->data[3]` 零拷贝 ✅ | IOSurface 零拷贝 ✅ | `WLMediaSource.m:395-401` |
-| ③ 冗余 Metal 管线 | `WLMediaSourcePreview` 建 device/queue/cache/pipeline 但 canvas 不消费 | — | `WLMediaSource.m:95` |
+| ③ 冗余 Metal 管线 ✅已移除 | ~~`WLMediaSourcePreview` 建 device/queue/cache/pipeline 但 canvas 不消费~~ → 已停止实例化（见 §6.1） | — | 原 `WLMediaSource.m:95` |
 | 线程数 | 5 线程/源 | 1 demux + 解码池 + VO + 主循环 | — |
 
 ---
@@ -152,10 +153,10 @@ WLStreamsManager.source:didOutputVideoFrame:        WLStreamsManager.m:312-344
 ## 4. 优化方案（按 ROI 排序）
 
 **① 预览时停掉合成（最大收益，低风险）** — 已实施，见第 5 节。
-**② 渲染线程改精确等待（中等收益，对齐 mpv）** — 待办。
+**② 渲染线程改精确等待（中等收益，对齐 mpv）** — 待办，见第 6.2 节。
   `videoRenderThread` 的 `peek + usleep(10ms)` 轮询 → 用 `WLNodeQueue` 已有的 `deQueueWithTimeout:` 阻塞等待 + 按 pts 算绝对唤醒时刻，消除空闲期 ~100Hz 空唤醒。
-**③ 删除冗余 `WLMediaSourcePreview` Metal 管线（小收益，省内存/初始化）** — 待办。
-  canvas 不消费它（预览走 `WLStreamPreview`），`WLMediaSource` 可不创建。
+**③ 删除冗余 `WLMediaSourcePreview` Metal 管线（小收益，省内存/初始化）** — 已实施，见第 6.1 节。
+  canvas 不消费它（预览走 `WLStreamPreview`），`WLMediaSource` 已不再创建。
 
 ---
 
@@ -200,10 +201,35 @@ WLStreamsManager.source:didOutputVideoFrame:        WLStreamsManager.m:312-344
 
 ---
 
-## 6. 待办：优化②③
+## 6. 优化②③：待办② + 已实施③
 
-- **② 渲染线程精确等待**：`videoRenderThread` / `audioRenderThread` 用条件变量（`deQueueWithTimeout:`）+ 按 pts 的绝对唤醒时刻替代 `usleep` 轮询。注意保持现有 `baseTime + pts` 节流时序。
-- **③ 删冗余 Metal 管线**：`WLMediaSource` 不再创建 `WLMediaSourcePreview`（或延迟到真正需要时），省一套 Metal 资源与初始化。
+### 6.1 已实施：优化③ 删除冗余 Metal 管线
+
+**改动清单（2 文件，4 处编辑；编译 `** BUILD SUCCEEDED **`）**
+
+| 文件 | 改动 |
+|---|---|
+| `WLMediaSource.h` | 删 `#import "WLMediaSourcePreview.h"`；删 `@property (readonly) WLMediaSourcePreview *preview` |
+| `WLMediaSource.m` | 删私有 `@property (readwrite) preview`；删 `initWithPath:` 内 `self.preview = [[WLMediaSourcePreview alloc] initWithFrame:NSZeroRect]` |
+
+**为什么是死代码（删除前核对）**
+
+- 全工程仅 `WLMediaSource.h:32`（声明）+ `WLMediaSource.m:53,95`（声明 + 创建）引用 `preview`，**无任何外部消费者读取** `source.preview`。
+- `WLStreamViewController` 里加进 canvas 的 `preview` 是局部 `WLStreamPreview`（`AVSampleBufferDisplayLayer` 那条预览路径），与 `WLMediaSourcePreview` 同名但不同类、互不相关。
+- 故 `WLMediaSourcePreview` 自创建起就只是被持有、从未上屏，其 `init` 里建的 Metal device / command queue / texture cache / render pipeline state 纯属空耗（每个媒体源一套）。
+
+**收益与边界**
+
+- 省掉**每个媒体源一套** Metal 管线的运行时创建与常驻内存；预览路径（`WLStreamPreview`）不受影响。
+- 这是结构清理，非 CPU 主因，单源稳态 CPU 不会有 §5 那种可见跌幅；价值在去耦 + 省初始化/内存。
+
+**为何保留 `.h/.m/.metal` 文件（只删实例化，不删类）**
+
+`WLMediaSourcePreview` 的「`CVMetalTextureCacheCreateTextureFromImage` 双平面绑纹理 + YUV→RGB shader」与 mpv 的 Metal 硬解路径完全同构（见 §7.2/§7.3），是未来「自研 Metal 合成器替换 `WLVideoMix` CoreImage」（§7.4）的现成复用范本。删掉实例化即吃满本优化的运行时收益；保留文件留住这份范本。`project.yml` 的 `sources: WorkLabs` 仍会编译这几个文件，但**不再实例化 = 无运行时开销**，仅多一点编译产物。
+
+### 6.2 待办：优化② 渲染线程精确等待
+
+`videoRenderThread` / `audioRenderThread` 用条件变量（`WLNodeQueue.deQueueWithTimeout:`）+ 按 pts 的绝对唤醒时刻替代当前 `peek + usleep(10ms)` 轮询。注意保持现有 `baseTime + pts` 节流时序与 `videoPtsOffset` 语义。
 
 ---
 
@@ -247,7 +273,7 @@ for (每个平面 i)
 
 | 组件 | 是否直接绑纹理 | 说明 |
 |---|---|---|
-| `WLMediaSourcePreview.m:184-235` | ✅ **与 mpv Metal 路径完全相同** | `CVMetalTextureCacheCreateTextureFromImage` 双平面（Y=R8 / CbCr=RG8）+ shader YUV→RGB，实现正确。但 **canvas 不消费它**（预览走 `WLStreamPreview`），即 §6 待办③所指冗余件。 |
+| `WLMediaSourcePreview.m:184-235` | ✅ **与 mpv Metal 路径完全相同** | `CVMetalTextureCacheCreateTextureFromImage` 双平面（Y=R8 / CbCr=RG8）+ shader YUV→RGB，实现正确。**canvas 不消费它**（预览走 `WLStreamPreview`）——§6.1 已停止实例化（去运行时开销），文件保留作 §7.4 复用范本。 |
 | `WLStreamPreview`（实际预览路径） | ✅ 系统内部零拷贝 | `AVSampleBufferDisplayLayer` 内部自行绑 IOSurface 纹理并上屏，无需手写。 |
 | `WLVideoMix`（合成器） | ⚠️ 半零拷贝 | `CIImage imageWithCVPixelBuffer` + `CIContext render`：CoreImage 内部也走 IOSurface/Metal 纹理（非 CPU 拷贝），但额外背 CIContext / filter-graph / 中间纹理开销。 |
 
@@ -264,7 +290,7 @@ for (每个平面 i)
   - 输入：各路源 CVPixelBuffer → `CVMetalTextureCache` 绑纹理（读）；
   - 输出：画布 CVPixelBuffer 用 `CVMetalTextureCache` 反向绑成 **render target**（写），合成结果直接落进 IOSurface，再零拷贝给编码器；
   - 一个 shader 完成 YUV→RGB + 缩放 + 按 layout/z-order 叠加 + 背景，一遍过、零中间纹理；
-  - **起点**：`WLMediaSourcePreview` 的绑纹理 + YUV→RGB shader 可升级复用 —— 与 §6 待办③「删除」构成两种取向：**删冗余 vs 升级为合成器内核**。
+  - **起点**：`WLMediaSourcePreview` 的绑纹理 + YUV→RGB shader 可升级复用。§6.1 已停掉它的实例化（去运行时开销）但**特意保留类文件**，正是为此留种——「删冗余实例化 vs 升级为合成器内核」两种取向可并存：先省开销，未来再以它为起点扩成合成器。
   - **代价**：多源叠加 / alpha / 缩放 / z-order / 背景这些 CoreImage 现成能力需自写 shader 与 pass 管理；收益仅限录制/推流。
 - **低成本顺手项**：软解帧 `CVPixelBufferCreate` 加 IOSurface 属性，使软解路径也零拷贝。
 
@@ -297,5 +323,6 @@ for (每个平面 i)
 | 渲染线程 usleep 轮询 | `WLMediaSource.m:311,336,357,381` |
 | 帧分发（Fork 1 预览 / Fork 2 合成） | `WLStreamsManager.m:335-341` |
 | 合成开关（优化①） | `WLVideoMix.m:renderWithPts 入口` / `WLStreamsManager.m:setCompositingEnabled:` |
+| 删冗余 Metal 管线（优化③） | `WLMediaSource.h`（删 import + preview 属性）/ `WLMediaSource.m`（删私有属性 + `initWithPath:` 实例化） |
 | 预览上屏（AVSampleBufferDisplayLayer） | `WLStreamPreview.m:80,145-185` |
 | 录制/推流启停联动开关 | `WLStreamViewController.m:ensureEncoderRunning / stopEncoderIfIdle` |

@@ -50,8 +50,6 @@
 @property (nonatomic, assign) Float64 videoPtsOffset;
 @property (nonatomic, assign) Float64 audioPtsOffset;
 
-@property (nonatomic, strong, readwrite) WLMediaSourcePreview *preview;
-
 // WLStreamSourceProtocol 协议属性
 @property (nonatomic, assign, readwrite) WLFromType fromType;
 @property (nonatomic, assign, readwrite, getter=isRunning) BOOL running;
@@ -92,7 +90,6 @@
         self.videoPtsOffset = 30.0;
         self.audioPtsOffset = 30.0;
         self.baseTime = 0.0;
-        self.preview = [[WLMediaSourcePreview alloc] initWithFrame:NSZeroRect];
     }
     return self;
 }
