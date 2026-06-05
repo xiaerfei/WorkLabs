@@ -2,7 +2,7 @@
 
 > **调研对象**：mpv `v0.41`（`v0.41.0-718-g1d82932cce`），源码位于 `/Users/tvum4pro/Documents/github/mpv`
 > **触发问题**：单个本地视频文件 *Preview* 时，WorkLabs CPU ≥ 20%，而 mpv 仅 ~12%
-> **关联文档**：`Doc/IINA_*_Report.md`（IINA 是基于 mpv 的 macOS 播放器，可对照阅读）
+> **关联文档**：`Doc/调研/IINA/IINA_*_Report.md`（IINA 是基于 mpv 的 macOS 播放器，可对照阅读）
 > **行号说明**：mpv 行号基于 v0.41 调研，随版本可能微调；WorkLabs 行号为本次逐一核对，准确。
 
 ---

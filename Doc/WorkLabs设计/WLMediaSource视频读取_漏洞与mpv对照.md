@@ -149,7 +149,7 @@ double mp_pts_from_av(int64_t av_pts, AVRational *tb) {
 ```objc
 node.pts = (frame->pts == AV_NOPTS_VALUE) ? WL_NOPTS_VALUE : frame->pts * self.videoTimeBase;
 ```
-并定义 `WL_NOPTS_VALUE` 哨兵 + 在渲染节流里对它兜底（缺失则用 dts 或「上一帧 + 1/fps」，见 §7）。详见 `Doc/MPV_时间戳与队列设计调研.md` P0 #1。
+并定义 `WL_NOPTS_VALUE` 哨兵 + 在渲染节流里对它兜底（缺失则用 dts 或「上一帧 + 1/fps」，见 §7）。详见 `Doc/调研/mpv/MPV_时间戳与队列设计调研.md` P0 #1。
 
 ---
 
@@ -190,7 +190,7 @@ return queue->tail_cum_pos - queue->reader_head->cum_pos;
 字节硬上限 `demuxer-max-bytes` 默认 150MB（`demux.c:141`），到顶则**停读睡眠**而非阻塞在某条队列。
 
 ### 修复方向
-packet 入队改非阻塞（你已有 `enQueueNonBlocking:`，满则丢最旧），或按「总缓冲字节/秒数」限流让 demux 主动停读，**不要让单条队列阻塞拉流线程**。详见 `Doc/MPV_时间戳与队列设计调研.md` P1 #8。
+packet 入队改非阻塞（你已有 `enQueueNonBlocking:`，满则丢最旧），或按「总缓冲字节/秒数」限流让 demux 主动停读，**不要让单条队列阻塞拉流线程**。详见 `Doc/调研/mpv/MPV_时间戳与队列设计调研.md` P1 #8。
 
 ---
 
@@ -297,7 +297,7 @@ if (frame_time <= 0 || frame_time >= tolerance) {
 ```
 
 ### 修复方向
-打开文件记 `start_time = fmt_ctx->start_time/AV_TIME_BASE`，渲染用 `pts - start_time`；节流前算 `frame_time = pts - last_pts`，`<=0` 或 `>=5s` 则按 0 处理。详见 `Doc/MPV_时间戳与队列设计调研.md` P0 #2/#3。
+打开文件记 `start_time = fmt_ctx->start_time/AV_TIME_BASE`，渲染用 `pts - start_time`；节流前算 `frame_time = pts - last_pts`，`<=0` 或 `>=5s` 则按 0 处理。详见 `Doc/调研/mpv/MPV_时间戳与队列设计调研.md` P0 #2/#3。
 
 ---
 
