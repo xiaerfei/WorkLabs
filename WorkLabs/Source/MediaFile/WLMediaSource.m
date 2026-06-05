@@ -413,10 +413,15 @@
     }
     if (!_swsCtx) return NULL;
 
+    // IOSurface + Metal 兼容：使软解帧也能零拷贝绑 Metal 纹理（滤镜/合成/预览）。
+    NSDictionary *pbAttrs = @{
+        (id)kCVPixelBufferIOSurfacePropertiesKey: @{},
+        (id)kCVPixelBufferMetalCompatibilityKey: @YES,
+    };
     CVPixelBufferRef pixelBuffer = NULL;
     CVReturn cvRet = CVPixelBufferCreate(kCFAllocatorDefault, w, h,
                                           kCVPixelFormatType_32BGRA,
-                                          NULL, &pixelBuffer);
+                                          (__bridge CFDictionaryRef)pbAttrs, &pixelBuffer);
     if (cvRet != kCVReturnSuccess) return NULL;
 
     CVPixelBufferLockBaseAddress(pixelBuffer, 0);

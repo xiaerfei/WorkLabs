@@ -5,6 +5,8 @@
 
 #import "WLStreamPreview.h"
 #import <CoreVideo/CoreVideo.h>
+#import <CoreMedia/CoreMedia.h>
+#import <stdatomic.h>
 
 static const CGFloat kHandleSize = 10.0;   // 手柄小方块边长
 static const CGFloat kHandleHit  = 12.0;   // 手柄命中半径
@@ -34,7 +36,11 @@ typedef NS_ENUM(NSInteger, WLHandle) {
 @property (nonatomic, strong) CALayer *borderLayer;
 @end
 
-@implementation WLStreamPreview
+@implementation WLStreamPreview {
+    // 在途预览帧计数（已投递到主队列、尚未 enqueue 完成）。拖动（裁剪/缩放/移动）时主线程被 UI 事件
+    // 占满，投递到主队列的 enqueue block 会积压、每个持有一帧 → 内存尖峰；用它做丢帧背压。
+    atomic_int _pendingEnqueues;
+}
 
 - (instancetype)initWithFrame:(NSRect)frame {
     self = [super initWithFrame:frame];
@@ -150,10 +156,19 @@ typedef NS_ENUM(NSInteger, WLHandle) {
 
 - (void)enqueueSampleBuffer:(CMSampleBufferRef)sampleBuffer {
     if (!sampleBuffer) return;
+    // 丢帧背压：预览帧投递到主队列 enqueue；拖动裁剪/缩放/移动时主线程被 UI 事件占满，这些 block 会
+    // 积压，而每个 block 持有一帧 sample buffer（→ filter pool 输出 buffer），数十帧堆积即内存尖峰
+    // （实测 200→700MB，拖动停后回落）。预览丢帧无害，限制在途帧数即削平尖峰。
+    // 不影响录制：录制走 mix（Fork 2），与此预览路径（Fork 1）独立。
+    if (atomic_fetch_add(&_pendingEnqueues, 1) >= 2) {
+        atomic_fetch_sub(&_pendingEnqueues, 1);   // 已有 2 帧在途 → 丢弃当前帧
+        return;
+    }
     CFRetain(sampleBuffer);
     dispatch_async(dispatch_get_main_queue(), ^{
         [self.displayLayer.sampleBufferRenderer enqueueSampleBuffer:sampleBuffer];
         CFRelease(sampleBuffer);
+        atomic_fetch_sub(&self->_pendingEnqueues, 1);
     });
 }
 
@@ -396,8 +411,18 @@ typedef NS_ENUM(NSInteger, WLHandle) {
     status = CMSampleBufferCreateReadyWithImageBuffer(
         kCFAllocatorDefault, pixelBuffer, formatDesc, &timing, &sampleBuffer);
     CFRelease(formatDesc);
+    if (status != noErr || !sampleBuffer) return NULL;
 
-    return (status == noErr) ? sampleBuffer : NULL;
+    // 立即显示：本工程渲染线程已按 pts 把出帧节流到实时，预览「来一帧显一帧」即可。
+    // 不设此标志时 AVSampleBufferDisplayLayer 会按 pts 缓冲一窗口（数十帧）等待呈现，内存随帧尺寸
+    // 成正比堆积 —— 即「内存随裁剪比例变化」（裁剪越多帧越小越省）且稳定的现象。设后队列仅留 ~1 帧。
+    CFArrayRef attachments = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, true);
+    if (attachments && CFArrayGetCount(attachments) > 0) {
+        CFMutableDictionaryRef dict = (CFMutableDictionaryRef)CFArrayGetValueAtIndex(attachments, 0);
+        CFDictionarySetValue(dict, kCMSampleAttachmentKey_DisplayImmediately, kCFBooleanTrue);
+    }
+
+    return sampleBuffer;
 }
 
 @end

@@ -17,6 +17,7 @@
 | **已实施①** | `WLVideoMix` 加 `renderingEnabled` 开关：纯预览跳过合成，仅录制/推流时开启。**实测 CPU 从 20%+ 降至 ~11%**，已对齐/略优于 mpv（~12%），预览结构对齐其「硬解 → 直接上屏」。 |
 | **已实施③** | `WLMediaSource` 不再实例化无人消费的 `WLMediaSourcePreview`：省一套 Metal device/queue/cache/pipeline 的运行时创建。编译通过；类文件保留为未来自研 Metal 合成器的复用范本（见 §7.4）。 |
 | **待办②** | 渲染线程改条件变量/绝对时间精确等待。 |
+| **进行中④** | 抛弃 CoreImage 全面 Metal 化（触发：开镜像 CPU 11%→30%+）。**Phase 0 基础 + Phase 1 滤镜 + Phase 2 合成器均已完成、编译通过**；全工程已无 CoreImage 代码（仅余注释）。**仅剩运行时验证待实机**。详见 §9。 |
 
 ---
 
@@ -227,9 +228,89 @@ WLStreamsManager.source:didOutputVideoFrame:        WLStreamsManager.m:312-344
 
 `WLMediaSourcePreview` 的「`CVMetalTextureCacheCreateTextureFromImage` 双平面绑纹理 + YUV→RGB shader」与 mpv 的 Metal 硬解路径完全同构（见 §7.2/§7.3），是未来「自研 Metal 合成器替换 `WLVideoMix` CoreImage」（§7.4）的现成复用范本。删掉实例化即吃满本优化的运行时收益；保留文件留住这份范本。`project.yml` 的 `sources: WorkLabs` 仍会编译这几个文件，但**不再实例化 = 无运行时开销**，仅多一点编译产物。
 
-### 6.2 待办：优化② 渲染线程精确等待
+### 6.2 待办：优化② 渲染线程精确等待（实施调研）
 
-`videoRenderThread` / `audioRenderThread` 用条件变量（`WLNodeQueue.deQueueWithTimeout:`）+ 按 pts 的绝对唤醒时刻替代当前 `peek + usleep(10ms)` 轮询。注意保持现有 `baseTime + pts` 节流时序与 `videoPtsOffset` 语义。
+> 本节为**实施前调研**（不改代码）：核对现状空转点、约束边界、改造设计、风险与验证。
+
+#### 6.2.1 现状与空转根因（`WLMediaSource.m`）
+
+两个渲染线程都是「`peek`（不取出）看 pts → 判断到点否 → 没到就 `usleep`」结构：
+
+```
+videoRenderThread (while isVideoRendering)         WLMediaSource.m:296-339
+  ├─ 循环顶无条件 if baseTime==0 → baseTime = now   :301-302   ← 见 6.2.2 关键点
+  ├─ node = [queue peek]; if (!node) usleep(10ms)   :309-313   ← 队列空 100Hz 空转
+  ├─ abs_pts = pts*1000 + baseTime                  :312
+  ├─ 到点(abs_pts+offset < now)：deQueue→出帧→flush :314-328
+  └─ 没到：usleep(min(waitMs, 50ms))                :329-336   ← 定时睡（合理），但 usleep 不能被新帧/stop 提前唤醒
+
+audioRenderThread (while isAudioRendering)         WLMediaSource.m:345-384
+  ├─ if baseTime==0 → usleep(10ms) continue         :348       ← 等 video 设基准，启动期 100Hz 空转
+  ├─ node = [queue peek]; if (!node) usleep(10ms)   :356-360   ← 队列空 100Hz 空转
+  └─ 余同 video（按 audioPtsOffset 节流）
+```
+
+空转点共 3 处，均为 100Hz：① 视频队列空、② 音频队列空、③ 音频等 `baseTime` 就绪。稳态有帧时走「定时 `usleep`」属正常节流、非空转，故 ② 的收益定位为**小～中等 + 结构对齐 mpv + stop 响应更快**，而非 §5 那种主因级跌幅。
+
+#### 6.2.2 关键约束与边界（决定方案可行性）
+
+| 约束 | 来源 | 对 ② 的意义 |
+|---|---|---|
+| **文件必含视频流 + 音频流**，否则源启动即失败 | `configureFFmpeg` 任一 `openXxxStream` 失败即 `return errorMsg` → `parseThread` return（`WLMediaSource.m:549-561`） | **必有视频帧** → `baseTime` 由 video 线程设定的假设安全，不存在「纯音频无人设 baseTime」的卡死 |
+| **无 pause / seek / loop** | 全工程 grep 无命中 | 渲染线程只需「按 pts 出帧 → EOF 退出」，无需处理时钟重置/跳转，状态机极简 |
+| **解码线程已用 `deQueueWithTimeout:30`** | `decodeFrame` EAGAIN 分支（`WLMediaSource.m:275`，注释「替代忙轮询，零 CPU」） | 项目内已有同款范本，渲染线程照搬即可，无需新增原语 |
+| **stop / EOF 会 abort frame queue** | EOF：解码线程末尾 `videoRendering=NO` + `videoFrameQueue abort`（`:226-227`）；stop：`parseThread` 退出 → packetQueue abort → 解码退出 → frameQueue abort | 阻塞在 `deQueueWithTimeout` 上的渲染线程会被 abort 的 `cond_broadcast` **立即唤醒**返回 nil，无需额外停止信号 |
+| `baseTime` 现于**循环顶、取帧前**无条件设 | `WLMediaSource.m:301-302` | 若改为「取出首帧后设」，基准 = 首帧真正可呈现时刻（更准），audio 相应等待，A/V 基准仍一致——属可接受的行为微调 |
+
+#### 6.2.3 改造设计（伪代码）
+
+核心：把「`peek` + `usleep` 轮询」换成「`deQueueWithTimeout` 阻塞取帧（队列空时挂条件变量，0 CPU）→ 取出后按 pts 分段睡到呈现时刻 → 出帧」。分段睡（每段 ≤ 20ms 并复检 `isRendering`）保留 stop 的及时性，替代原 `usleep(≤50ms)` 一次性睡。
+
+```objc
+// 视频
+while (self.isVideoRendering) {
+    WLNode *node = [self.videoFrameQueue deQueueWithTimeout:100];   // 空闲挂 cond；abort 立即返回 nil
+    if (!node) continue;                                            // 超时/abort → 复检 while 条件
+    Float64 now = CFAbsoluteTimeGetCurrent() * 1000;
+    if (self.baseTime == 0) self.baseTime = now;                   // 首帧定基准（必有视频帧，见 6.2.2）
+    Float64 target = node.pts * 1000 + self.baseTime + self.videoPtsOffset;
+    Float64 wait;
+    while ((wait = target - (CFAbsoluteTimeGetCurrent()*1000)) > 1 && self.isVideoRendering)
+        usleep((useconds_t)(MIN(wait, 20) * 1000));                // 分段睡，stop 最迟 20ms 内响应
+    CVPixelBufferRef pb = [self convertVideoFrame:node.frame];
+    if (pb && _delegate) [_delegate source:self didOutputVideoFrame:pb pts:node.pts];
+    else if (pb) CVPixelBufferRelease(pb);
+    [node flush];
+}
+
+// 音频：同构，区别仅在 baseTime 未就绪时把帧放回队头短等（audio 队列 size=20，窗口很短）
+while (self.isAudioRendering) {
+    WLNode *node = [self.audioFrameQueue deQueueWithTimeout:100];
+    if (!node) continue;
+    if (self.baseTime == 0) { [self.audioFrameQueue requeueFront:node]; usleep(5*1000); continue; }
+    ... target = pts*1000 + baseTime + audioPtsOffset; 分段睡; 出帧 ...
+}
+```
+
+- 队列已有 `deQueueWithTimeout:`（`WLNodeQueue.m:101`）与 `requeueFront:`（`:129`），无需改队列。
+- `baseTime` / `videoPtsOffset` / `audioPtsOffset` 语义与节流公式 `pts*1000 + baseTime + offset` **完全保留**。
+
+#### 6.2.4 风险与回归点
+
+| 风险 | 说明 | 缓解 |
+|---|---|---|
+| A/V 同步 | `baseTime` 设定点从「循环顶」移到「取出首帧后」，基准时刻略有变化 | 仍由 video 设、audio 共享同一基准；公式不变。回归：录一段含明显口型/拍点的素材，肉眼对齐 |
+| stop 响应延迟 | 取出帧后若 `wait` 很大，持帧睡眠期间若不复检会延迟退出 | 分段睡（≤20ms）每段复检 `isRendering`；且 frameQueue abort 不影响已取出的帧——分段睡是兜底 |
+| 持帧睡眠占队列槽 | 取出后才睡 vs 原 peek 不取出，视频队列(size=4)空出 1 槽 | 解码可多塞 1 帧，无本质差异；音频 size=20 充裕 |
+| EOF 残帧丢弃 | 现状 EOF 即 `rendering=NO`，队列残帧被丢——此行为**不变**（不在 ② 范围内修） | 如需「放完再停」是独立改动，调研标注、暂不动 |
+
+#### 6.2.5 验证方法
+
+1. **CPU**：Activity Monitor 下单源预览，对比改造前后；重点看「解码慢/接近 EOF/启动期」是否还有 100Hz 空唤醒（可用 `sample` 抓 `wl-render-*` 线程栈）。
+2. **功能回归**：播放流畅度、A/V 同步、录制 mp4 时长与音画一致、stop/切源即时无卡顿。
+3. **退出链路**：start→stop 反复多次，确认渲染线程能被 frameQueue abort 即时唤醒退出，无泄漏（线程名 `com.wl-render-video/audio.thread`）。
+
+> 既有约束副记：**文件须同时含音视频流**，否则当前 `configureFFmpeg` 直接失败（纯视频/纯音频文件均不支持）——属项目已知限制，非本优化范围。
 
 ---
 
@@ -326,3 +407,58 @@ for (每个平面 i)
 | 删冗余 Metal 管线（优化③） | `WLMediaSource.h`（删 import + preview 属性）/ `WLMediaSource.m`（删私有属性 + `initWithPath:` 实例化） |
 | 预览上屏（AVSampleBufferDisplayLayer） | `WLStreamPreview.m:80,145-185` |
 | 录制/推流启停联动开关 | `WLStreamViewController.m:ensureEncoderRunning / stopEncoderIfIdle` |
+
+---
+
+## 9. 实施：抛弃 CoreImage，全面改用 Metal（代码完成，待运行时验证）
+
+> **触发**：§7.4 判断「自研 Metal 合成器是唯一增量价值」+ 用户实测「开镜像滤镜单源预览 CPU 11% → 30%+」。
+> **根因**：镜像走 `WLBasicVideoFilter` 的 **CoreImage 逐帧 `ciContext render`**，且该滤镜挂在数据流 **fork 之前**（`WLStreamsManager.m:332-347`），输出同时喂预览(`:343`)与合成(`:347`)——即使纯预览（优化①已关合成空转），滤镜的 CoreImage render 仍每帧强制跑，绕不过去。镜像/颜色/裁剪本身在 GPU 上近乎免费，30% 全在 CoreImage 的 `CIImage 包装 → filter-graph → CIContext render` 逐帧固定成本上。
+> **决策**：移除两处 CoreImage（滤镜 `WLBasicVideoFilter` + 合成器 `WLVideoMix`），全部改 Metal 离屏渲染到 IOSurface-backed CVPixelBuffer。① 分阶段：先滤镜（解当前痛点）后合成；② 颜色基准对齐现有逐源预览（`WLMediaSourcePreview`，BT.601 + 标准颜色校正公式），不追求与旧 CoreImage 像素级一致。完整方案：`~/.claude/plans/sunny-yawning-plum.md`。
+
+### 9.1 已完成：Phase 0（共享基础）+ Phase 1（滤镜）— 编译 `** BUILD SUCCEEDED **`
+
+| 文件 | 改动 |
+|---|---|
+| `Source/MediaFile/WLMetalShaderTypes.h`（新） | `.metal`/`.m` 共享的 `WLFilterParams`（纯 C，全 4 字节标量，布局逐字节一致） |
+| `Common/WLMetalContext.{h,m}`（新） | 共享单例：device/commandQueue/library + pipeline 缓存(按 fragment名+blend)；`newTextureCache`（带 `RenderTarget\|ShaderRead` usage）；`bindSampling`（NV12双平面/BGRA/RGBA + range 检测）；`bindRenderTarget`（BGRA8Unorm plane0）；`WLMetalTextureBinding` 持 `CVMetalTextureRef` 生命周期 |
+| `Source/MediaFile/WLMetalPreviewShaders.metal` | 新增 `filterFragment`：镜像(翻 uv) + 裁剪(remap uv，`v∈[cropTop,1-cropBottom]`) + YUV→RGB(601, full/video) + 颜色校正(sat→contrast→bright, 709 luma) + hue(YIQ 旋转)，复用现有 `vertexShader` |
+| `Filter/WLBasicVideoFilter.m` | 移除 CoreImage；改 Metal 离屏渲染：取裁剪后尺寸输出 buffer → 绑输入/输出 → 一个 draw → `commit + waitUntilCompleted` → 返回(`CF_RETURNS_RETAINED`)。`isIdentity` 透传与「裁剪改输出尺寸」语义保留；Metal 不可用时降级透传 |
+| `Source/MediaFile/WLMediaSource.m` | 软解帧 `CVPixelBufferCreate` 补 `IOSurface + MetalCompatibility` attrs（否则软解帧绑 Metal 纹理失败；顺带软解预览零拷贝） |
+
+**关键正确性点**（经独立设计验证）：
+- **同步必须 `waitUntilCompleted`**：`WLEncoder.m:283-297` 对输出 buffer `CVPixelBufferLockBaseAddress(ReadOnly)` + `sws_scale` **CPU 读**，预览也消费同一 buffer；`commit` 后须等 GPU 完成再交下游，`waitUntilScheduled` 不够。
+- **颜色不偏暗**：输出用 `MTLPixelFormatBGRA8Unorm`（**非 `_sRGB`**）—— YUV→RGB 得到的是 gamma-encoded R'G'B'，passthrough 写入即与旧 CoreImage 显式 sRGB 输出等价；用 `_sRGB` 会二次编码致过亮。
+- **`CVMetalTextureCache` 非线程安全** → 每个渲染对象各持一份，只在自己串行队列用；device/queue/library/pipeline 才共享。
+
+### 9.2 实现中纠正/发现
+
+- `WLMediaSourcePreview.m:188-200` 的绑纹理范本里 `height=0` / `planeIndex=0`（Y 与 CbCr 都传 0）**参数可疑**（CbCr 应 planeIndex=1）——因该 view 从不被消费，bug 未暴露。`WLMetalContext.bindSampling` **未照搬**，改用 `CVPixelBufferGetWidthOfPlane/HeightOfPlane` 真实宽高 + 正确 planeIndex(0/1)。
+- 编译期命名冲突：command buffer 变量 `cb` 与裁剪局部 `cb`(cropBottom) 撞名 → 改 `cmdBuf`（已修）。
+- **内存暴涨 1GB（运行时实测，已修）**：添加本地视频流后开颜色校正 / 镜像滤镜，内存几秒飙到 1GB+。**根因**：`processVideoFrame:`（在 `WLMediaSource.videoRenderThread` while 循环里调用，该循环**无 per-frame `@autoreleasepool`**）/ `renderWithPts:` 每帧创建的 `MTLCommandBuffer` 是 autoreleased 对象，而 **command buffer 会持有它引用的输入/输出纹理 → 进而持有 CVPixelBuffer 的 IOSurface 像素内存**，直到自身释放；无 pool 排空则每帧累积（~11MB/帧，30fps 数秒到 1GB）。透传路径（`isIdentity`）不建任何 Metal 对象，故**仅开滤镜时暴露**；旧 CoreImage 由 `CIContext` 内部管理、不产生长持有的 autoreleased command buffer，故无此问题。**修复**：`WLBasicVideoFilter.processVideoFrame:` 与 `WLVideoMix.renderWithPts:` 的 Metal 工作整体包 `@autoreleasepool`（在 `waitUntilCompleted` 后排空，GPU 已完成、安全），每帧确定性释放 command buffer 及其持有的纹理 / IOSurface。`videoRenderThread` 循环本身加 per-frame pool 是可选的根本加固，但 filter/mix 内部包裹已覆盖全部 Metal 调用路径（含摄像头采集队列）。
+- **裁剪内存尖峰 200MB→700MB→200MB（运行时实测，已修）**：拖动时内存瞬时尖峰后**立即回落**（**非泄漏**）。
+  - **先误诊为 pool 重建**：裁剪改输出尺寸 → `acquirePixelBufferWidth:height:` 每帧重建 pool、旧 pool buffer 飞行堆积。据此加了「输出尺寸量化到 16」，但**实测尖峰依旧** —— 假设被证伪。
+  - **真正根因**：`WLStreamPreview.enqueueSampleBuffer:` 每帧 `dispatch_async(主队列)` 投递 enqueue，每个 block `CFRetain` 一帧 sample buffer（持有 filter pool 输出 buffer）。拖动（裁剪滑块 / 缩放 / 移动浮层）时**主线程被鼠标事件占满**，这些 block 在主队列积压不执行，而渲染线程仍 30/60fps 持续投递 → 数十帧堆积成尖峰；松手后主线程瞬间清空积压 → 立即回落（这「瞬间回落」正是主线程积压的指纹，pool 假设解释不了）。
+  - **修复**：`enqueueSampleBuffer:` 加**丢帧背压**（`atomic_int _pendingEnqueues` 在途计数，旧值 ≥2 即丢弃当前帧）—— 预览本就应跟不上时丢帧而非积压，限制在途 ≤2 帧即彻底削平尖峰。预览丢帧无害，且**不影响录制**（录制走 mix 的 Fork 2，与预览 Fork 1 独立）。
+  - 输出尺寸量化到 16 作为减少 pool churn 的**辅助优化**保留（拖动裁剪时少 create/release pool；副作用裁剪精度 ±8px，显示侧缩放无感）。
+- **裁剪内存随比例升降 200↔400MB（运行时实测，已修）**：稳态下内存与「当前裁剪后帧尺寸」成正比且稳定（0% / 30% 大帧 ≈400MB，45% 小帧 ≈200MB）。这与上面的拖动尖峰是**两个独立问题**：尖峰是拖动期间主队列 dispatch 积压（背压已修），本条是稳态下持有了固定帧数、尺寸随裁剪变的一批帧。**根因**：`WLStreamPreview.createSampleBufferFromPixelBuffer:` 给每帧打 `presentationTimeStamp`（媒体 pts）却未声明「立即显示」，`AVSampleBufferDisplayLayer` 据此**按 pts 缓冲一整窗口（≈1s、数十帧）等待呈现** → 持有帧数恒定、单帧尺寸随裁剪变，故内存 ∝ 帧尺寸且稳定（几十帧 × 全尺寸 8MB ≈ 数百 MB，正好对上量级）。背压只挡主队列 dispatch、挡不住 layer 内部这个队列，故为独立现象。**修复**：sample buffer 打 `kCMSampleAttachmentKey_DisplayImmediately` —— 渲染线程已按 pts 把出帧节流到实时，预览只需「来一帧显一帧」，layer 队列即降到 ~1 帧、内存与裁剪比例解耦。无副作用（实时节流在上游，呈现时机不变）。
+
+### 9.3 已完成：Phase 2（合成器 `WLVideoMix`）— 编译 `** BUILD SUCCEEDED **`
+
+| 文件 | 改动 |
+|---|---|
+| `Mix/WLVideoMix.m` | 移除 CoreImage（`CIContext`/`CIImage`/`CIColor`）；改 Metal 离屏：共享 `WLMetalContext` + 自有 `CVMetalTextureCacheRef` + `fragmentShader`(blending) pipeline。`renderWithPts:` 单 render pass：`loadAction=Clear` 背景色铺底 → 背景图全屏 quad（`MTKTextureLoader` NSImage→MTLTexture，`SRGB:NO`）→ 按 `streamOrder` 各源 quad（layout 左下原点→NDC **y 不翻**、翻转在 texCoord v、alpha blend、逐源 YUV/BGRA+range）→ `commit + waitUntilCompleted` → `output(out,pts)`。pool 补 `MetalCompatibility`。公开接口 / 契约 / 节流 / `renderingEnabled` / 铺底防残影全保留，`WLStreamsManager` fork 点零改动。 |
+
+**关键正确性点**：
+- **坐标**：layout 左下原点像素 → `ndcB=y/H*2-1`（**y 不翻**），texCoord 底 v=1 / 顶 v=0（源纹理 row0=顶），方向正立；全画布 layout→NDC `[-1,1]²`、左下 1/4→左下象限，校验通过。
+- **颜色**：pipeline 与 render target 均 `BGRA8Unorm`（非 `_sRGB`）；clearColor 用 sRGB gamma 分量直写、背景图 `SRGB:NO` —— 同处 gamma 域、与源 YUV→RGB 输出一致、不偏暗（同 Phase 1 结论）。
+- **同步 / 生命周期**：`waitUntilCompleted` 后才交下游（编码器 CPU swscale 读同一 buffer）；输入 binding 收进数组持有至 GPU 完成后释放；`fragmentShader` 的 `texture(1)` 在 BGRA 分支绑占位纹理（满足绑定校验，shader 不采样）。
+- **全工程脱离 CoreImage**：Phase 1 移滤镜 + Phase 2 移合成器后，`grep CoreImage` 仅余注释，无任何 CI* 实际调用。§7.5 判断的「自研 Metal 合成器替换 CoreImage」增量价值至此落地。
+
+**运行时验证（Phase 1+2，待实机）**：
+- **Phase 1（滤镜）**：开镜像 CPU 应从 30%+ 回落到接近无滤镜（十几%）；**内存平稳不暴涨**（验 §9.2 autoreleasepool 修复，开滤镜后内存应稳定在正常水位、不随时间爬升）；isIdentity 等于透传基线；镜像方向 / 裁剪边 / 颜色观感对齐逐源预览且不偏暗；软解文件开滤镜不黑屏。
+- **Phase 2（合成器，仅录制 / 推流路径生效；纯预览被优化①关闭合成）**：z-order 遮挡、各源画布位置 / 缩放、背景色 + 背景图正确；拖动时 60fps 节流不出陈帧；录制 mp4 逐帧无上下颠倒 / 撕裂（验 NDC y 方向 + `waitUntilCompleted`）；camera + media 同时录制；start/stop 反复无泄漏（CVMetalTexture 包装 + 输出 buffer 引用计数）。
+
+### 9.4 注意事项：`xcodegen generate` + `pod install` 后 IDE 需手动刷新
+
+新增源文件后跑了 `xcodegen generate`（重写 `.xcodeproj`）+ `pod install`（重集成 workspace）。`use_frameworks!` 下 `#import "TPCircularBuffer.h"` 等 pod 头靠 `HEADER_SEARCH_PATHS → ${PODS_CONFIGURATION_BUILD_DIR}/*.framework/Headers` 解析，**前提是该 framework 已构建**。命令行 `xcodebuild` 带依赖顺序会先构建、故 `clean build` 已验证 `BUILD SUCCEEDED`；但 Xcode IDE 若状态陈旧或误开 `.xcodeproj`（而非 `.xcworkspace`）会报 `'TPCircularBuffer.h' file not found`。**处理**：确认打开 `WorkLabs.xcworkspace` → `Product → Clean Build Folder (⇧⌘K)` → 重新 Build；必要时关闭重开 workspace 或删 `~/Library/Developer/Xcode/DerivedData/WorkLabs-*`。
