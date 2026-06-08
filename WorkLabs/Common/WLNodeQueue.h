@@ -26,6 +26,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable WLNode *)deQueueWithBlock:(BOOL)block;
 - (nullable WLNode *)deQueueWithTimeout:(int)milliseconds;
 - (nullable WLNode *)peek;
+/// 阻塞查看队头（不出队）：空队列时等到有数据或 abort；abort 返回 nil。无丢失唤醒。
+- (nullable WLNode *)peekBlocking;
+/// 等待到指定单调时刻（CLOCK_UPTIME_RAW 纳秒）或被入队/abort 提前唤醒；不出队。
+- (void)waitUntilDeadlineNs:(uint64_t)deadlineNs;
 - (void)abort;
 - (void)flush;
 - (void)requeueFront:(WLNode *)node;

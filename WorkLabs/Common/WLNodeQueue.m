@@ -7,6 +7,7 @@
 
 #import "WLNodeQueue.h"
 #import <pthread.h>
+#import <time.h>
 
 @implementation WLNodeQueue {
     pthread_mutex_t _mutex;
@@ -101,12 +102,11 @@
 - (nullable WLNode *)deQueueWithTimeout:(int)milliseconds {
     pthread_mutex_lock(&_mutex);
     if (!_head && !_abortRequest) {
+        // 相对超时：relative_np 基于单调钟，不受改系统时间影响（旧 CLOCK_REALTIME 会漂）
         struct timespec ts;
-        clock_gettime(CLOCK_REALTIME, &ts);
-        ts.tv_sec += milliseconds / 1000;
-        ts.tv_nsec += (milliseconds % 1000) * 1000000L;
-        if (ts.tv_nsec >= 1000000000L) { ts.tv_sec += 1; ts.tv_nsec -= 1000000000L; }
-        pthread_cond_timedwait(&_cond, &_mutex, &ts);
+        ts.tv_sec = milliseconds / 1000;
+        ts.tv_nsec = (milliseconds % 1000) * 1000000L;
+        pthread_cond_timedwait_relative_np(&_cond, &_mutex, &ts);
     }
     if (_abortRequest || !_head) { pthread_mutex_unlock(&_mutex); return nil; }
     WLNode *node = _head;
@@ -124,6 +124,31 @@
     WLNode *node = _head;
     pthread_mutex_unlock(&_mutex);
     return node;
+}
+
+- (WLNode *)peekBlocking {
+    pthread_mutex_lock(&_mutex);
+    while (!_head && !_abortRequest) {
+        pthread_cond_wait(&_cond, &_mutex);   // 空队列阻塞等到入队/abort（检查+等同锁内，无丢失唤醒）
+    }
+    WLNode *node = _abortRequest ? nil : _head;   // 不出队，仅查看
+    pthread_mutex_unlock(&_mutex);
+    return node;
+}
+
+- (void)waitUntilDeadlineNs:(uint64_t)deadlineNs {
+    pthread_mutex_lock(&_mutex);
+    if (!_abortRequest) {
+        uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);   // 与调用方 wl_mono_now_ns 同钟
+        if (deadlineNs > now) {
+            uint64_t rel = deadlineNs - now;
+            struct timespec ts;
+            ts.tv_sec  = (time_t)(rel / 1000000000ULL);
+            ts.tv_nsec = (long)(rel % 1000000000ULL);
+            pthread_cond_timedwait_relative_np(&_cond, &_mutex, &ts);   // 睡到 deadline 或被入队/abort 唤醒
+        }
+    }
+    pthread_mutex_unlock(&_mutex);
 }
 
 - (void)requeueFront:(WLNode *)node {

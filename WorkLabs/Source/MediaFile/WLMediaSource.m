@@ -16,6 +16,7 @@
 #include "libavutil/opt.h"
 #include "libavutil/intreadwrite.h"
 #include <stdatomic.h>
+#include <time.h>
 
 // ─── 时间戳安全处理（参照 mpv common.h:38 + av_common.c:169） ───
 
@@ -35,6 +36,12 @@ static inline double wl_add_pts(double pts, double offset) {
 /// 是否为有效 pts
 static inline BOOL wl_pts_is_valid(double pts) {
     return pts != WL_NOPTS_VALUE;
+}
+
+/// 单调时钟纳秒（CLOCK_UPTIME_RAW：单调递增、不受改系统时间/NTP 影响、休眠期间暂停）。
+/// 用于 render 线程节流与队列等待，替代会漂移的 CFAbsoluteTimeGetCurrent（墙钟）。
+static inline uint64_t wl_mono_now_ns(void) {
+    return clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
 }
 
 @interface WLMediaSource ()
@@ -65,7 +72,7 @@ static inline BOOL wl_pts_is_valid(double pts) {
 
 @property (nonatomic, assign) AVRational video_time_base;
 
-@property (atomic, assign) Float64 baseTime;
+// A/V 输出微调偏移（秒，默认 0 = 精确到点；正值延后、负值提前，供未来 a/v 微调用）
 @property (nonatomic, assign) Float64 videoPtsOffset;
 @property (nonatomic, assign) Float64 audioPtsOffset;
 
@@ -81,6 +88,11 @@ static inline BOOL wl_pts_is_valid(double pts) {
 
 @implementation WLMediaSource {
     _Atomic int _activeRenderThreads;
+
+    // A/V 共享时基锚点（单调纳秒，有符号）：baseTime = 首帧输出时刻 - 首帧 pts。
+    // 用 int64 是因 pts 不从 0 起（如 seek 后段）时该锚点逻辑上可能为负，uint64 会下溢。
+    // 0 = 未锚定；由首个出帧的 render 线程用 CAS 设定，video/audio 共享同一值即 A/V 同步。
+    _Atomic(int64_t) _baseTimeNs;
 
     // 软解视频帧转换: AVFrame → BGRA CVPixelBufferRef
     struct SwsContext *_swsCtx;
@@ -111,9 +123,9 @@ static inline BOOL wl_pts_is_valid(double pts) {
 
         _fromType = WLFromTypeMedia;
         self.path = path;
-        self.videoPtsOffset = 30.0;
-        self.audioPtsOffset = 30.0;
-        self.baseTime = 0.0;
+        self.videoPtsOffset = 0.0;
+        self.audioPtsOffset = 0.0;
+        atomic_init(&_baseTimeNs, 0);
     }
     return self;
 }
@@ -322,51 +334,42 @@ static inline BOOL wl_pts_is_valid(double pts) {
 - (void)videoRenderThread {
     [NSThread currentThread].name = @"com.wl-render-video.thread";
     while (self.isVideoRendering) {
-        Float64 current_time = CFAbsoluteTimeGetCurrent() * 1000;
-
-        if (self.baseTime == 0) {
-            self.baseTime = current_time;
-            NSLog(@"[Video] BaseTime set: %.3f", self.baseTime);
-        }
-
-        WLNode *node = [self.videoFrameQueue peek];
-        if (!node) {
-            usleep(10 * 1000);
-            continue;
-        }
+        // 阻塞等到有帧（空队列零 CPU，不再 usleep 轮询）；abort 时返回 nil → 下一轮 while 退出
+        WLNode *node = [self.videoFrameQueue peekBlocking];
+        if (!node) continue;
 
         // start_time 归一化（参照 mpv demux.c:2858 ts_offset = -start_time）
         Float64 normalized_pts = wl_add_pts(node.pts, -self.startTime);
         if (!wl_pts_is_valid(normalized_pts)) {
             // NOPTS 帧：丢弃（参照 mpv video.c:383-392 异常处理）
-            node = [self.videoFrameQueue deQueueWithBlock:NO];
-            if (node) [node flush];
+            WLNode *bad = [self.videoFrameQueue deQueueWithBlock:NO];
+            if (bad) [bad flush];
             continue;
         }
+        int64_t pts_ns = (int64_t)(normalized_pts * 1e9);   // 有符号：归一化后边界帧 pts 可能微负
 
-        Float64 abs_pts = normalized_pts * 1000 + self.baseTime;
+        // 首帧用 CAS 锚定 baseTime = 现在(单调) - 首帧 pts，使首帧立即出。
+        // video/audio 谁先到谁设、另一路读同一值 → 共享时基即 A/V 同步（无需轮询等待）。
+        int64_t expected = 0;
+        atomic_compare_exchange_strong(&_baseTimeNs, &expected,
+                                       (int64_t)wl_mono_now_ns() - pts_ns);
+        int64_t baseTime = atomic_load_explicit(&_baseTimeNs, memory_order_relaxed);
 
-        if (abs_pts + self.videoPtsOffset < current_time) {
+        int64_t deadline = baseTime + pts_ns + (int64_t)(self.videoPtsOffset * 1e9);
+        if ((int64_t)wl_mono_now_ns() >= deadline) {
             node = [self.videoFrameQueue deQueueWithBlock:NO];
             if (!node) continue;
 
-            AVFrame *frame = node.frame;
-            Float64 pts = normalized_pts;
-
-            CVPixelBufferRef pixelBuffer = [self convertVideoFrame:frame];
+            CVPixelBufferRef pixelBuffer = [self convertVideoFrame:node.frame];
             if (pixelBuffer && _delegate) {
-                [_delegate source:self didOutputVideoFrame:pixelBuffer pts:pts];
+                [_delegate source:self didOutputVideoFrame:pixelBuffer pts:normalized_pts];
             } else if (pixelBuffer) {
                 CVPixelBufferRelease(pixelBuffer);
             }
-
             [node flush];
         } else {
-            Float64 waitMs = abs_pts + self.videoPtsOffset - current_time;
-            if (waitMs > 50) waitMs = 50;
-            if (waitMs > 1) {
-                usleep((useconds_t)(waitMs * 1000));
-            }
+            // 精确睡到 deadline（单调钟，relative_np）；新帧入队 / abort 提前唤醒
+            [self.videoFrameQueue waitUntilDeadlineNs:(uint64_t)deadline];
         }
     }
     [self.videoFrameQueue flush];
@@ -378,49 +381,41 @@ static inline BOOL wl_pts_is_valid(double pts) {
     [NSThread currentThread].name = @"com.wl-render-audio.thread";
 
     while (self.isAudioRendering) {
-        Float64 current_time = CFAbsoluteTimeGetCurrent() * 1000;
-
-        if (self.baseTime == 0) {
-            usleep(10 * 1000);
-            continue;
-        }
-
-        WLNode *node = [self.audioFrameQueue peek];
-        if (!node) {
-            usleep(10 * 1000);
-            continue;
-        }
+        // 阻塞等到有帧（空队列零 CPU）；abort 时返回 nil → 下一轮 while 退出
+        WLNode *node = [self.audioFrameQueue peekBlocking];
+        if (!node) continue;
 
         // start_time 归一化（参照 mpv demux.c:2858 ts_offset = -start_time）
         Float64 normalized_pts = wl_add_pts(node.pts, -self.startTime);
         if (!wl_pts_is_valid(normalized_pts)) {
             // NOPTS 帧：丢弃
-            node = [self.audioFrameQueue deQueueWithBlock:NO];
-            if (node) [node flush];
+            WLNode *bad = [self.audioFrameQueue deQueueWithBlock:NO];
+            if (bad) [bad flush];
             continue;
         }
+        int64_t pts_ns = (int64_t)(normalized_pts * 1e9);   // 有符号：归一化后边界帧 pts 可能微负
 
-        Float64 abs_pts = normalized_pts * 1000 + self.baseTime;
+        // 与视频共享同一 baseTime（CAS 锚定，谁先到谁设）→ 相同 pts 同时刻输出，即 A/V 同步
+        int64_t expected = 0;
+        atomic_compare_exchange_strong(&_baseTimeNs, &expected,
+                                       (int64_t)wl_mono_now_ns() - pts_ns);
+        int64_t baseTime = atomic_load_explicit(&_baseTimeNs, memory_order_relaxed);
 
-        if (abs_pts + self.audioPtsOffset < current_time) {
+        int64_t deadline = baseTime + pts_ns + (int64_t)(self.audioPtsOffset * 1e9);
+        if ((int64_t)wl_mono_now_ns() >= deadline) {
             node = [self.audioFrameQueue deQueueWithBlock:NO];
             if (!node) continue;
 
-            AVFrame *frame = node.frame;
-            CMSampleBufferRef sampleBuffer = [self convertAudioFrame:frame];
+            CMSampleBufferRef sampleBuffer = [self convertAudioFrame:node.frame];
             if (sampleBuffer && _delegate) {
                 [_delegate source:self didOutputAudioBuffer:sampleBuffer];
             } else if (sampleBuffer) {
                 CFRelease(sampleBuffer);
             }
-
             [node flush];
         } else {
-            Float64 waitMs = abs_pts + self.audioPtsOffset - current_time;
-            if (waitMs > 50) waitMs = 50;
-            if (waitMs > 1) {
-                usleep((useconds_t)(waitMs * 1000));
-            }
+            // 精确睡到 deadline（单调钟，relative_np）；新帧入队 / abort 提前唤醒
+            [self.audioFrameQueue waitUntilDeadlineNs:(uint64_t)deadline];
         }
     }
 
