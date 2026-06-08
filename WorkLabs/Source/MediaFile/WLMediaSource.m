@@ -10,13 +10,32 @@
 
 #include "libavformat/avformat.h"
 #include "libavcodec/avcodec.h"
-#include "libavcodec/bsf.h"
 #include "libavutil/avutil.h"
 #include "libswscale/swscale.h"
 #include "libswresample/swresample.h"
 #include "libavutil/opt.h"
 #include "libavutil/intreadwrite.h"
 #include <stdatomic.h>
+
+// ─── 时间戳安全处理（参照 mpv common.h:38 + av_common.c:169） ───
+
+/// NOPTS 哨兵：与 mpv MP_NOPTS_VALUE 一致，double 可精确表示
+#define WL_NOPTS_VALUE (-0x1p+63)
+
+/// 安全 pts 转换：AVFrame pts → 秒，显式处理 NOPTS（参照 mpv av_common.c:169）
+static inline double wl_pts_from_av(int64_t av_pts, double time_base) {
+    return av_pts == AV_NOPTS_VALUE ? WL_NOPTS_VALUE : av_pts * time_base;
+}
+
+/// 安全 pts 加偏移：NOPTS 传播（参照 mpv common.h:66 MP_ADD_PTS）
+static inline double wl_add_pts(double pts, double offset) {
+    return pts == WL_NOPTS_VALUE ? WL_NOPTS_VALUE : pts + offset;
+}
+
+/// 是否为有效 pts
+static inline BOOL wl_pts_is_valid(double pts) {
+    return pts != WL_NOPTS_VALUE;
+}
 
 @interface WLMediaSource ()
 @property (nonatomic,   copy, readwrite) NSString *path;
@@ -49,6 +68,11 @@
 @property (atomic, assign) Float64 baseTime;
 @property (nonatomic, assign) Float64 videoPtsOffset;
 @property (nonatomic, assign) Float64 audioPtsOffset;
+
+// 时间戳归一化（参照 mpv demux_lavf.c:1498 + video.c:383）
+@property (nonatomic, assign) double startTime;       // 容器 start_time（秒）
+@property (nonatomic, assign) Float64 lastVideoPts;   // 上一帧视频 pts（归一化后）
+@property (nonatomic, assign) Float64 lastAudioPts;   // 上一帧音频 pts（归一化后）
 
 // WLStreamSourceProtocol 协议属性
 @property (nonatomic, assign, readwrite) WLFromType fromType;
@@ -124,21 +148,23 @@
     [self configureQueue];
     [self configureDecode];
 
-    self.video_time_base = self.formatContext->streams[self.videoStreamIndex]->time_base;
-    self.videoTimeBase = av_q2d(self.formatContext->streams[self.videoStreamIndex]->time_base);
-    self.audioTimeBase = av_q2d(self.formatContext->streams[self.audioStreamIndex]->time_base);
-
     atomic_store_explicit(&_activeRenderThreads, 2, memory_order_relaxed);
 
     AVPacket *packet = av_packet_alloc();
 
     while (self.isRunning) {
 
-        int size = av_read_frame(self.formatContext, packet);
-        if (size < 0 || packet->size < 0) {
-            /// 视频播放完成了
-            av_packet_free(&packet);
-            break;
+        int ret = av_read_frame(self.formatContext, packet);
+        if (ret == AVERROR_EOF) {
+            break;  // 正常结束
+        }
+        if (ret < 0) {
+            NSLog(@"[WLMediaSource] 读取错误: %s", av_err2str(ret));
+            break;  // 错误退出
+        }
+        if (packet->size <= 0) {
+            av_packet_unref(packet);
+            continue;  // 跳过空包
         }
         if (packet->stream_index == self.videoStreamIndex) {
             [self addPacket:packet type:WLNodeTypeVideo];
@@ -213,7 +239,7 @@
             node.frame = av_frame_clone(frame); // 引用计数+1
             node.fromType = WLFromTypeMedia;
             node.type = WLNodeTypeVideo;
-            node.pts = frame->pts * self.videoTimeBase;
+            node.pts = wl_pts_from_av(frame->pts, self.videoTimeBase);
             [self.videoFrameQueue enQueue:node];
         } else if (result == AVERROR_EOF) {
             break;
@@ -240,7 +266,7 @@
             node.frame = av_frame_clone(frame);
             node.fromType = WLFromTypeMedia;
             node.type = WLNodeTypeAudio;
-            node.pts = frame->pts * self.audioTimeBase;
+            node.pts = wl_pts_from_av(frame->pts, self.audioTimeBase);
             [self.audioFrameQueue enQueue:node];
         } else if (result == AVERROR_EOF) {
             break;
@@ -309,14 +335,23 @@
             continue;
         }
 
-        Float64 abs_pts = node.pts * 1000 + self.baseTime;
+        // start_time 归一化（参照 mpv demux.c:2858 ts_offset = -start_time）
+        Float64 normalized_pts = wl_add_pts(node.pts, -self.startTime);
+        if (!wl_pts_is_valid(normalized_pts)) {
+            // NOPTS 帧：丢弃（参照 mpv video.c:383-392 异常处理）
+            node = [self.videoFrameQueue deQueueWithBlock:NO];
+            if (node) [node flush];
+            continue;
+        }
+
+        Float64 abs_pts = normalized_pts * 1000 + self.baseTime;
 
         if (abs_pts + self.videoPtsOffset < current_time) {
             node = [self.videoFrameQueue deQueueWithBlock:NO];
             if (!node) continue;
 
             AVFrame *frame = node.frame;
-            Float64 pts = node.pts;
+            Float64 pts = normalized_pts;
 
             CVPixelBufferRef pixelBuffer = [self convertVideoFrame:frame];
             if (pixelBuffer && _delegate) {
@@ -356,7 +391,16 @@
             continue;
         }
 
-        Float64 abs_pts = node.pts * 1000 + self.baseTime;
+        // start_time 归一化（参照 mpv demux.c:2858 ts_offset = -start_time）
+        Float64 normalized_pts = wl_add_pts(node.pts, -self.startTime);
+        if (!wl_pts_is_valid(normalized_pts)) {
+            // NOPTS 帧：丢弃
+            node = [self.audioFrameQueue deQueueWithBlock:NO];
+            if (node) [node flush];
+            continue;
+        }
+
+        Float64 abs_pts = normalized_pts * 1000 + self.baseTime;
 
         if (abs_pts + self.audioPtsOffset < current_time) {
             node = [self.audioFrameQueue deQueueWithBlock:NO];
@@ -552,18 +596,23 @@
     }
 
     // 2. 打开视频流
-    err = [self openVideoStreamWithError:&errorMsg];
+    err = [self openStreamWithType:AVMEDIA_TYPE_VIDEO error:&errorMsg];
     if (err != 0) {
         [self releaseFFmpegResources];
         return errorMsg;
     }
 
     // 3. 打开音频流
-    err = [self openAudioStreamWithError:&errorMsg];
+    err = [self openStreamWithType:AVMEDIA_TYPE_AUDIO error:&errorMsg];
     if (err != 0) {
         [self releaseFFmpegResources];
         return errorMsg;
     }
+
+    // 4. 提取 time_base（初始化内聚，不再分散到 parseThread）
+    _video_time_base = self.formatContext->streams[_videoStreamIndex]->time_base;
+    _videoTimeBase = av_q2d(self.formatContext->streams[_videoStreamIndex]->time_base);
+    _audioTimeBase = av_q2d(self.formatContext->streams[_audioStreamIndex]->time_base);
 
     return nil;
 }
@@ -591,64 +640,85 @@
     }
 
     self.formatContext = tempCtx;
+
+    // 记录容器 start_time（参照 mpv demux_lavf.c:1498-1499）
+    if (tempCtx->start_time != AV_NOPTS_VALUE) {
+        _startTime = (double)tempCtx->start_time / AV_TIME_BASE;
+    } else {
+        _startTime = 0.0;
+    }
+
     return 0;
 }
-#pragma mark Video stream
-- (int)openVideoStreamWithError:(NSString **)errorMsg {
-    // 1. 重置并清理旧资源
-    [self closeVideoStream];
+#pragma mark - Stream open (统一视频/音频)
+- (int)openStreamWithType:(enum AVMediaType)type error:(NSString **)errorMsg {
+    const char *typeLabel = (type == AVMEDIA_TYPE_VIDEO) ? "视频" : "音频";
 
+    // 1. 清理旧资源
+    if (type == AVMEDIA_TYPE_VIDEO) {
+        [self closeVideoStream];
+    } else {
+        if (_audioCodecContext) { avcodec_free_context(&_audioCodecContext); _audioCodecContext = NULL; }
+        self.audioStreamIndex = -1;
+    }
+
+    // 2. 查找最佳流
     const AVCodec *codec = NULL;
-    int ret = 0;
-
-    // 2. 使用 av_find_best_stream 自动筛选最佳视频流
-    // 它会自动过滤 AV_DISPOSITION_ATTACHED_PIC (封面图)
-    ret = av_find_best_stream(self.formatContext, AVMEDIA_TYPE_VIDEO, -1, -1, &codec, 0);
+    int ret = av_find_best_stream(self.formatContext, type, -1, -1, &codec, 0);
     if (ret < 0) {
-        if (errorMsg) *errorMsg = [NSString stringWithFormat:@"未找到有效的视频流: %@", [self getFFmpegError:ret]];
+        if (errorMsg) *errorMsg = [NSString stringWithFormat:@"未找到%s流: %@",
+                                    typeLabel, [self getFFmpegError:ret]];
         return ret;
     }
-    self.videoStreamIndex = ret;
-    AVStream *stream = self.formatContext->streams[self.videoStreamIndex];
+    int streamIndex = ret;
+    AVStream *stream = self.formatContext->streams[streamIndex];
 
     // 3. 分配解码器上下文
-    self.videoCodecContext = avcodec_alloc_context3(codec);
-    if (!self.videoCodecContext) {
-        if (errorMsg) *errorMsg = @"无法分配解码器上下文 (内存不足)";
+    AVCodecContext *codecCtx = avcodec_alloc_context3(codec);
+    if (!codecCtx) {
+        if (errorMsg) *errorMsg = [NSString stringWithFormat:@"无法分配%s解码上下文", typeLabel];
         return AVERROR(ENOMEM);
     }
 
     // 4. 填充流参数
-    ret = avcodec_parameters_to_context(self.videoCodecContext, stream->codecpar);
+    ret = avcodec_parameters_to_context(codecCtx, stream->codecpar);
     if (ret < 0) {
-        if (errorMsg) *errorMsg = [NSString stringWithFormat:@"参数同步失败: %@", [self getFFmpegError:ret]];
-        goto fail;
+        if (errorMsg) *errorMsg = [NSString stringWithFormat:@"%s参数同步失败: %@",
+                                    typeLabel, [self getFFmpegError:ret]];
+        avcodec_free_context(&codecCtx);
+        return ret;
     }
 
-    // 5. 尝试配置 VideoToolbox 硬件加速
-    ret = [self setupHardwareDecoder:self.videoCodecContext];
-    if (ret < 0) {
-        // 提示：此处如果硬件初始化失败，严谨的做法是记录警告，但可以继续尝试打开解码器（走软解）
-        NSLog(@"硬件加速初始化失败，将尝试软件解码: %@", [self getFFmpegError:ret]);
+    // 5. 视频：尝试 VideoToolbox 硬件加速
+    if (type == AVMEDIA_TYPE_VIDEO) {
+        int hwRet = [self setupHardwareDecoder:codecCtx];
+        if (hwRet < 0) {
+            NSLog(@"硬件加速初始化失败，将尝试软件解码: %@", [self getFFmpegError:hwRet]);
+        }
     }
 
-    // 6. 正式打开解码器
-    ret = avcodec_open2(self.videoCodecContext, codec, NULL);
+    // 6. 打开解码器
+    ret = avcodec_open2(codecCtx, codec, NULL);
     if (ret < 0) {
-        if (errorMsg) *errorMsg = [NSString stringWithFormat:@"无法打开解码器: %@", [self getFFmpegError:ret]];
-        goto fail;
+        if (errorMsg) *errorMsg = [NSString stringWithFormat:@"无法打开%s解码器: %@",
+                                    typeLabel, [self getFFmpegError:ret]];
+        avcodec_free_context(&codecCtx);
+        return ret;
     }
 
-    return 0; // 成功
-
-fail:
-    [self closeVideoStream];
-    return ret;
+    // 7. 赋值
+    if (type == AVMEDIA_TYPE_VIDEO) {
+        self.videoStreamIndex = streamIndex;
+        self.videoCodecContext = codecCtx;
+    } else {
+        self.audioStreamIndex = streamIndex;
+        self.audioCodecContext = codecCtx;
+    }
+    return 0;
 }
 
 - (int)setupHardwareDecoder:(AVCodecContext *)ctx {
     AVBufferRef *hw_device_ctx = NULL;
-    // 直接指定 VideoToolbox，这是 Apple 平台的标准硬解方式
     int err = av_hwdevice_ctx_create(&hw_device_ctx, AV_HWDEVICE_TYPE_VIDEOTOOLBOX, NULL, NULL, 0);
     if (err < 0) return err;
 
@@ -657,61 +727,12 @@ fail:
     return 0;
 }
 
-// 统一的资源清理方法
 - (void)closeVideoStream {
     if (_videoCodecContext) {
         avcodec_free_context(&_videoCodecContext);
         _videoCodecContext = NULL;
     }
     self.videoStreamIndex = -1;
-}
-#pragma mark Audio stream
-- (int)openAudioStreamWithError:(NSString **)errorMsg {
-    // 1. 资源重置，防止重复调用导致内存泄漏
-    if (_audioCodecContext) {
-        avcodec_free_context(&_audioCodecContext);
-        _audioCodecContext = NULL;
-    }
-    self.audioStreamIndex = -1;
-
-    const AVCodec *codec = NULL;
-    int ret = 0;
-
-    // 2. 自动寻找最佳音频流
-    // av_find_best_stream 会根据流的配置（如声道数、采样率）自动选择质量最好的流
-    ret = av_find_best_stream(self.formatContext, AVMEDIA_TYPE_AUDIO, -1, -1, &codec, 0);
-    if (ret < 0) {
-        if (errorMsg) *errorMsg = [NSString stringWithFormat:@"未找到音频流: %@", [self getFFmpegError:ret]];
-        return ret;
-    }
-    self.audioStreamIndex = ret;
-
-    // 3. 分配解码器上下文
-    AVCodecContext *codecContext = avcodec_alloc_context3(codec);
-    if (!codecContext) {
-        if (errorMsg) *errorMsg = @"无法分配音频解码上下文";
-        return AVERROR(ENOMEM);
-    }
-
-    // 4. 将流参数填充到解码器上下文
-    ret = avcodec_parameters_to_context(codecContext, self.formatContext->streams[self.audioStreamIndex]->codecpar);
-    if (ret < 0) {
-        if (errorMsg) *errorMsg = [NSString stringWithFormat:@"音频参数拷贝失败: %@", [self getFFmpegError:ret]];
-        avcodec_free_context(&codecContext); // 必须手动释放，因为还没赋值给 self
-        return ret;
-    }
-
-    // 5. 打开解码器
-    ret = avcodec_open2(codecContext, codec, NULL);
-    if (ret < 0) {
-        if (errorMsg) *errorMsg = [NSString stringWithFormat:@"无法打开音频解码器: %@", [self getFFmpegError:ret]];
-        avcodec_free_context(&codecContext);
-        return ret;
-    }
-
-    // 6. 赋值成功
-    self.audioCodecContext = codecContext;
-    return 0;
 }
 #pragma mark - 资源释放
 - (void)releaseFFmpegResources {
