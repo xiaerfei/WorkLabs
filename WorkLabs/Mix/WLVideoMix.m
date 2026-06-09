@@ -11,14 +11,6 @@
 #import "WLMetalContext.h"
 #import <Metal/Metal.h>
 #import <MetalKit/MetalKit.h>
-#include <mach/mach_time.h>
-
-// 单调墙钟（秒），用于合成输出节流
-static Float64 WLVideoMixNowSeconds(void) {
-    static mach_timebase_info_data_t tb = {0, 0};
-    if (tb.denom == 0) mach_timebase_info(&tb);
-    return (Float64)mach_absolute_time() * tb.numer / tb.denom / 1.0e9;
-}
 
 @interface WLVideoMix ()
 @property (nonatomic, strong, nullable) WLMetalContext *metal;
@@ -37,15 +29,18 @@ static Float64 WLVideoMixNowSeconds(void) {
 @property (nonatomic, assign) BOOL hasBgColor;            // 用户是否设过背景色（区别于默认黑底兜底）
 @property (nonatomic, assign) MTLClearColor bgClearColor; // 背景色（sRGB gamma 域，直写 BGRA 非 sRGB 纹理）
 @property (nonatomic, strong, nullable) id<MTLTexture> bgTexture; // 背景图（NSImage 转换一次缓存）
-@property (nonatomic, assign) Float64 lastPts;
-@property (nonatomic, assign) Float64 lastRenderTime;     // 上次实际合成输出的墙钟（节流用）
-@property (nonatomic, assign) Float64 minRenderInterval;  // 合成最小间隔 = 1 / 帧率上限
+// ── 合成 tick（固定节拍主动驱动，替代输入事件驱动）──
+@property (nonatomic, strong, nullable) dispatch_source_t tickTimer; // 仅在 serialQueue 创建/销毁
+@property (nonatomic, assign) Float64 tickInterval;       // tick 周期（秒）= 1 / 合成帧率
+@property (nonatomic, assign) Float64 ptsAccum;           // 累计输出 pts（秒）；每拍 += tickInterval，改帧率不跳变
 
 @property (nonatomic, assign) CVPixelBufferPoolRef pixelBufferPool;
 
 @end
 
 @implementation WLVideoMix
+
+@synthesize renderingEnabled = _renderingEnabled;   // 自定义 getter/setter（启停 tick），显式合成 ivar
 
 - (instancetype)initWithCanvasSize:(CGSize)canvasSize {
     self = [super init];
@@ -63,7 +58,7 @@ static Float64 WLVideoMixNowSeconds(void) {
         _bgClearColor = MTLClearColorMake(0, 0, 0, 1); // 默认黑底铺底，防 pool 复用 buffer 残影
 
         _serialQueue = dispatch_queue_create("com.worklabs.videomix", DISPATCH_QUEUE_SERIAL);
-        _minRenderInterval = 1.0 / 60.0;   // 默认合成帧率上限 60fps（可由 setRenderFrameRate: 调整）
+        _tickInterval = 1.0 / 60.0;        // 默认 tick 周期 60fps（可由 setRenderFrameRate: 调整）
         _latestFrames = [NSMutableDictionary dictionary];
         _layouts = [NSMutableDictionary dictionary];
         _streamOrder = [NSMutableArray array];
@@ -74,6 +69,10 @@ static Float64 WLVideoMixNowSeconds(void) {
 }
 
 - (void)dealloc {
+    if (_tickTimer) {
+        dispatch_source_cancel(_tickTimer);
+        _tickTimer = nil;
+    }
     for (NSString *sid in _latestFrames) {
         CVPixelBufferRef pb = (__bridge CVPixelBufferRef)_latestFrames[sid];
         if (pb) CVPixelBufferRelease(pb);
@@ -102,7 +101,7 @@ static Float64 WLVideoMixNowSeconds(void) {
     dispatch_async(self.serialQueue, ^{
         self.hasBgColor = has;
         self.bgClearColor = cc;
-        [self renderWithPts:self.lastPts];
+        // 只更新缓存，下一个 tick 自然采用新背景
     });
 }
 
@@ -125,7 +124,7 @@ static Float64 WLVideoMixNowSeconds(void) {
     }
     dispatch_async(self.serialQueue, ^{
         self.bgTexture = tex;
-        [self renderWithPts:self.lastPts];
+        // 只更新缓存，下一个 tick 自然采用新背景图
     });
 }
 
@@ -146,8 +145,8 @@ static Float64 WLVideoMixNowSeconds(void) {
         if (![self.streamOrder containsObject:streamID]) {
             [self.streamOrder addObject:streamID];
         }
-
-        [self renderWithPts:pts];
+        // tick 模型：只刷新缓存帧，不在此触发合成；输出节拍/pts 由合成 tick 统一决定。
+        // 阶段一直接取最新帧，故忽略入参 pts（阶段二会改存带 pts 的帧进每源缓冲）。
     });
 }
 
@@ -155,7 +154,7 @@ static Float64 WLVideoMixNowSeconds(void) {
     if (streamID.length == 0) return;
     dispatch_async(self.serialQueue, ^{
         self.layouts[streamID] = [NSValue valueWithRect:frame];
-        [self renderWithPts:self.lastPts];
+        // 只更新缓存，下一个 tick 自然采用新 layout（拖动时最多延迟 1 tick）
     });
 }
 
@@ -175,7 +174,7 @@ static Float64 WLVideoMixNowSeconds(void) {
     dispatch_async(self.serialQueue, ^{
         [self.streamOrder removeAllObjects];
         if (copy.count) [self.streamOrder addObjectsFromArray:copy];
-        [self renderWithPts:self.lastPts];
+        // 只更新缓存，下一个 tick 自然采用新 z-order
     });
 }
 
@@ -188,38 +187,76 @@ static Float64 WLVideoMixNowSeconds(void) {
             self->_pixelBufferPool = NULL;
         }
         [self ensurePool];
-        [self renderWithPts:self.lastPts];
+        // 只重建 pool，下一个 tick 自然按新尺寸合成
     });
 }
 
 - (void)setRenderFrameRate:(int)fps {
     Float64 interval = (fps > 0) ? (1.0 / (Float64)fps) : (1.0 / 60.0);
     dispatch_async(self.serialQueue, ^{
-        self.minRenderInterval = interval;
+        self.tickInterval = interval;
+        if (self.tickTimer) [self rescheduleTick];   // 正在跑则即时改周期
     });
+}
+
+#pragma mark - Tick（固定节拍主动合成）
+
+- (BOOL)isRenderingEnabled { return _renderingEnabled; }
+
+// renderingEnabled 自定义 setter：开 → 启动 tick；关 → 停止 tick。
+// 立即写 ivar 供 getter 读；timer 启停统一到 serialQueue（timer 也挂在该队列）。
+- (void)setRenderingEnabled:(BOOL)renderingEnabled {
+    _renderingEnabled = renderingEnabled;
+    dispatch_async(self.serialQueue, ^{
+        if (self->_renderingEnabled) [self startTick];
+        else                         [self stopTick];
+    });
+}
+
+// 以下三个均在 serialQueue 执行
+- (void)startTick {
+    if (self.tickTimer) return;
+    dispatch_source_t t = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, self.serialQueue);
+    self.tickTimer = t;
+    self.ptsAccum = 0;
+    __weak typeof(self) wself = self;
+    dispatch_source_set_event_handler(t, ^{
+        __strong typeof(wself) self = wself;
+        if (!self) return;
+        Float64 pts = self.ptsAccum;            // 理论 CFR pts（累加，不受 timer jitter 影响；改帧率仍单调连续）
+        self.ptsAccum += self.tickInterval;
+        [self renderComposite:pts];
+    });
+    [self rescheduleTick];          // 设周期（首拍 DISPATCH_TIME_NOW 立即出）
+    dispatch_resume(t);
+}
+
+- (void)rescheduleTick {
+    if (!self.tickTimer) return;
+    uint64_t intervalNs = (uint64_t)(self.tickInterval * 1.0e9);
+    dispatch_source_set_timer(self.tickTimer,
+                              dispatch_time(DISPATCH_TIME_NOW, 0),
+                              intervalNs,
+                              intervalNs / 10);   // leeway 10%：允许内核合并省电；pts 用理论值，jitter 不进时间戳
+}
+
+- (void)stopTick {
+    if (!self.tickTimer) return;
+    dispatch_source_cancel(self.tickTimer);
+    self.tickTimer = nil;
 }
 
 #pragma mark - Render
 
-- (void)renderWithPts:(Float64)pts {
-    self.lastPts = pts;
+- (void)renderComposite:(Float64)pts {
+    // 由合成 tick 在 serialQueue 调用。renderingEnabled 与节拍都由 tick 把关——
+    // tick 仅在 renderingEnabled=YES 时存在，故此处不再查 renderingEnabled、不再做最小间隔节流。
 
-    // 未启用合成（纯预览）时直接返回：不空转整套 Metal 合成。
-    // lastPts 已更新、latestFrames 由 inputVideoFrame 持续刷新，启用瞬间即用最新状态合成首帧，无延迟无丢状态。
-    if (!self.renderingEnabled) return;
-
-    // 无任何内容（背景与源都没有）→ 不输出
+    // 无任何内容（背景与源都没有）→ 不输出（不录纯空画布）
     if (!self.hasBgColor && !self.bgTexture && self.streamOrder.count == 0) return;
 
     // Metal 不可用则无法合成（构造时已尝试，pipeline/cache 缺失即放弃）
     if (!self.pipeline || !self.textureCache) return;
-
-    // 输出节流：合成由输入事件驱动（源帧 + 拖动时高频 setLayoutFrame 等），频率可达数百 Hz、
-    //   远超编码吞吐。按帧率上限节流；被跳过的输入已更新 latestFrames/layouts 缓存，
-    //   后续帧会用最新状态合成，不丢最终画面。
-    Float64 now = WLVideoMixNowSeconds();
-    if (self.lastRenderTime > 0 && (now - self.lastRenderTime) < self.minRenderInterval) return;
-    self.lastRenderTime = now;
 
     if (!self.pixelBufferPool) [self ensurePool];
     if (!self.pixelBufferPool) return;
