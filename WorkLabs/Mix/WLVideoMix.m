@@ -11,6 +11,24 @@
 #import "WLMetalContext.h"
 #import <Metal/Metal.h>
 #import <MetalKit/MetalKit.h>
+#include <time.h>
+#include <math.h>
+
+/// 单调时钟纳秒（CLOCK_UPTIME_RAW：单调、不受改系统时间影响、休眠暂停；与 WLMediaSource 一致）
+static inline uint64_t wl_mono_now_ns(void) {
+    return clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+}
+
+/// async 缓冲里的一帧：持有 retain 的 pixelBuffer + 归一化 pts（秒）。
+/// dealloc 释放 pixelBuffer → 队列/字典的释放交给 ARC，无需手动管。
+@interface WLMixFrame : NSObject
+@property (nonatomic, assign) CVPixelBufferRef pixelBuffer;
+@property (nonatomic, assign) Float64 pts;
+@end
+
+@implementation WLMixFrame
+- (void)dealloc { if (_pixelBuffer) CVPixelBufferRelease(_pixelBuffer); }
+@end
 
 @interface WLVideoMix ()
 @property (nonatomic, strong, nullable) WLMetalContext *metal;
@@ -18,8 +36,15 @@
 @property (nonatomic, strong, nullable) id<MTLRenderPipelineState> pipeline;
 @property (nonatomic, strong) dispatch_queue_t serialQueue;
 
-// streamID -> CVPixelBufferRef（已 retain）
-@property (nonatomic, strong) NSMutableDictionary<NSString *, id> *latestFrames;
+// ── 每源 async 帧缓冲 + 虚拟时钟选帧（OBS 式：吸收源 fps 差异 / 多源对齐）──
+// streamID -> FIFO 队列（元素 WLMixFrame，带 pts）；tick 时按虚拟时钟选当前帧
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSMutableArray<WLMixFrame *> *> *asyncFrames;
+// streamID -> 当前显示帧（慢源在两帧之间仍用它合成，实现重复）
+@property (nonatomic, strong) NSMutableDictionary<NSString *, WLMixFrame *> *curFrames;
+// streamID -> 虚拟时钟（源 pts 轴，秒；缺键 = 冷启动待锚）
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSNumber *> *lastFrameTs;
+// 上次 tick 实测系统时刻（纳秒，单调钟）；算 sys_offset 用。0 = 尚未起拍
+@property (nonatomic, assign) uint64_t lastSysTs;
 // streamID -> CGRect（NSValue 包装）
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSValue *> *layouts;
 // 维持合成顺序（先加入的在底层）
@@ -59,7 +84,9 @@
 
         _serialQueue = dispatch_queue_create("com.worklabs.videomix", DISPATCH_QUEUE_SERIAL);
         _tickInterval = 1.0 / 60.0;        // 默认 tick 周期 60fps（可由 setRenderFrameRate: 调整）
-        _latestFrames = [NSMutableDictionary dictionary];
+        _asyncFrames = [NSMutableDictionary dictionary];
+        _curFrames = [NSMutableDictionary dictionary];
+        _lastFrameTs = [NSMutableDictionary dictionary];
         _layouts = [NSMutableDictionary dictionary];
         _streamOrder = [NSMutableArray array];
 
@@ -73,10 +100,7 @@
         dispatch_source_cancel(_tickTimer);
         _tickTimer = nil;
     }
-    for (NSString *sid in _latestFrames) {
-        CVPixelBufferRef pb = (__bridge CVPixelBufferRef)_latestFrames[sid];
-        if (pb) CVPixelBufferRelease(pb);
-    }
+    // asyncFrames/curFrames 里的 WLMixFrame 由 ARC 释放，其 dealloc 释放 pixelBuffer，无需手动遍历
     if (_pixelBufferPool) {
         CVPixelBufferPoolRelease(_pixelBufferPool);
     }
@@ -135,18 +159,26 @@
                streamID:(NSString *)streamID {
     if (!pixelBuffer || streamID.length == 0) return;
 
-    CVPixelBufferRetain(pixelBuffer);
+    CVPixelBufferRetain(pixelBuffer);   // 交给 WLMixFrame 持有
     dispatch_async(self.serialQueue, ^{
-        // 替换缓存帧
-        CVPixelBufferRef old = (__bridge CVPixelBufferRef)self.latestFrames[streamID];
-        if (old) CVPixelBufferRelease(old);
-        self.latestFrames[streamID] = (__bridge id)pixelBuffer;
+        WLMixFrame *f = [WLMixFrame new];
+        f.pixelBuffer = pixelBuffer;    // 所有权转移给 f（f.dealloc 会 release）
+        f.pts = pts;
+
+        NSMutableArray<WLMixFrame *> *q = self.asyncFrames[streamID];
+        if (!q) { q = [NSMutableArray array]; self.asyncFrames[streamID] = q; }
+
+        // 缓冲上限：堆到 30 帧说明 tick 长期跟不上 → 整盘倒掉 + 标记冷启动重锚（OBS MAX_ASYNC_FRAMES）
+        if (q.count >= 30) {
+            [q removeAllObjects];
+            [self.lastFrameTs removeObjectForKey:streamID];
+        }
+        [q addObject:f];   // 入队尾（FIFO）
 
         if (![self.streamOrder containsObject:streamID]) {
             [self.streamOrder addObject:streamID];
         }
-        // tick 模型：只刷新缓存帧，不在此触发合成；输出节拍/pts 由合成 tick 统一决定。
-        // 阶段一直接取最新帧，故忽略入参 pts（阶段二会改存带 pts 的帧进每源缓冲）。
+        // 只投帧进缓冲，不在此触发合成；选哪帧 / 何时合成由 tick + 虚拟时钟决定。
     });
 }
 
@@ -161,9 +193,10 @@
 - (void)removeStreamID:(NSString *)streamID {
     if (streamID.length == 0) return;
     dispatch_async(self.serialQueue, ^{
-        CVPixelBufferRef old = (__bridge CVPixelBufferRef)self.latestFrames[streamID];
-        if (old) CVPixelBufferRelease(old);
-        [self.latestFrames removeObjectForKey:streamID];
+        // WLMixFrame 由 ARC 释放（其 dealloc 释放 pixelBuffer）
+        [self.asyncFrames removeObjectForKey:streamID];
+        [self.curFrames removeObjectForKey:streamID];
+        [self.lastFrameTs removeObjectForKey:streamID];
         [self.layouts removeObjectForKey:streamID];
         [self.streamOrder removeObject:streamID];
     });
@@ -219,6 +252,9 @@
     dispatch_source_t t = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, self.serialQueue);
     self.tickTimer = t;
     self.ptsAccum = 0;
+    self.lastSysTs = 0;                    // 重置墙钟基准：第一拍 sysOffset=0，不被暂停时长暴进虚拟时钟
+    [self.asyncFrames removeAllObjects];   // 丢弃（重新）开启前堆积的陈帧；curFrames 保留上次画面作过渡
+    [self.lastFrameTs removeAllObjects];   // 各源下次投帧冷启动重锚
     __weak typeof(self) wself = self;
     dispatch_source_set_event_handler(t, ^{
         __strong typeof(wself) self = wself;
@@ -246,11 +282,64 @@
     self.tickTimer = nil;
 }
 
+#pragma mark - 选帧（虚拟时钟：吸收源 fps 差异 / 多源对齐）
+
+// 每 tick 一次（serialQueue）：用实测墙钟推进各源虚拟时钟，从各源 async 队列选出当前显示帧。
+// sys_offset 用实测流逝（掉帧时多推进 → 自动追帧）；而输出 pts 仍由 tick 理论累加给（CFR）。
+- (void)selectFramesForTick {
+    uint64_t now = wl_mono_now_ns();
+    Float64 sysOffset = (self.lastSysTs != 0) ? (Float64)(now - self.lastSysTs) / 1.0e9 : 0.0;
+    self.lastSysTs = now;
+
+    for (NSString *sid in self.streamOrder) {
+        [self selectFrameForStream:sid sysOffset:sysOffset];
+    }
+}
+
+// 单源选帧（参照 OBS ready_async_frame 简化）：推进虚拟时钟、丢过期帧、定 curFrames[sid]。
+// 队空 → curFrames 保持（慢源重复）；冷启动 → 首帧立即显示并锚定；>2s 跳变 → 重锚；2ms 平滑。
+- (void)selectFrameForStream:(NSString *)sid sysOffset:(Float64)sysOffset {
+    NSMutableArray<WLMixFrame *> *q = self.asyncFrames[sid];
+    if (q.count == 0) return;   // 无新帧 → 沿用 curFrames[sid]（慢源重复）
+
+    NSNumber *vtBox = self.lastFrameTs[sid];
+    if (vtBox == nil) {
+        // 冷启动：第一帧立即作为当前帧，用其 pts 锚定虚拟时钟
+        WLMixFrame *first = q.firstObject;
+        self.curFrames[sid] = first;
+        [q removeObjectAtIndex:0];
+        self.lastFrameTs[sid] = @(first.pts);
+        return;
+    }
+
+    Float64 vt = vtBox.doubleValue + sysOffset;   // 虚拟时钟以实测墙钟速度在源 pts 轴前进
+
+    // 跳变重锚：队头 pts 与虚拟时钟差 > 2s（多半 seek / 不连续）→ 直接对齐到该帧
+    if (fabs(q.firstObject.pts - vt) > 2.0) {
+        vt = q.firstObject.pts;
+    }
+
+    // vt 已越过队头 → 该帧到点/过期，取为当前帧；继续丢更早的，直到队头落在未来
+    BOOL selected = NO;
+    while (q.count > 0) {
+        WLMixFrame *head = q.firstObject;
+        if (vt < head.pts) break;                        // 队头在未来 → 停
+        if (selected && (vt - head.pts) < 0.002) break;  // 已取过 且 仅超前 <2ms → 平滑停（不为精确多丢）
+        self.curFrames[sid] = head;
+        [q removeObjectAtIndex:0];
+        selected = YES;
+    }
+    self.lastFrameTs[sid] = @(vt);
+}
+
 #pragma mark - Render
 
 - (void)renderComposite:(Float64)pts {
     // 由合成 tick 在 serialQueue 调用。renderingEnabled 与节拍都由 tick 把关——
     // tick 仅在 renderingEnabled=YES 时存在，故此处不再查 renderingEnabled、不再做最小间隔节流。
+
+    // 推进各源虚拟时钟、选出每源当前显示帧（吸收源 fps 差异 / 多源对齐）
+    [self selectFramesForTick];
 
     // 无任何内容（背景与源都没有）→ 不输出（不录纯空画布）
     if (!self.hasBgColor && !self.bgTexture && self.streamOrder.count == 0) return;
@@ -309,7 +398,7 @@
 
             // 2) 各路视频流：从底到顶依次叠加（layout=画布像素、左下原点 → NDC y 不翻；翻转在 texCoord v）
             for (NSString *sid in self.streamOrder) {
-                CVPixelBufferRef pb = (__bridge CVPixelBufferRef)self.latestFrames[sid];
+                CVPixelBufferRef pb = self.curFrames[sid].pixelBuffer;   // 虚拟时钟选出的当前帧
                 if (!pb) continue;
 
                 CGRect layout = [self layoutForStreamID:sid];
