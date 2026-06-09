@@ -9,6 +9,7 @@
 
 #import "WLVideoMix.h"
 #import "WLMetalContext.h"
+#import "WLLog.h"
 #import <Metal/Metal.h>
 #import <MetalKit/MetalKit.h>
 #include <time.h>
@@ -59,6 +60,13 @@ static inline uint64_t wl_mono_now_ns(void) {
 @property (nonatomic, assign) Float64 tickInterval;       // tick 周期（秒）= 1 / 合成帧率
 @property (nonatomic, assign) Float64 ptsAccum;           // 累计输出 pts（秒）；每拍 += tickInterval，改帧率不跳变
 
+// ── 阶段二观测：每秒汇总统计（验证 fps 吸收 / 多源对齐 / 缓冲深度）──
+@property (nonatomic, assign) uint64_t statWindowStartNs; // 当前统计窗起点（单调纳秒）
+@property (nonatomic, assign) NSInteger statTickCount;    // 窗内 tick 数 → 合成 fps
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSNumber *> *statIn;   // 窗内每源投帧数
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSNumber *> *statDup;  // 窗内每源重复次数（没新帧/没到点）
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSNumber *> *statDrop; // 窗内每源丢帧数（抽帧）
+
 @property (nonatomic, assign) CVPixelBufferPoolRef pixelBufferPool;
 
 @end
@@ -87,6 +95,9 @@ static inline uint64_t wl_mono_now_ns(void) {
         _asyncFrames = [NSMutableDictionary dictionary];
         _curFrames = [NSMutableDictionary dictionary];
         _lastFrameTs = [NSMutableDictionary dictionary];
+        _statIn = [NSMutableDictionary dictionary];
+        _statDup = [NSMutableDictionary dictionary];
+        _statDrop = [NSMutableDictionary dictionary];
         _layouts = [NSMutableDictionary dictionary];
         _streamOrder = [NSMutableArray array];
 
@@ -174,6 +185,7 @@ static inline uint64_t wl_mono_now_ns(void) {
             [self.lastFrameTs removeObjectForKey:streamID];
         }
         [q addObject:f];   // 入队尾（FIFO）
+        self.statIn[streamID] = @(self.statIn[streamID].integerValue + 1);   // 观测：投帧计数
 
         if (![self.streamOrder containsObject:streamID]) {
             [self.streamOrder addObject:streamID];
@@ -294,13 +306,56 @@ static inline uint64_t wl_mono_now_ns(void) {
     for (NSString *sid in self.streamOrder) {
         [self selectFrameForStream:sid sysOffset:sysOffset];
     }
+
+    // 每秒汇总（验证 fps 吸收 / 多源对齐 / 缓冲深度）
+    self.statTickCount++;
+    if (self.statWindowStartNs == 0) self.statWindowStartNs = now;
+    uint64_t elapsed = now - self.statWindowStartNs;
+    if (elapsed >= 1000000000ULL) {
+        [self emitStatsSummary:elapsed];
+        self.statWindowStartNs = now;
+        self.statTickCount = 0;
+        [self.statIn removeAllObjects];
+        [self.statDup removeAllObjects];
+        [self.statDrop removeAllObjects];
+    }
+}
+
+// 每秒一行：tick 实际帧率 + 各源(投帧fps/队深/重复/丢帧/当前pts) + 多源 pts 偏差
+- (void)emitStatsSummary:(uint64_t)elapsedNs {
+    if (![WLLog shouldLog:WLLogLevelInfo tag:@"VideoMix"]) return;   // gate：默认关时连字符串都不拼
+    Float64 win = (Float64)elapsedNs / 1.0e9;
+    Float64 tickFps = (win > 0) ? self.statTickCount / win : 0;
+
+    NSMutableString *s = [NSMutableString string];
+    Float64 minPts = INFINITY, maxPts = -INFINITY;
+    for (NSString *sid in self.streamOrder) {
+        Float64 inFps = (win > 0) ? self.statIn[sid].integerValue / win : 0;
+        NSInteger q = self.asyncFrames[sid].count;
+        NSInteger dup = self.statDup[sid].integerValue;
+        NSInteger drop = self.statDrop[sid].integerValue;
+        WLMixFrame *cur = self.curFrames[sid];
+        Float64 curPts = cur ? cur.pts : 0;
+        if (cur) { if (curPts < minPts) minPts = curPts; if (curPts > maxPts) maxPts = curPts; }
+        [s appendFormat:@" | …%@ in=%.0f q=%ld dup=%ld drop=%ld pts=%.2f",
+            [self sidTail:sid], inFps, (long)q, (long)dup, (long)drop, curPts];
+    }
+    Float64 skewMs = (self.streamOrder.count > 1 && maxPts >= minPts) ? (maxPts - minPts) * 1000.0 : 0;
+    WLLogI(@"VideoMix", @"tick=%.0ffps%@ | skew=%.0fms", tickFps, s, skewMs);
+}
+
+- (NSString *)sidTail:(NSString *)sid {
+    return sid.length > 4 ? [sid substringFromIndex:sid.length - 4] : sid;
 }
 
 // 单源选帧（参照 OBS ready_async_frame 简化）：推进虚拟时钟、丢过期帧、定 curFrames[sid]。
 // 队空 → curFrames 保持（慢源重复）；冷启动 → 首帧立即显示并锚定；>2s 跳变 → 重锚；2ms 平滑。
 - (void)selectFrameForStream:(NSString *)sid sysOffset:(Float64)sysOffset {
     NSMutableArray<WLMixFrame *> *q = self.asyncFrames[sid];
-    if (q.count == 0) return;   // 无新帧 → 沿用 curFrames[sid]（慢源重复）
+    if (q.count == 0) {                          // 无新帧 → 沿用 curFrames[sid]（慢源重复）
+        self.statDup[sid] = @(self.statDup[sid].integerValue + 1);
+        return;
+    }
 
     NSNumber *vtBox = self.lastFrameTs[sid];
     if (vtBox == nil) {
@@ -309,6 +364,7 @@ static inline uint64_t wl_mono_now_ns(void) {
         self.curFrames[sid] = first;
         [q removeObjectAtIndex:0];
         self.lastFrameTs[sid] = @(first.pts);
+        WLLogV(@"VideoMix", @"cold-start sid=…%@ pts=%.3f", [self sidTail:sid], first.pts);
         return;
     }
 
@@ -316,20 +372,27 @@ static inline uint64_t wl_mono_now_ns(void) {
 
     // 跳变重锚：队头 pts 与虚拟时钟差 > 2s（多半 seek / 不连续）→ 直接对齐到该帧
     if (fabs(q.firstObject.pts - vt) > 2.0) {
+        WLLogV(@"VideoMix", @"resync sid=…%@ vt=%.3f→head=%.3f", [self sidTail:sid], vt, q.firstObject.pts);
         vt = q.firstObject.pts;
     }
 
     // vt 已越过队头 → 该帧到点/过期，取为当前帧；继续丢更早的，直到队头落在未来
-    BOOL selected = NO;
+    NSInteger took = 0;
     while (q.count > 0) {
         WLMixFrame *head = q.firstObject;
-        if (vt < head.pts) break;                        // 队头在未来 → 停
-        if (selected && (vt - head.pts) < 0.002) break;  // 已取过 且 仅超前 <2ms → 平滑停（不为精确多丢）
+        if (vt < head.pts) break;                       // 队头在未来 → 停
+        if (took > 0 && (vt - head.pts) < 0.002) break; // 已取过 且 仅超前 <2ms → 平滑停（不为精确多丢）
         self.curFrames[sid] = head;
         [q removeObjectAtIndex:0];
-        selected = YES;
+        took++;
     }
     self.lastFrameTs[sid] = @(vt);
+
+    if (took == 0) {                                                          // 没到点 → 重复
+        self.statDup[sid] = @(self.statDup[sid].integerValue + 1);
+    } else if (took >= 2) {                                                   // 取多张只显示末张 → 丢中间
+        self.statDrop[sid] = @(self.statDrop[sid].integerValue + (took - 1));
+    }
 }
 
 #pragma mark - Render
