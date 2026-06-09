@@ -17,6 +17,7 @@
 #include "libavutil/intreadwrite.h"
 #include <stdatomic.h>
 #include <time.h>
+#include <math.h>
 
 // ─── 时间戳安全处理（参照 mpv common.h:38 + av_common.c:169） ───
 
@@ -33,15 +34,44 @@ static inline double wl_add_pts(double pts, double offset) {
     return pts == WL_NOPTS_VALUE ? WL_NOPTS_VALUE : pts + offset;
 }
 
-/// 是否为有效 pts
+/// 是否为有效 pts：排除 NOPTS 哨兵，并排除 inf/NaN。
+/// 坏 time_base（den=0）或异常时间戳会产生 inf/NaN，而 NaN != 任何值恒为真、会穿透 NOPTS 判断；
+/// 若放行，(int64_t)(pts*1e9) 是未定义行为，且 deadline 会变成 ±inf 的截断巨值 → render 挂死。
 static inline BOOL wl_pts_is_valid(double pts) {
-    return pts != WL_NOPTS_VALUE;
+    return pts != WL_NOPTS_VALUE && isfinite(pts);
 }
 
 /// 单调时钟纳秒（CLOCK_UPTIME_RAW：单调递增、不受改系统时间/NTP 影响、休眠期间暂停）。
 /// 用于 render 线程节流与队列等待，替代会漂移的 CFAbsoluteTimeGetCurrent（墙钟）。
 static inline uint64_t wl_mono_now_ns(void) {
     return clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+}
+
+/// 分段睡眠：从现在睡到单调时刻 deadlineNs，但单次不超过 capNs。
+/// 返回 YES 表示已到/已过 deadline（含微负 pts、过期帧 → 立即输出）；返回 NO 表示只睡了一段，
+/// 由调用方在循环里复查停止标志后再睡，从而 abort 最多延迟一段（(c) 配 (a) 方案）。
+/// nanosleep 为相对睡眠，时长与 CLOCK_UPTIME_RAW 同步推进，时基与 wl_mono_now_ns 一致。
+static inline BOOL wl_sleep_until_segment(int64_t deadlineNs, int64_t capNs) {
+    int64_t rel = deadlineNs - (int64_t)wl_mono_now_ns();
+    if (rel <= 0) return YES;
+    if (rel > capNs) rel = capNs;
+    struct timespec ts;
+    ts.tv_sec  = (time_t)(rel / 1000000000LL);
+    ts.tv_nsec = (long)(rel % 1000000000LL);
+    nanosleep(&ts, NULL);
+    return NO;
+}
+
+/// 单帧最大等待上限：正常帧间隔仅几十 ms，1s 纯属坏时间戳兜底，不影响任何正常播放。
+#define WL_MAX_FRAME_WAIT_NS  (1000000000LL)   // 1s
+
+/// deadline 合理性钳制：deadline 距 now 远超上限（有限但离谱的坏 pts、int64 截断巨值）时，
+/// 钳到 now + 上限，避免外层 while 空转等一个到不了的 deadline 而挂死 render 线程。
+/// 负 / 过期 deadline（倒退帧）原样返回，由 wl_sleep_until_segment 的 rel<=0 立即输出。
+/// （inf/NaN 已在 wl_pts_is_valid 处被丢弃，到不了这里——这是兜“有限巨值”的第二道防线）
+static inline int64_t wl_clamp_deadline(int64_t deadline) {
+    int64_t maxd = (int64_t)wl_mono_now_ns() + WL_MAX_FRAME_WAIT_NS;
+    return deadline > maxd ? maxd : deadline;
 }
 
 @interface WLMediaSource ()
@@ -334,16 +364,16 @@ static inline uint64_t wl_mono_now_ns(void) {
 - (void)videoRenderThread {
     [NSThread currentThread].name = @"com.wl-render-video.thread";
     while (self.isVideoRendering) {
-        // 阻塞等到有帧（空队列零 CPU，不再 usleep 轮询）；abort 时返回 nil → 下一轮 while 退出
-        WLNode *node = [self.videoFrameQueue peekBlocking];
-        if (!node) continue;
+        // 阻塞取走队头帧（空队列零 CPU，不再 peek/usleep 轮询）。取走后该帧归本线程私有，
+        // 节流期间不再持有队列内部指针 → 无悬垂、无 peek-then-pop 的 TOCTOU。
+        // 阻塞出队返回 nil ⟺ 队列已 abort（停止信号），直接退出。
+        WLNode *node = [self.videoFrameQueue deQueueWithBlock:YES];
+        if (!node) break;
 
         // start_time 归一化（参照 mpv demux.c:2858 ts_offset = -start_time）
         Float64 normalized_pts = wl_add_pts(node.pts, -self.startTime);
         if (!wl_pts_is_valid(normalized_pts)) {
-            // NOPTS 帧：丢弃（参照 mpv video.c:383-392 异常处理）
-            WLNode *bad = [self.videoFrameQueue deQueueWithBlock:NO];
-            if (bad) [bad flush];
+            [node flush];   // NOPTS 帧：丢弃（参照 mpv video.c:383-392 异常处理）
             continue;
         }
         int64_t pts_ns = (int64_t)(normalized_pts * 1e9);   // 有符号：归一化后边界帧 pts 可能微负
@@ -354,23 +384,21 @@ static inline uint64_t wl_mono_now_ns(void) {
         atomic_compare_exchange_strong(&_baseTimeNs, &expected,
                                        (int64_t)wl_mono_now_ns() - pts_ns);
         int64_t baseTime = atomic_load_explicit(&_baseTimeNs, memory_order_relaxed);
-
         int64_t deadline = baseTime + pts_ns + (int64_t)(self.videoPtsOffset * 1e9);
-        if ((int64_t)wl_mono_now_ns() >= deadline) {
-            node = [self.videoFrameQueue deQueueWithBlock:NO];
-            if (!node) continue;
+        deadline = wl_clamp_deadline(deadline);   // 坏 pts 兜底：离谱远的 deadline 钳到 now+1s，防挂死
 
-            CVPixelBufferRef pixelBuffer = [self convertVideoFrame:node.frame];
-            if (pixelBuffer && _delegate) {
-                [_delegate source:self didOutputVideoFrame:pixelBuffer pts:normalized_pts];
-            } else if (pixelBuffer) {
-                CVPixelBufferRelease(pixelBuffer);
-            }
-            [node flush];
-        } else {
-            // 精确睡到 deadline（单调钟，relative_np）；新帧入队 / abort 提前唤醒
-            [self.videoFrameQueue waitUntilDeadlineNs:(uint64_t)deadline];
+        // 节流：分段睡到 deadline（单调钟），单段 ≤20ms，每段复查停止标志 → abort 最多延迟一段。
+        // deadline 已过（微负 pts / 过期帧）则首次即返回 YES，不睡，立即输出。
+        while (self.isVideoRendering && !wl_sleep_until_segment(deadline, 20000000LL /* 20ms */)) { }
+        if (!self.isVideoRendering) { [node flush]; break; }   // 睡眠期间被叫停：丢帧退出
+
+        CVPixelBufferRef pixelBuffer = [self convertVideoFrame:node.frame];
+        if (pixelBuffer && _delegate) {
+            [_delegate source:self didOutputVideoFrame:pixelBuffer pts:normalized_pts];
+        } else if (pixelBuffer) {
+            CVPixelBufferRelease(pixelBuffer);
         }
+        [node flush];
     }
     [self.videoFrameQueue flush];
     [self cleanupVideoConverter];
@@ -381,16 +409,15 @@ static inline uint64_t wl_mono_now_ns(void) {
     [NSThread currentThread].name = @"com.wl-render-audio.thread";
 
     while (self.isAudioRendering) {
-        // 阻塞等到有帧（空队列零 CPU）；abort 时返回 nil → 下一轮 while 退出
-        WLNode *node = [self.audioFrameQueue peekBlocking];
-        if (!node) continue;
+        // 阻塞取走队头帧（空队列零 CPU）。取走后归本线程私有 → 无悬垂、无 TOCTOU。
+        // 阻塞出队返回 nil ⟺ 队列已 abort（停止信号），直接退出。
+        WLNode *node = [self.audioFrameQueue deQueueWithBlock:YES];
+        if (!node) break;
 
         // start_time 归一化（参照 mpv demux.c:2858 ts_offset = -start_time）
         Float64 normalized_pts = wl_add_pts(node.pts, -self.startTime);
         if (!wl_pts_is_valid(normalized_pts)) {
-            // NOPTS 帧：丢弃
-            WLNode *bad = [self.audioFrameQueue deQueueWithBlock:NO];
-            if (bad) [bad flush];
+            [node flush];   // NOPTS 帧：丢弃
             continue;
         }
         int64_t pts_ns = (int64_t)(normalized_pts * 1e9);   // 有符号：归一化后边界帧 pts 可能微负
@@ -400,23 +427,20 @@ static inline uint64_t wl_mono_now_ns(void) {
         atomic_compare_exchange_strong(&_baseTimeNs, &expected,
                                        (int64_t)wl_mono_now_ns() - pts_ns);
         int64_t baseTime = atomic_load_explicit(&_baseTimeNs, memory_order_relaxed);
-
         int64_t deadline = baseTime + pts_ns + (int64_t)(self.audioPtsOffset * 1e9);
-        if ((int64_t)wl_mono_now_ns() >= deadline) {
-            node = [self.audioFrameQueue deQueueWithBlock:NO];
-            if (!node) continue;
+        deadline = wl_clamp_deadline(deadline);   // 坏 pts 兜底：离谱远的 deadline 钳到 now+1s，防挂死
 
-            CMSampleBufferRef sampleBuffer = [self convertAudioFrame:node.frame];
-            if (sampleBuffer && _delegate) {
-                [_delegate source:self didOutputAudioBuffer:sampleBuffer];
-            } else if (sampleBuffer) {
-                CFRelease(sampleBuffer);
-            }
-            [node flush];
-        } else {
-            // 精确睡到 deadline（单调钟，relative_np）；新帧入队 / abort 提前唤醒
-            [self.audioFrameQueue waitUntilDeadlineNs:(uint64_t)deadline];
+        // 节流：分段睡到 deadline（单调钟），单段 ≤20ms，每段复查停止标志 → abort 最多延迟一段。
+        while (self.isAudioRendering && !wl_sleep_until_segment(deadline, 20000000LL /* 20ms */)) { }
+        if (!self.isAudioRendering) { [node flush]; break; }   // 睡眠期间被叫停：丢帧退出
+
+        CMSampleBufferRef sampleBuffer = [self convertAudioFrame:node.frame];
+        if (sampleBuffer && _delegate) {
+            [_delegate source:self didOutputAudioBuffer:sampleBuffer];
+        } else if (sampleBuffer) {
+            CFRelease(sampleBuffer);
         }
+        [node flush];
     }
 
     [self.audioFrameQueue flush];

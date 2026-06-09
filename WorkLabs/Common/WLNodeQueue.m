@@ -11,7 +11,14 @@
 
 @implementation WLNodeQueue {
     pthread_mutex_t _mutex;
-    pthread_cond_t _cond;
+    pthread_cond_t  _cond;
+    // 全部受 _mutex 保护，不再以 public property 暴露（避免锁外击穿）
+    WLNode    *_head;
+    WLNode    *_tail;
+    NSInteger  _nodeSize;
+    NSInteger  _allSize;
+    BOOL       _abortRequest;
+    WLNodeType _type;
 }
 
 - (instancetype)initWithType:(WLNodeType)type size:(int)size {
@@ -43,7 +50,7 @@
     if (!node) return;
     pthread_mutex_lock(&_mutex);
     while (_nodeSize >= _allSize && !_abortRequest) {
-        pthread_cond_wait(&_cond, &_mutex);
+        pthread_cond_wait(&_cond, &_mutex);   // 队满阻塞 → 背压
     }
     if (_abortRequest) {
         [node flush];
@@ -55,22 +62,6 @@
     _nodeSize++;
     pthread_cond_signal(&_cond);
     pthread_mutex_unlock(&_mutex);
-}
-
-- (BOOL)enQueueNonBlocking:(WLNode *)node {
-    if (!node) return NO;
-    pthread_mutex_lock(&_mutex);
-    if (_abortRequest) { [node flush]; pthread_mutex_unlock(&_mutex); return NO; }
-    if (_nodeSize >= _allSize) {
-        WLNode *oldNode = _head;
-        if (oldNode) { _head = oldNode.next; if (!_head) _tail = nil; _nodeSize--; [oldNode flush]; }
-    }
-    if (!_head) { _head = node; } else { _tail.next = node; }
-    _tail = node;
-    _nodeSize++;
-    pthread_cond_signal(&_cond);
-    pthread_mutex_unlock(&_mutex);
-    return YES;
 }
 
 - (WLNode *)deQueueWithBlock:(BOOL)block {
@@ -88,15 +79,6 @@
     pthread_cond_signal(&_cond);
     pthread_mutex_unlock(&_mutex);
     return node;
-}
-
-- (void)flush {
-    pthread_mutex_lock(&_mutex);
-    WLNode *node = _head;
-    while (node) { WLNode *next = node.next; [node flush]; node = next; }
-    _head = nil; _tail = nil; _nodeSize = 0;
-    pthread_cond_broadcast(&_cond);
-    pthread_mutex_unlock(&_mutex);
 }
 
 - (nullable WLNode *)deQueueWithTimeout:(int)milliseconds {
@@ -119,53 +101,13 @@
     return node;
 }
 
-- (WLNode *)peek {
+- (void)flush {
     pthread_mutex_lock(&_mutex);
     WLNode *node = _head;
+    while (node) { WLNode *next = node.next; [node flush]; node = next; }
+    _head = nil; _tail = nil; _nodeSize = 0;
+    pthread_cond_broadcast(&_cond);
     pthread_mutex_unlock(&_mutex);
-    return node;
-}
-
-- (WLNode *)peekBlocking {
-    pthread_mutex_lock(&_mutex);
-    while (!_head && !_abortRequest) {
-        pthread_cond_wait(&_cond, &_mutex);   // 空队列阻塞等到入队/abort（检查+等同锁内，无丢失唤醒）
-    }
-    WLNode *node = _abortRequest ? nil : _head;   // 不出队，仅查看
-    pthread_mutex_unlock(&_mutex);
-    return node;
-}
-
-- (void)waitUntilDeadlineNs:(uint64_t)deadlineNs {
-    pthread_mutex_lock(&_mutex);
-    if (!_abortRequest) {
-        uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);   // 与调用方 wl_mono_now_ns 同钟
-        if (deadlineNs > now) {
-            uint64_t rel = deadlineNs - now;
-            struct timespec ts;
-            ts.tv_sec  = (time_t)(rel / 1000000000ULL);
-            ts.tv_nsec = (long)(rel % 1000000000ULL);
-            pthread_cond_timedwait_relative_np(&_cond, &_mutex, &ts);   // 睡到 deadline 或被入队/abort 唤醒
-        }
-    }
-    pthread_mutex_unlock(&_mutex);
-}
-
-- (void)requeueFront:(WLNode *)node {
-    if (!node) return;
-    pthread_mutex_lock(&_mutex);
-    node.next = _head; _head = node;
-    if (!_tail) _tail = node;
-    _nodeSize++;
-    pthread_cond_signal(&_cond);
-    pthread_mutex_unlock(&_mutex);
-}
-
-- (int)count {
-    pthread_mutex_lock(&_mutex);
-    int size = (int)_nodeSize;
-    pthread_mutex_unlock(&_mutex);
-    return size;
 }
 
 @end
