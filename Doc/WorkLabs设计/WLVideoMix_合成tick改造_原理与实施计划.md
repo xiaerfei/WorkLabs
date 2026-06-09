@@ -134,22 +134,75 @@ OBS 的本地媒体源其实是**两层节流，分工不重复**——这厘清
 
 - **收益**：立刻拿到「统一 pts + CFR 输出 + 多源同时刻合成」。
 - **局限**：取最新帧、无虚拟钟 → 源投递节奏与 tick 采样拍频 → judder（§3.5）。适合先把框架跑通。
+- **状态**：✅ **已落地**（commit 141507f，实机验证 OK）。实现用 `dispatch_source_timer` 挂 serialQueue（非专用线程，weak self 更安全），输出 pts 用理论累加 `ptsAccum`（改帧率仍连续）。
 
 ### 阶段二：每源 async 缓冲 + 虚拟时钟选帧（根治 fps judder）
 
-把 §3.2 的 OBS 算法搬进 WLVideoMix。数据结构升级：
+把 §3.2 的 OBS 算法搬进 WLVideoMix。下面是落地级的大白话讲解 + 数据结构 + 改动清单。
+
+#### 大白话：托盘 + 指针
+
+> 每个源 = 一摞**贴了时间标签**（pts）的照片，按时间排好放在各自的**小托盘**里（不再只留一张）。
+> 合成器 = 墙上一个**统一的大钟** + 拍照的人。每个托盘边插一根**小指针**（= 该源的虚拟时钟）。
+
+每次 tick（拍照），拍照的人做三件事：
+1. **看墙钟**：距上次拍过了多久（实测，比如 16ms）。
+2. **推指针**：把**每个**托盘的小指针都往前推这 16ms（所有源用同一步长 → 步调一致 → 自动对齐）。
+3. **挑照片**：每个托盘里，指针已**越过**的旧照片丢掉，露出"指针还没越过的第一张"——那就是这一刻该显示的。
+
+慢源例子（源 25fps＝每 40ms 一张：A@0 B@40 C@80…，tick 60fps＝每 16ms）：
+
+| tick | 指针 | 挑谁 | 结果 |
+|---|---|---|---|
+| 1 | 0ms | A(0) | 露 A |
+| 2 | 16ms | 没越过 B(40) | 还露 **A**（重复） |
+| 3 | 32ms | 没越过 B(40) | 还露 **A**（重复） |
+| 4 | 48ms | 越过 B(40) | 露 B |
+| 5 | 64ms | 没越过 C(80) | 还露 **B**（重复） |
+
+A 露 3 次、B 露 2 次……重复发生在**精确该重复的时刻**（按时间标签），不是阶段一的碰运气。快源反过来：指针一次跨过几张，中间的丢掉（抽帧）。
+
+#### 四种特殊情况（都是 OBS 的招）
+
+- **指针差一丁点（<2ms）就够到下一张**：别急着翻，显示当前这张——免得在照片边界反复纠结造成顿挫（"精确 vs 平滑"折中）。
+- **下一张时间标签突然跳了 >2 秒**：不是正常播放（多半 seek）→ 别一张张翻过去，直接把指针重设到那张的时间重新对齐（重锚）。
+- **托盘堆爆（攒到 30 张还没拍）**：拍照长期跟不上 → 整盘倒掉、指针清零；下一张直接露 + 用它时间重设指针（冷启动）。
+- **刚开始放 / 刚倒过盘**：第一张直接露，用它的时间作为指针起点（冷启动）。
+
+#### 数据结构升级（WLVideoMix 内部）
 
 ```
-latestFrames[sid]           （阶段一：每源 1 帧）
+latestFrames[sid]  : 每源 1 帧（裸 CVPixelBufferRef）             （阶段一）
         ↓ 升级为
-asyncFrames[sid] : 每源浅队列（带 pts 的近几帧，上限设个 N，溢出冷启动复位）
-lastFrameTs[sid] : 每源虚拟时钟
-lastSysTs        : 全局，上次 tick 系统时刻（所有源共用 sys_offset）
+asyncFrames[sid]   : 每源 FIFO 队列，元素 = WLMixFrame{pixelBuffer, pts}   （托盘）
+curFrames[sid]     : 每源当前显示帧 WLMixFrame*（慢源重复时仍有帧合成）
+lastFrameTs[sid]   : 每源虚拟时钟（秒，nil = 冷启动待锚）           （指针）
+lastSysTs          : 全局，上次 tick 实测系统时刻（算 sys_offset 用）
 ```
 
-`renderTick` 时对每个 sid 跑一遍 `ready_async_frame`（含 2ms 平滑、MAX_TS_VAR 重锚、缓冲上限冷启动）选出当前帧，再合成。**fps 不一致（单源 vs tick、多源之间）全部在这一层统一解决。**
+- 新增内部小类 **`WLMixFrame`**（持有 retain 的 pixelBuffer，dealloc 里 release）→ 队列/字典的 retain/release 全交给 ARC，反而比阶段一手动管 latestFrames 更干净。
 
-- 因为生产层（WLMediaSource）已按 pts 节流投递，`asyncFrames` 稳态很浅（生产≈消费），缓冲主要吸收投递抖动 + 做精确选帧。
+#### 改动清单
+
+| 改动 | 阶段一 | 阶段二 |
+|---|---|---|
+| `inputVideoFrame:pts:` | 覆盖 `latestFrames[sid]`、**忽略 pts** | 把 `WLMixFrame{pb,pts}` **入队尾**；队满（≥30）先清空 + 标记冷启动（**重新用起 pts**） |
+| 选帧 | 无（直接取最新） | 新增 `selectFramesForTick`：实测 now 算 sys_offset、推进各源 `lastFrameTs`、丢过期帧、定 `curFrames[sid]`（含 2ms 平滑 / >2s 重锚 / 冷启动） |
+| `renderComposite:` 合成循环 | 取 `latestFrames[sid]` | 先 `selectFramesForTick`，再取 `curFrames[sid].pixelBuffer` 合成 |
+| `removeStreamID:` / dealloc | 手动 release latestFrames | 清 asyncFrames/curFrames/lastFrameTs（ARC 自动 release pb，dealloc 手动段简化） |
+| 单调钟 | 无（删了 mach） | 加 `wl_mono_now_ns`（`CLOCK_UPTIME_RAW`，与 WLMediaSource 一致） |
+
+> **选帧用实测时钟，输出 pts 仍用理论值**：`selectFramesForTick` 的 sys_offset 用实测 now（反映真实流逝，掉帧时多推进、自动追帧）；而 `output(pb, pts)` 的 pts 仍是 tick 理论累加 `ptsAccum`（严格 CFR）。两者分工，不矛盾。
+
+#### 一个要注意的点（否则阶段二白费）
+
+托盘里得**常备 2~3 张**照片，指针才挑得动。若生产层（WLMediaSource）卡着点每张刚好到点才投一张，托盘随时只有 0~1 张，等于退回阶段一。所以阶段二要配合：**生产层投帧略提前一丢丢、留一点缓冲**（OBS 的做法：源略超前生产、合成端虚拟钟精确挑）。这呼应 §4 两层分工——源管"多备点货"，mix 管"这一刻挑哪张"。
+
+#### 工作量 / 风险
+
+- 核心就 `selectFramesForTick` 一段（OBS `ready_async_frame` 的简化版，几十行），`Doc/调研/OBS/OBS_源异步帧缓冲与时间戳节流.md §2.4` 有逐行源码可照搬。
+- 比阶段一大：数据结构「一张→一队列」，CVPixelBuffer 在队列里的 retain/release 配平（用 `WLMixFrame` + ARC 兜住）。
+- 有阶段一打底：tick 框架 / renderComposite / 启停现成，阶段二只换「挑哪张」+ 数据结构。
 
 ### 阶段三：录制带音频的 A/V 同步（接 AAC mux 时）
 
