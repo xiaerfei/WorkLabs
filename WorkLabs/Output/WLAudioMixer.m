@@ -5,10 +5,16 @@
 
 #import "WLAudioMixer.h"
 #import "TPCircularBuffer.h"
+#include <time.h>                    // clock_gettime_nsec_np（单调时钟，调试模拟断流用）
 #include "libswresample/swresample.h"
 #include "libavutil/channel_layout.h"
 #include "libavutil/samplefmt.h"
 #include "libavutil/opt.h"
+
+// 单调纳秒（CLOCK_UPTIME_RAW：单调递增、不受改系统时间影响）
+static inline uint64_t WLMixerNowNs(void) {
+    return clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+}
 
 // 统一输出格式
 static const int kMixRate     = 44100;
@@ -39,7 +45,8 @@ static const int kRingSeconds = 1;                    // 每路环形缓冲容�
 @property (nonatomic, strong) dispatch_queue_t timerQueue;
 @property (nonatomic, strong) dispatch_source_t timer;
 @property (nonatomic, assign) BOOL running;
-@property (nonatomic, assign) BOOL everProduced;   // 是否已收到过真实音频数据；之后即使断流也补静音帧维持时间轴
+@property (nonatomic, assign) BOOL everProduced;     // 是否已收到过真实音频数据；之后即使断流也补静音帧维持时间轴
+@property (atomic, assign) uint64_t debugGapUntilNs; // 调试：模拟断流截止时刻（单调 ns）；>now 时丢弃写入
 @end
 
 @implementation WLAudioMixer
@@ -93,6 +100,10 @@ static const int kRingSeconds = 1;                    // 每路环形缓冲容�
 
 - (void)writeSampleBuffer:(CMSampleBufferRef)sampleBuffer forInput:(NSString *)inputID {
     if (!sampleBuffer || inputID.length == 0) return;
+
+    // 调试：模拟「所有音频源断流」—— 截止时刻前丢弃所有写入，使 mixOnce 走补静音路径
+    uint64_t gapUntil = self.debugGapUntilNs;
+    if (gapUntil && WLMixerNowNs() < gapUntil) return;
 
     CMFormatDescriptionRef fd = CMSampleBufferGetFormatDescription(sampleBuffer);
     if (!fd) return;
@@ -261,6 +272,14 @@ static const int kRingSeconds = 1;                    // 每路环形缓冲容�
     CFRelease(fmtDesc);
     CFRelease(blockBuffer);
     return (st == noErr) ? sampleBuffer : NULL;
+}
+
+#pragma mark - 调试
+
+- (void)debugSimulateGapForSeconds:(NSTimeInterval)seconds {
+    if (seconds <= 0) { self.debugGapUntilNs = 0; return; }
+    self.debugGapUntilNs = WLMixerNowNs() + (uint64_t)(seconds * 1.0e9);
+    NSLog(@"[WLAudioMixer] 调试：模拟音频断流 %.1f 秒（期间丢弃所有输入）", seconds);
 }
 
 @end

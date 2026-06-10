@@ -617,6 +617,11 @@ static const CGFloat kIconBgAlpha = 0.05;
     self.manager.renderFrameRate = config.fps;   // fps 改动即时同步合成帧率上限
 }
 
+// 调试（测试页）：转发到编排核心 → 混音器模拟音频断流
+- (void)settingsDidRequestSimulateAudioGap:(NSTimeInterval)seconds {
+    [self.manager debugSimulateAudioGapForSeconds:seconds];
+}
+
 - (void)applyCanvasSize:(CGSize)size {
     [self.manager setCanvasSize:size];      // 缩放 layout + 同步 canvas/mix
     [self updateCanvasAspect];              // 更新画布预览宽高比

@@ -43,6 +43,8 @@
 @property (nonatomic, strong, nullable) NSTextField *encKeyframeLabel;
 @property (nonatomic, strong, nullable) NSPopUpButton *encFpsPopup;
 @property (nonatomic, strong, nullable) NSPopUpButton *encAudioPopup;
+// 测试页
+@property (nonatomic, strong, nullable) NSTextField *testStatusLabel;
 @end
 
 @implementation WLSettingsWindowController
@@ -63,6 +65,7 @@
             @{@"kind": @"category", @"title": @"背景", @"symbol": @"photo",   @"panel": @1},
             @{@"kind": @"category", @"title": @"推流", @"symbol": @"antenna.radiowaves.left.and.right", @"panel": @2},
             @{@"kind": @"category", @"title": @"编码", @"symbol": @"slider.horizontal.3", @"panel": @3},
+            @{@"kind": @"category", @"title": @"测试", @"symbol": @"ladybug", @"panel": @4},
         ];
         _resolutionPresets = @[
             @{@"t": @"1280×720 (720p)",   @"w": @1280, @"h": @720},
@@ -123,7 +126,7 @@
         make.left.equalTo(sidebarBG.mas_right);
     }];
 
-    self.panels = @[[self buildCanvasPanel], [self buildBackgroundPanel], [self buildPushPanel], [self buildEncoderPanel]];
+    self.panels = @[[self buildCanvasPanel], [self buildBackgroundPanel], [self buildPushPanel], [self buildEncoderPanel], [self buildTestPanel]];
 }
 
 // 一行：左标题 + 右控件
@@ -366,6 +369,55 @@
         make.right.equalTo(vRow);
     }];
     return panel;
+}
+
+#pragma mark - 测试页（调试 / 验证入口）
+
+- (NSView *)buildTestPanel {
+    NSView *panel = [[NSView alloc] init];
+
+    NSButton *testBtn = [NSButton buttonWithTitle:@"模拟断流 3 秒" target:self action:@selector(testButtonClicked:)];
+    testBtn.bezelStyle = NSBezelStyleRounded;
+
+    self.testStatusLabel = [NSTextField labelWithString:@"录制中点击：人为制造 3 秒音频断流。"];
+    self.testStatusLabel.textColor = [NSColor secondaryLabelColor];
+    self.testStatusLabel.font = [NSFont systemFontOfSize:11];
+
+    NSTextField *hint = [NSTextField labelWithString:@"调试 / 验证入口。「模拟断流 3 秒」：录制时点击，混音器丢弃 3 秒输入，验证隐患 B（断流补静音、音视频不漂）。后续测试项可继续加到本页。"];
+    hint.textColor = [NSColor secondaryLabelColor];
+    hint.font = [NSFont systemFontOfSize:11];
+    hint.lineBreakMode = NSLineBreakByWordWrapping;
+    hint.maximumNumberOfLines = 0;
+
+    [panel addSubview:testBtn];
+    [panel addSubview:self.testStatusLabel];
+    [panel addSubview:hint];
+    [testBtn mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.top.equalTo(panel).offset(24);
+        make.left.equalTo(panel).offset(24);
+    }];
+    [self.testStatusLabel mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.centerY.equalTo(testBtn);
+        make.left.equalTo(testBtn.mas_right).offset(12);
+        make.right.lessThanOrEqualTo(panel).offset(-24);
+    }];
+    [hint mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.top.equalTo(testBtn.mas_bottom).offset(18);
+        make.left.equalTo(panel).offset(24);
+        make.right.equalTo(panel).offset(-24);
+    }];
+    return panel;
+}
+
+- (void)testButtonClicked:(id)sender {
+    NSTimeInterval gap = 3.0;
+    if ([self.settingsDelegate respondsToSelector:@selector(settingsDidRequestSimulateAudioGap:)]) {
+        [self.settingsDelegate settingsDidRequestSimulateAudioGap:gap];
+        self.testStatusLabel.stringValue = [NSString stringWithFormat:@"已触发模拟断流 %.0f 秒（录制中可观察音频补静音）", gap];
+    } else {
+        self.testStatusLabel.stringValue = @"未连接宿主，无法模拟断流。";
+    }
+    NSLog(@"[WLSettings] 触发模拟音频断流 %.1f 秒", gap);
 }
 
 // 编码页一行滑块：标题 + 滑块(160) + 数值(72) + 恢复默认小按钮

@@ -58,6 +58,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable WLEncoderConfig *)settingsEncoderConfig;
 - (void)settingsDidUpdateEncoderConfig:(WLEncoderConfig *)config;
 
+@optional
+// 调试（测试页）：请求模拟音频断流 N 秒，用于验证 A/V 同步隐患 B
+- (void)settingsDidRequestSimulateAudioGap:(NSTimeInterval)seconds;
+
 @end
 
 NS_ASSUME_NONNULL_END

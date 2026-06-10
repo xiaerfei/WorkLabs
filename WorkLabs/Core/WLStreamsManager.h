@@ -91,6 +91,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)start;
 - (void)stop;
 
+#pragma mark - 调试
+
+// 调试：模拟音频断流 N 秒（转发给内部混音器），用于验证断流补静音 / A/V 同步
+- (void)debugSimulateAudioGapForSeconds:(NSTimeInterval)seconds;
+
 @end
 
 NS_ASSUME_NONNULL_END

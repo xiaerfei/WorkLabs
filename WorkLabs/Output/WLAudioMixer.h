@@ -30,6 +30,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)start;  // 启动混音输出定时器
 - (void)stop;   // 停止定时器并释放所有输入
 
+// 调试：模拟「所有音频源断流」N 秒（期间丢弃所有 writeSampleBuffer 输入），
+// 使 mixOnce 走补静音路径，用于验证断流补静音 / A/V 同步。N<=0 取消。
+- (void)debugSimulateGapForSeconds:(NSTimeInterval)seconds;
+
 @end
 
 NS_ASSUME_NONNULL_END

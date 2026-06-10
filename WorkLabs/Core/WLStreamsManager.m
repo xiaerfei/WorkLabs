@@ -359,4 +359,10 @@
     CFRelease(sampleBuffer);
 }
 
+#pragma mark - 调试
+
+- (void)debugSimulateAudioGapForSeconds:(NSTimeInterval)seconds {
+    [_mixer debugSimulateGapForSeconds:seconds];   // 仅在 mixer 已创建（有源）时有意义；nil 安全
+}
+
 @end
