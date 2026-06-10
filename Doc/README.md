@@ -7,7 +7,8 @@ Doc/
 ├─ 调研/          对外部项目 / 实现的取经（IINA · mpv · OBS · TVUExternalSource）
 ├─ WorkLabs设计/  本项目架构 / 模块设计 / 代码审查
 ├─ 规划/          实施计划 / 任务清单 / 路线
-└─ 基础知识/      音视频基础学习笔记（aac · h264 · 书籍 · 杂项 · 散篇）
+├─ 基础知识/      音视频基础学习笔记（aac · h264 · 书籍 · 杂项 · 散篇）
+└─ issues/        测试发现的问题 + 排查纪要（现象 · 根因假设 · 修法 · 复现条件）
 ```
 
 ---
@@ -46,7 +47,7 @@ Doc/
 ## 🛠 WorkLabs设计/ —— 本项目架构 / 模块 / 审查
 - [WLMediaSource视频读取_漏洞与mpv对照.md](WorkLabs设计/WLMediaSource视频读取_漏洞与mpv对照.md) — FFmpeg 视频读取链路 8 类漏洞清单 + mpv 对照阅读
 - [WLMediaSource_渲染节流改造与时间戳锚定陷阱.md](WorkLabs设计/WLMediaSource_渲染节流改造与时间戳锚定陷阱.md) — render 线程 usleep 轮询→（中途 condvar 等待）→ pop-then-sleep 分段睡眠，`WLNodeQueue` 回归纯 FIFO（节流移出队列）+ baseTime 单调纳秒 CAS 锚定；重点剖析 pts 微负/大正(seek) 的下溢陷阱与 int64 根治，以及 inf/NaN·巨值 deadline 导致 render 挂死的两道防线（isfinite + clamp）
-- [WLVideoMix_合成tick改造_原理与实施计划.md](WorkLabs设计/WLVideoMix_合成tick改造_原理与实施计划.md) — **当前代码上的落地方案**：WLVideoMix 从 push（输入事件驱动）改 tick（固定节拍拉取）；含 fps 不一致的虚拟时钟选帧原理（OBS `ready_async_frame`）、生产/消费两层节流分工、阶段一/二/三实施路线、决策点与 CFR 兼容性
+- [WLVideoMix_合成tick改造_原理与实施计划.md](WorkLabs设计/WLVideoMix_合成tick改造_原理与实施计划.md) — **当前代码上的落地方案**：WLVideoMix 从 push（输入事件驱动）改 tick（固定节拍拉取）；含 fps 不一致的虚拟时钟选帧原理（OBS `ready_async_frame`）、生产/消费两层节流分工、阶段一/二/三实施路线、决策点与 CFR 兼容性。**阶段一/二已落地**（`141507f`/`2403c1e`/`977c086`），**§8 是落地后的代码逐段对照详解**（数据结构/tick 引擎/虚拟钟选帧/所有权/合成/线程模型/观测埋点 + 每处「为什么这么设计」）——对照代码斟酌看这节
 - [OBS架构设计.md](WorkLabs设计/OBS架构设计.md) — WorkLabs OBS-Style 架构设计（WLScene/WLSceneRenderer 远期愿景）
 - [可切源推流时间戳设计.md](WorkLabs设计/可切源推流时间戳设计.md) — 可切源推流的时间戳设计方案
 - [视频源设置模块.md](WorkLabs设计/视频源设置模块.md) — 视频源设置模块设计
@@ -83,6 +84,14 @@ Doc/
 
 ---
 
+## 🐞 issues/ —— 问题排查
+
+- [someissues.md](issues/someissues.md) — 测试发现的现象清单（待修）
+- [滤镜渲染问题排查.md](issues/滤镜渲染问题排查.md) — 颜色校正/裁剪三条现象的根因假设 + 修法建议 + 复现条件（**设备/外接屏相关**，待实测验证）
+- [麦克风录制无声_修复记录.md](issues/麦克风录制无声_修复记录.md) — 「摄像头+麦克风」录制/推流无声的根因（`audioEnabled` 漏判麦克风）+ 修法 + 验证清单（✅ 已修，待实测；附隐患 B：断流音频漂移）
+
+---
+
 ## 🕐 跨主题交叉索引：时间戳 / 音视频同步
 
 时间戳/同步主题散落在多类文档，集中索引如下（也是当前重点改造方向）：
@@ -99,5 +108,6 @@ Doc/
 | [WorkLabs设计/WLMediaSource_渲染节流改造与时间戳锚定陷阱.md](WorkLabs设计/WLMediaSource_渲染节流改造与时间戳锚定陷阱.md) | render 节流 pop-then-sleep（队列回归纯 FIFO）+ baseTime 单调纳秒锚定；pts 下溢陷阱（微负 / seek 大正）与 int64 根治 |
 | [WorkLabs设计/WLVideoMix_合成tick改造_原理与实施计划.md](WorkLabs设计/WLVideoMix_合成tick改造_原理与实施计划.md) | **合成端**：push→tick 节拍化；fps 不一致的虚拟时钟选帧（慢源重复/快源抽帧/多源对齐同一系统钟）；生产层(源节流)vs 消费层(tick选帧)分工；阶段三 a/v 用 timing_adjust 归一同一钟 |
 | [WorkLabs设计/可切源推流时间戳设计.md](WorkLabs设计/可切源推流时间戳设计.md) | 可切源推流时间戳设计方案 |
+| [WorkLabs设计/音频断流漂移_AV同步精度方案.md](WorkLabs设计/音频断流漂移_AV同步精度方案.md) | **音频断流漂移（隐患 B）修复方案**：根因＝混音器无数据跳帧（音频样本计数 vs 视频墙钟·范式混杂）；首选修法＝混音器断流补静音帧（对齐 OBS「混音窗口始终处理、缺数据贡献 0」）|
 | [调研/TVUExternalSource/时间戳调研](调研/TVUExternalSource/TVUExternalSource时间戳调研.md) · [设计评价](调研/TVUExternalSource/TVUExternalSource时间戳设计评价.md) | TVU 时钟漂移 / 同步设计评价 |
 | [调研/TVUExternalSource/plan.md](调研/TVUExternalSource/plan.md) · [分析.md](调研/TVUExternalSource/分析.md) | TVUAnywhere PTS 设计 / RTMP 聚合转发同步 |

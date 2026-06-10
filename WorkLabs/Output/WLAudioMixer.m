@@ -39,6 +39,7 @@ static const int kRingSeconds = 1;                    // 每路环形缓冲容�
 @property (nonatomic, strong) dispatch_queue_t timerQueue;
 @property (nonatomic, strong) dispatch_source_t timer;
 @property (nonatomic, assign) BOOL running;
+@property (nonatomic, assign) BOOL everProduced;   // 是否已收到过真实音频数据；之后即使断流也补静音帧维持时间轴
 @end
 
 @implementation WLAudioMixer
@@ -175,6 +176,7 @@ static const int kRingSeconds = 1;                    // 每路环形缓冲容�
         }
         [self.inputs removeAllObjects];
     }
+    self.everProduced = NO;   // 会话清理：下次 start 从「未激活」重新开始（此时 timer 已 cancel，无并发）
 }
 
 - (void)mixOnce {
@@ -200,7 +202,15 @@ static const int kRingSeconds = 1;                    // 每路环形缓冲容�
         }
     }
 
-    if (!any) return;   // 无任何输入数据，不产静音帧
+    // 隐患 B 修复：一旦收到过真实音频数据（everProduced），之后即使本拍所有源都断流，也产一帧静音
+    // （mix[] 已全 0）补齐时间轴 —— 让混音输出严格按 timer 墙钟节拍连续，使下游编码器的
+    // 「累计样本数 ≡ 墙钟流逝时长」，根治断流（seek/暂停/掉数据）后音频超前于视频的漂移。
+    // 从未收到过真实音频（纯视频 / 无音频源）则不产，避免空转。
+    if (any) {
+        self.everProduced = YES;
+    } else if (!self.everProduced) {
+        return;
+    }
 
     // 限幅 [-1, 1]
     for (int i = 0; i < frameFloats; i++) {

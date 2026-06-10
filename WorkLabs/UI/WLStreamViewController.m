@@ -656,10 +656,12 @@ static const CGFloat kIconBgAlpha = 0.05;
     return _recorder;
 }
 
-// 当前场景是否有会输出音频的源（目前仅媒体文件源产音频；摄像头无音频）
+// 当前场景是否有会输出音频的源（媒体文件源解码音频 / 麦克风源采集音频；摄像头无音频）。
+// 判定须与 settingsSourceList 的 hasAudio 一致，否则「只插麦克风、无媒体文件」时 audioEnabled=NO，
+// 编码器不建 AAC 路 → 最典型的「摄像头+麦克风」录制/推流会变哑。
 - (BOOL)hasAudioCapableSource {
     for (id<WLStreamSourceProtocol> s in self.sidToSource.allValues) {
-        if ([s isKindOfClass:[WLMediaSource class]]) return YES;
+        if (s.fromType == WLFromTypeMedia || s.fromType == WLFromTypeMic) return YES;
     }
     return NO;
 }
