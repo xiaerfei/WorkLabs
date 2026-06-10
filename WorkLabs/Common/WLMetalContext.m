@@ -12,6 +12,7 @@
 @property (nonatomic, strong, nullable) id<MTLTexture> texture1;
 @property (nonatomic, assign) BOOL isYUV;
 @property (nonatomic, assign) BOOL isFullRange;
+@property (nonatomic, assign) BOOL is10Bit;
 @end
 
 @implementation WLMetalTextureBinding {
@@ -135,6 +136,7 @@
     if (fmt == kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange ||
         fmt == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange) {
         b.isYUV = YES;
+        b.is10Bit = NO;
         b.isFullRange = (fmt == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange);
 
         size_t w0 = CVPixelBufferGetWidthOfPlane(pb, 0);
@@ -149,6 +151,32 @@
         }
         if (CVMetalTextureCacheCreateTextureFromImage(kCFAllocatorDefault, cache, pb, NULL,
                 MTLPixelFormatRG8Unorm, w1, h1, 1, &cRef) != kCVReturnSuccess || !cRef) {
+            CFRelease(yRef);
+            return nil;
+        }
+        [b addRef:yRef];
+        [b addRef:cRef];
+        b.texture0 = CVMetalTextureGetTexture(yRef);
+        b.texture1 = CVMetalTextureGetTexture(cRef);
+    } else if (fmt == kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange ||
+               fmt == kCVPixelFormatType_420YpCbCr10BiPlanarFullRange) {
+        // 10-bit YUV（HEVC Main 10 硬解输出）：Y 平面 R16Unorm，CbCr 平面 RG16Unorm
+        b.isYUV = YES;
+        b.is10Bit = YES;
+        b.isFullRange = (fmt == kCVPixelFormatType_420YpCbCr10BiPlanarFullRange);
+
+        size_t w0 = CVPixelBufferGetWidthOfPlane(pb, 0);
+        size_t h0 = CVPixelBufferGetHeightOfPlane(pb, 0);
+        size_t w1 = CVPixelBufferGetWidthOfPlane(pb, 1);
+        size_t h1 = CVPixelBufferGetHeightOfPlane(pb, 1);
+
+        CVMetalTextureRef yRef = NULL, cRef = NULL;
+        if (CVMetalTextureCacheCreateTextureFromImage(kCFAllocatorDefault, cache, pb, NULL,
+                MTLPixelFormatR16Unorm, w0, h0, 0, &yRef) != kCVReturnSuccess || !yRef) {
+            return nil;
+        }
+        if (CVMetalTextureCacheCreateTextureFromImage(kCFAllocatorDefault, cache, pb, NULL,
+                MTLPixelFormatRG16Unorm, w1, h1, 1, &cRef) != kCVReturnSuccess || !cRef) {
             CFRelease(yRef);
             return nil;
         }

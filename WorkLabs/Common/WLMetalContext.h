@@ -22,6 +22,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly, nullable) id<MTLTexture> texture1; // 采样 YUV 时: CbCr，否则 nil
 @property (nonatomic, readonly) BOOL isYUV;
 @property (nonatomic, readonly) BOOL isFullRange;
+@property (nonatomic, readonly) BOOL is10Bit;  // 10-bit YUV（420YpCbCr10BiPlanar）
 @end
 
 @interface WLMetalContext : NSObject

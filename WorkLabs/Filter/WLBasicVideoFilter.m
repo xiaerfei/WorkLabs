@@ -186,6 +186,7 @@ NSString * const WLFilterKeyCropRight  = @"cropRight";
             p.hueRadians  = self.hue * (float)M_PI / 180.0f;
             p.isYUV       = input.isYUV ? 1 : 0;
             p.isFullRange = input.isFullRange ? 1 : 0;
+            p.is10Bit     = input.is10Bit ? 1 : 0;
             [enc setFragmentBytes:&p length:sizeof(p) atIndex:0];
 
             [enc drawPrimitives:MTLPrimitiveTypeTriangleStrip vertexStart:0 vertexCount:4];

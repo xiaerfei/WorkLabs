@@ -456,6 +456,7 @@ static inline uint64_t wl_mono_now_ns(void) {
                 [enc setFragmentTexture:self.bgTexture atIndex:1]; // 占位（isYUV=NO 时 shader 不采样它）
                 [enc setFragmentBytes:&no length:sizeof(BOOL) atIndex:0];  // isYUV = NO（BGRA passthrough）
                 [enc setFragmentBytes:&no length:sizeof(BOOL) atIndex:1];  // isFullRange（BGRA 无关）
+                [enc setFragmentBytes:&no length:sizeof(BOOL) atIndex:2];  // is10Bit（BGRA 无关）
                 [enc drawPrimitives:MTLPrimitiveTypeTriangleStrip vertexStart:0 vertexCount:4];
             }
 
@@ -484,9 +485,10 @@ static inline uint64_t wl_mono_now_ns(void) {
                 [enc setVertexBytes:quad length:sizeof(quad) atIndex:0];
                 [enc setFragmentTexture:in.texture0 atIndex:0];
                 [enc setFragmentTexture:(in.texture1 ?: in.texture0) atIndex:1]; // 非 YUV 占位
-                BOOL isYUV = in.isYUV, isFull = in.isFullRange;
+                BOOL isYUV = in.isYUV, isFull = in.isFullRange, is10 = in.is10Bit;
                 [enc setFragmentBytes:&isYUV length:sizeof(BOOL) atIndex:0];
                 [enc setFragmentBytes:&isFull length:sizeof(BOOL) atIndex:1];
+                [enc setFragmentBytes:&is10  length:sizeof(BOOL) atIndex:2];
                 [enc drawPrimitives:MTLPrimitiveTypeTriangleStrip vertexStart:0 vertexCount:4];
             }
 
