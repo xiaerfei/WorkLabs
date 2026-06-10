@@ -138,6 +138,9 @@ OBS 的本地媒体源其实是**两层节流，分工不重复**——这厘清
 
 ### 阶段二：每源 async 缓冲 + 虚拟时钟选帧（根治 fps judder）
 
+> **状态**：✅ **已落地**（commit `2403c1e` 缓冲+虚拟钟选帧、`977c086` 每秒观测埋点；实机验证 OK）。
+> **代码逐段对照 + 为什么这样设计：见 [§8 阶段二落地实现详解](#8-阶段二落地实现详解代码用了哪些设计为什么这样设计)。** 本节是当初的实施计划口吻，保留备查；§8 是落地后的实现真相。
+
 把 §3.2 的 OBS 算法搬进 WLVideoMix。下面是落地级的大白话讲解 + 数据结构 + 改动清单。
 
 #### 大白话：托盘 + 指针
@@ -210,11 +213,11 @@ lastSysTs          : 全局，上次 tick 实测系统时刻（算 sys_offset �
 
 ---
 
-## 6. 决策点（待斟酌）
+## 6. 决策点（已定，落地结论）
 
-1. **落地顺序**：先阶段一跑通框架、再上阶段二虚拟钟？还是直接一步到位做阶段二（数据结构和选帧一次建好，省返工）？
-2. **tick 时钟 / pts**：推荐专用线程睡到绝对单调时刻，**pts 用理论值 `n·interval`**（严格 CFR、完全均匀），而非实测 now（带 jitter）。epoch 用相对合成启动的秒（数值范围同当前源 pts，WLRecorder 行为不变）。
-3. **tick fps**：设成画布输出 fps（如 30）可减少阶段一重复合成；预览想流畅可设 60。
+1. **落地顺序** → **已定：分两步走**。先 `141507f` 落阶段一（取最新帧）跑通 tick 框架，再 `2403c1e` 落阶段二（缓冲+虚拟钟）。事实证明数据结构「一张→一队列」是增量替换，没返工。
+2. **tick 时钟 / pts** → **已定但与原推荐有出入**：pts 确实用**理论累加值**（`ptsAccum += tickInterval`，严格 CFR，见 §8.B）；但 tick **没有用专用线程**，而是 `dispatch_source_timer` 挂在合成 `serialQueue` 上（weak self 更安全、与所有状态访问同队列免锁、leeway 省电）。理论 pts 不依赖线程定时精度，故 timer jitter 不进时间戳。理由详见 §8.B 与 §8.H。
+3. **tick fps** → **已定**：`WLStreamViewController` 把 `renderFrameRate` 设成 `encoderConfig.fps`（如 30），合成帧率对齐编码 fps，避免过度合成致编码丢帧（`WLStreamViewController.m:218`）。`WLVideoMix` 默认 60（`WLVideoMix.m:94`）。
 
 ---
 
@@ -225,6 +228,318 @@ lastSysTs          : 全局，上次 tick 实测系统时刻（算 sys_offset �
 - **纯预览不录制**：tick 仅在 `renderingEnabled` 时跑（当前 `compositingEnabled` 已控制），零空转。
 - **拖动 layout 实时性**：tick 60fps 下 layout 变化最多延迟 1 tick（16ms），无感；`setLayoutFrame:` 仍即时更新 layouts 缓存。
 - **judder（阶段一）**：见 §3.5，匀速运动画面轻微，阶段二根治。
+
+---
+
+## 8. 阶段二落地实现详解（代码用了哪些设计、为什么这样设计）
+
+> 本节对照 `WorkLabs/Mix/WLVideoMix.m` **当前真实代码**逐部分拆解：每块先「大白话」讲它在干嘛、再「伪代码/代码锚点」、最后「为什么这么设计（取舍理由）」。供对照代码慢慢斟酌。
+> 行号基于当前版本（commit `977c086` 之后）。
+>
+> ⚠️ **注意 `WLVideoMix.h` 注释已过时**：头文件里还写着 "CoreImage 合成 / renderWithPts"（`WLVideoMix.h` 的 `renderingEnabled` 注释段），那是 push 时代的残留；实际早已是 Metal + tick。读头文件注释时以本节 / .m 为准。
+
+### 8.0 一张图：push→tick 之后的真实数据流
+
+```
+源 render 线程(生产层, baseTime 自节流)
+   │ didOutputVideoFrame:pts
+   ▼
+WLStreamsManager  ──fork──┬─► preview.receiveVideoFrame   (各源预览, push 直出, 不经 tick)
+                          └─► mix.inputVideoFrame:pts:sid
+                                   │ CVPixelBufferRetain + dispatch_async
+                                   ▼
+                          ┌─────────── serialQueue (com.worklabs.videomix) ───────────┐
+                          │  inputVideoFrame:  WLMixFrame{pb,pts} 入 asyncFrames[sid] 队尾 │
+                          │  setLayout/Bg/Order/CanvasSize: 只改缓存                       │
+                          │                                                              │
+                          │  tickTimer(dispatch_source_timer, 挂本队列) 每 interval 触发: │
+                          │    renderComposite(pts = ptsAccum):                          │
+                          │      selectFramesForTick()   ← 虚拟钟选帧(消费层)            │
+                          │      Metal 合成 curFrames[*] → out(BGRA)                      │
+                          │      output(out, pts)  ──► WLRecorder / 推流                  │
+                          └──────────────────────────────────────────────────────────────┘
+```
+
+**两个关键事实**（决定了所有线程/锁/所有权设计）：
+1. **所有 mix 内部状态只在一条 `serialQueue` 上读写**（`WLVideoMix.m:38, 93`）。tick timer 也挂在这条队列（`:264`）。所有 public setter 都 `dispatch_async` 到它（`:136,160,174,199,207,219,228,241,255`）。→ **全程免锁**，不存在数据竞争。
+2. **预览不走 tick**：`WLStreamsManager` fork 的第一路直接进各源 `WLStreamPreview`（push 直出，低延迟）；只有合成/录制这一路进 tick。所以 tick 的 judder / CFR 只影响录制输出，不影响预览手感。
+
+---
+
+### 8.A 数据结构：托盘 + 指针 + 当前帧
+
+大白话（呼应 §5「托盘+指针」）：每个源一个**托盘**装着贴了时间标签的照片，一根**指针**（虚拟钟）指着「现在该看哪张」，外加记一张**当前正展示的照片**（指针在两张之间时还得有东西可合成）。
+
+| 字段（`WLVideoMix.m:42-48`） | 角色 | 大白话 |
+|---|---|---|
+| `asyncFrames[sid]` : `NSMutableArray<WLMixFrame*>` | 每源 FIFO 队列 | **托盘**：源投进来的照片按时间排队 |
+| `curFrames[sid]` : `WLMixFrame*` | 每源当前显示帧 | **手上正展示的那张**：指针没翻页时继续用它（慢源重复的关键） |
+| `lastFrameTs[sid]` : `NSNumber*`(秒) | 每源虚拟时钟 | **指针**：在「源 pts 轴」上的位置；缺键 = 冷启动待锚 |
+| `lastSysTs` : `uint64_t`(ns) | 全局上次 tick 系统时刻 | **上次看墙钟的读数**，用来算「这次过了多久」 |
+
+`WLMixFrame`（`:25-32`）是个极小的内部类：持有一个 retain 的 `pixelBuffer` + `pts`，`dealloc` 里 `CVPixelBufferRelease`。
+
+**为什么引入 `WLMixFrame`**：阶段一只存「每源一张裸 `CVPixelBufferRef`」，retain/release 全手动。阶段二队列里可能有几十张，手动配平极易漏。把 pb 包进对象、release 写在 `dealloc`，**retain/release 就全交给 ARC**（数组增删元素自动管）——反而比阶段一更不容易错。这是「用 ARC 兜住 CF 对象生命周期」的常见手法。
+
+---
+
+### 8.B tick 引擎：固定节拍怎么来的
+
+大白话：有个闹钟每 `interval` 秒响一次，响一次就合成一帧、输出。闹钟挂在合成队列上，响的时候直接在这条队列里干活，不用切线程、不用加锁。
+
+伪代码（对应 `startTick` `:262-280` / `rescheduleTick` `:282-289`）：
+
+```
+setRenderingEnabled(YES):           # :253  录制/推流开启时
+    _renderingEnabled = YES         # 立即写 ivar(getter 读它)
+    dispatch_async(serialQueue): startTick()
+
+startTick():                        # 全程在 serialQueue
+    if tickTimer exists: return     # 幂等
+    tickTimer = dispatch_source_timer(serialQueue)   # ★ 挂合成队列, 不开专用线程
+    ptsAccum = 0                    # 输出 pts 从 0 累加
+    lastSysTs = 0                   # 墙钟基准清零 → 第一拍 sysOffset=0
+    asyncFrames.clear()             # 丢开启前堆的陈帧
+    lastFrameTs.clear()             # 各源下次投帧冷启动重锚
+    timer.handler = {               # 每拍:
+        pts = ptsAccum              # ★ 理论 CFR pts(累加, 不取实测 now)
+        ptsAccum += tickInterval
+        renderComposite(pts)
+    }
+    rescheduleTick()                # 设周期: 首拍 NOW 立即出, 周期 = interval, leeway = interval/10
+    resume(timer)
+```
+
+**为什么这样设计：**
+
+1. **用 `dispatch_source_timer` 挂 serialQueue，而不是专用线程**（§6 决策点 2 原本推荐专用线程，落地改了）：
+   - timer handler 用 `__weak self`（`:270-273`），对象销毁后回调安全空转，不会野指针。
+   - handler 与所有 setter / 选帧 / 渲染**同在一条队列**，天然串行 → 访问 `asyncFrames`/`curFrames`/`layouts`/`textureCache` **全程免锁**（`textureCache` 本身非线程安全，这点尤其重要）。
+   - `leeway = interval/10`（`:288`）允许内核合并定时器省电；**因为输出 pts 用理论值，定时抖动（jitter）不进时间戳**，省电不损 CFR。
+
+2. **输出 pts 用理论累加 `ptsAccum`，不用实测 `now`**（`:274-275`）：
+   - 严格 CFR：每帧 pts 精确 = `n·interval`，完全均匀，muxer/编码器最省心。
+   - 改帧率时（`setRenderFrameRate:` → `rescheduleTick`）pts 仍从当前值继续累加，**单调连续不跳变**。
+   - 反直觉但关键：**选帧用实测墙钟、输出 pts 用理论值**，两者分工（详见 8.C 末）。
+
+3. **`startTick` 里清 `lastSysTs=0` + 清 `asyncFrames`/`lastFrameTs`**（`:266-269`）：
+   - `lastSysTs=0` → 第一拍 `sysOffset=0`（见 8.C），**不会把「上次停止到这次开启之间的暂停时长」一股脑灌进虚拟钟**导致瞬间狂丢帧。
+   - 清 `asyncFrames` 丢掉开启前堆积的陈帧；但**保留 `curFrames`**（上次的画面），让重新开启时有帧过渡、不黑屏。
+
+4. **`renderingEnabled=NO` 停 tick**（`stopTick` `:291-295`）：纯预览不录制时 tick 不跑，**零空转**（各源自己的 `WLStreamPreview` 上屏，不需要合成）。省 CPU/GPU。
+
+---
+
+### 8.C 选帧：虚拟时钟怎么吸收 fps 差异（最核心）
+
+大白话（§3.1 / §5「托盘+指针」的代码版）：每拍做三件事——①看墙钟过了多久 `sysOffset`；②把**每个源**的指针都往前推这么多（同一步长 → 多源天然对齐）；③每个托盘里，指针已越过的旧照片丢掉，露出「指针还没越过的第一张」当作 `curFrames`。
+
+#### selectFramesForTick（`:301-322`）：全局推进 + 统计
+
+```
+selectFramesForTick():
+    now = wl_mono_now_ns()                              # CLOCK_UPTIME_RAW 单调钟
+    sysOffset = (lastSysTs != 0) ? (now-lastSysTs)/1e9 : 0   # ★ 第一拍=0
+    lastSysTs = now
+    for sid in streamOrder:
+        selectFrameForStream(sid, sysOffset)            # 各源用同一 sysOffset 推进
+    # ...每秒汇总统计(见 8.I)
+```
+
+**`sysOffset` 用「实测流逝」而非「理论 interval」**：若某拍卡顿（系统忙、断点），`now-lastSysTs` 会偏大，指针一次多推 → 自动多丢几帧**追上进度**，不累积延迟。这正是 §3.3 表里「掉帧追赶」那行。
+
+#### selectFrameForStream（`:353-396`）：单源的指针推进 + 挑帧
+
+逐分支伪代码（带行号锚点）：
+
+```
+selectFrameForStream(sid, sysOffset):
+    q = asyncFrames[sid]
+    if q.empty:                                  # :355  托盘空(没新帧投来)
+        dup++; return                            #   → 不动 curFrames, 慢源「重复」上一张
+
+    vt0 = lastFrameTs[sid]
+    if vt0 == nil:                               # :361  冷启动(刚开始/刚倒过盘)
+        curFrames[sid] = q.pop_front()           #   首帧立即显示
+        lastFrameTs[sid] = thatFrame.pts         #   ★ 用首帧 pts 锚定指针(对齐到源时间轴)
+        return
+
+    vt = vt0 + sysOffset                         # :371  ★指针在源 pts 轴上, 以墙钟速度前进
+
+    if |q.head.pts - vt| > 2.0:                  # :374  跳变重锚(seek/不连续, MAX_TS_VAR)
+        vt = q.head.pts                           #   不一张张追, 直接对齐到队头
+
+    took = 0                                     # :380  挑帧循环
+    while q not empty:
+        head = q.head
+        if vt < head.pts: break                  # :383  队头在未来 → 停(它还没到点)
+        if took>0 and (vt-head.pts) < 0.002: break # :384 已取过且仅超前<2ms → 平滑停
+        curFrames[sid] = head; q.pop_front(); took++   # 取它当当前帧, 继续看下一张
+    lastFrameTs[sid] = vt                        # :389  指针落在 vt
+
+    if took==0: dup++                            # :391  没翻页 → 重复
+    elif took>=2: drop += took-1                 # :393  翻过好几张只留末张 → 中间是丢帧(抽帧)
+```
+
+**逐设计点 & 为什么：**
+
+- **队空就保持 `curFrames`（`:355-358`）**：慢源（24fps 进 60 tick）大多数拍没有新帧，靠「继续用上一张」实现重复。这要求 `curFrames` 一直持有上次选中的 `WLMixFrame`（见 8.D 所有权）。
+- **冷启动用首帧 pts 锚定（`:360-369`）**：源 pts 轴的零点是任意的（可能从 100.0s 开始）。直接拿第一帧的 pts 当指针起点，**把虚拟钟对齐到这条源自己的时间轴**，之后才能比大小。`lastFrameTs` 缺键就是「待锚」哨兵。
+- **`vt = lastFrameTs + sysOffset`（`:371`）是灵魂**：指针的**位置**在源 pts 轴上，但**前进速度**用墙钟（sysOffset）。于是「现在该显示哪帧」退化成同一根轴上的比大小（`vt vs head.pts`）——把「两个不同基准的时钟」难题化简掉了。
+- **>2s 跳变重锚（`:374-377`）**：seek、循环回到开头、流不连续时，帧 pts 会突然跳一大截。若还一张张「追」会狂丢一堆。检测到 >2s 直接把指针重设到队头 pts。对应 OBS `MAX_TS_VAR`，也正是未来 seek/loop 重建时间基准的合成器做法。
+- **2ms 平滑停（`:384`）**：指针只超前队头不到 2ms 时，宁可显示这张「早 ≤2ms」的，也不在帧边界多丢一张造成顿挫。注意条件是 `took>0`——**第一张该取的一定取**，只有在「已经取过、要不要再多丢一张」时才平滑。精确 vs 平滑的折中。
+- **took 记账（`:391-395`）**：`took==0` 这拍没翻页=重复（dup）；`took>=2` 翻过多张只留最后一张、中间的算丢帧（drop）。这两个计数喂给观测（8.I），用来验证「慢源 dup 多、快源 drop 多」。
+
+#### 大白话：2ms 平滑到底在平滑什么
+
+> 这是一处「工业级」处理里很典型、但第一次见会陌生的小技巧——**用一点点看不见的误差，换稳定的节奏**。单独讲清楚：
+
+想象你在**按鼓点翻一摞照片**给大家看。每张照片背后贴了张纸条，写着「我该在第几秒露脸」（= 帧的 pts）。鼓点一响（= 一个 tick），你就瞄一眼墙上的钟（= 虚拟时钟 `vt`），把**时间已经到了的**那张翻出来举给大家（= 选 `curFrames`）。
+
+正常时候一拍翻一张，很顺。
+
+**麻烦出在：照片该露脸的节奏，和你敲鼓的节奏几乎一模一样的时候**（比如源 60fps、tick 也 60fps）。两边总会差那么一丁点、对不齐。于是某一拍你看钟，发现「咦，下一张的时间也刚刚好到了（就过了那么一丝丝）」，手一快这拍翻了两张；结果下一拍一看没有新的到点，只好把同一张又举一遍。
+
+观众看到的就是：刚才那张一闪就过去了（被跳了），这张又举了两次（卡住了）——画面**一顿一顿**的（judder）。
+
+**2ms 平滑就是给你定的一条规矩：**
+
+> 「下一张的时间要是**只刚刚过了一丁点（不到 2ms）**，就当它还没到，先别翻，留着下一拍再翻。」
+
+这样你就能**稳稳地一拍一张**，不忽快忽慢。代价是某张照片可能被多举了不到 2ms——但这点时间人眼**根本看不出来**（视频画面差几十毫秒都无感；真正难受的是声音和嘴型对不上）。拿这点看不见的误差，换顺滑的节奏，划算。这就是注释里写的「**精确 vs 平滑的折中**」。
+
+两个容易绕的点：
+- **为什么要「已经翻过一张」(`took>0`) 才生效**：本拍第一张该露的照片**一定要露**（否则没东西可显示、还会卡住不前进）。2ms 只管「已经露了一张，要不要再多翻一张」这种**多翻**的情况。
+- **它不挡真正的快源**：要是照片哗哗地翻（源 120fps 进 60 tick），一拍之间下一张早就过去了远不止 2ms，`(vt - 它的 pts)` 远大于 2ms → 照常翻、照常丢中间帧（正常抽帧）。2ms 只在「帧率撞帧率」的边界上抹平那种一跳一卡的小抖动。
+
+一句话：**2ms 是一个「别太较真」的宽限，专治「源帧率 ≈ 合成帧率」时那种忽跳忽卡的小抖动。** 值照搬自 OBS（不是拍脑袋定的），因为它远小于人眼能察觉的时序误差。
+
+#### 三类 fps 情况映射到这段代码（§3.3 的代码版）
+
+| 场景 | 这段代码发生什么 |
+|---|---|
+| **慢源** 24fps/60tick | 多数拍 `vt < head.pts`（`:383` break），`took==0` → dup++ → 重复 `curFrames` |
+| **快源** 120fps/60tick | 每拍 `vt` 越过 ~2 张，while 取 2 张、`took>=2` → drop += 1（只留末张） |
+| **掉帧追赶** | 卡顿那拍 `sysOffset` 大 → `vt` 跳很多 → while 连续取多张追上 |
+| **多源各异** | `selectFramesForTick` 里所有源**共用同一 `sysOffset`**（`:306-308`）→ 各自指针同步前进 → 锚到同一墙钟 → 天然对齐 |
+
+#### 「选帧用实测、pts 用理论」为什么不矛盾
+
+- 选帧的 `sysOffset` 用**实测 now**：要反映真实流逝，掉帧能追、不漂。
+- 输出的 `output(pb, pts)` 的 pts 用**理论 `ptsAccum`**：要严格 CFR、均匀。
+- 两者是两件事：**「这一刻每源该露哪张」用真实时间判断；「这一帧打什么时间戳交给录制」用规整时间。** 互不干扰。
+
+---
+
+### 8.D 内存与所有权（CVPixelBuffer 在队列里怎么不泄漏/不早释放）
+
+大白话：照片是 GPU 显存里的稀缺资源，谁拿着、谁放手必须一笔笔对清，否则要么花屏（早放）、要么内存爆（不放）。
+
+链路（`inputVideoFrame:` `:168-195` → 队列 → `curFrames` → 合成）：
+
+```
+inputVideoFrame(pb):
+    CVPixelBufferRetain(pb)            # :173  本方法先 retain 一份
+    dispatch_async(serialQueue):
+        f = WLMixFrame{pb}             # :175-176 所有权转移给 f (f.dealloc 会 release)
+        asyncFrames[sid].push_back(f)  # :187  ARC 管数组持有
+        if asyncFrames[sid].count >= 30:   # :183  MAX_ASYNC_FRAMES
+            removeAll + lastFrameTs.remove   # 倒池 + 标冷启动(下帧重锚)
+```
+
+- **谁 retain 谁 release 配平**：`inputVideoFrame` retain 一次 → 交给 `WLMixFrame` → `WLMixFrame.dealloc` release 一次。`WLMixFrame` 进出数组/字典由 ARC 增减引用。**整条链没有手动 release 散落各处**。
+- **`curFrames[sid]` 持有「上次选中的 `WLMixFrame`」**（`:364,385`）：所以慢源重复期间那张照片不会被释放（数组里被 pop 了，但 `curFrames` 还强引用着）。
+- **队满 30 倒池（`:183-186`）**：tick 长期跟不上（缓冲只涨不消）→ 整盘 `removeAllObjects`（ARC 连带 release 所有 pb）+ 清 `lastFrameTs` 触发下帧冷启动重锚。对应 OBS `MAX_ASYNC_FRAMES`，防显存无限堆积。
+- **`removeStreamID:` / `dealloc`（`:205-215, 109-121`）**：清四个字典即可，pb 的 release 由 `WLMixFrame.dealloc` 自动完成，手动段大幅简化（dealloc 只需管 timer/pool/textureCache 这三个非 ARC 的 CF 资源）。
+
+**为什么不直接存裸 `CVPixelBufferRef` 数组**：那样每次数组增删都要手动 retain/release，几十张、多源、还有倒池/重锚分支，极易漏一处。`WLMixFrame` + ARC 把这层心智负担消掉了。
+
+---
+
+### 8.E 合成渲染 renderComposite（`:400-511`）
+
+大白话：选好每源该露哪张后，开一张空画布（铺背景色）→ 先贴背景图 → 按 z-order 从底到顶把每源画到它的 layout 矩形里（透明叠加）→ 等 GPU 画完 → 把画布交给录制。
+
+骨架伪代码：
+
+```
+renderComposite(pts):
+    selectFramesForTick()                          # :405  先选帧
+    if 无背景色 且 无背景图 且 无源: return         # :408  纯空画布不输出
+    if !pipeline or !textureCache: return          # :411  Metal 不可用
+    out = pool.createPixelBuffer()                 # :417  从画布 pool 取 BGRA
+    @autoreleasepool {                             # :425  ★ 必须, 见下
+        target = bindRenderTarget(out)             # :426
+        pass.loadAction = Clear; clearColor = bgClearColor   # :429-433 铺背景色
+        enc = cmdBuf.encoder(pass)
+        if bgTexture: 画全屏 quad(背景图)            # :447-460
+        for sid in streamOrder:                    # :463  从底到顶
+            pb = curFrames[sid].pixelBuffer        # :464  虚拟钟选出的当前帧
+            layout = layoutForStreamID(sid)        # :467
+            in = bindSampling(pb); inputs.add(in)  # :470-472 持有到 GPU 完成
+            quad = layout→NDC (左下原点, y 不翻)    # :474-483
+            setFragmentTexture + isYUV/isFullRange # :485-489
+            draw(triangle strip, 4)                # :490
+        commit(); waitUntilCompleted()             # :494-495 ★ 必须等
+        flush(textureCache)                        # :496
+    }                                              # :499 pool 排空 → 释放 cmdBuf/enc/inputs
+    output(out, pts)  // 所有权转移给 block         # :506-510
+```
+
+**逐设计点 & 为什么：**
+
+- **`@autoreleasepool` 包住整个编码（`:425-499`）**：`MTLCommandBuffer`/encoder/纹理 binding 都是 autoreleased 对象，会持有输入输出纹理及其 **IOSurface 像素内存**。本方法在录制时每秒跑几十次，**不主动排空 pool，autoreleased 对象每帧累积 → 内存暴涨**（之前实测开滤镜从十几% 飙到 1GB+ 同理）。pool 在 `waitUntilCompleted` 之后排空（GPU 已用完这些纹理），安全。
+- **`waitUntilCompleted`（`:495`）**：下游编码器是 **CPU swscale** 读这块 BGRA 像素（BGRA→NV12）。必须等 GPU 真正画完再交付，否则读到半成品。代价是合成线程阻塞到 GPU 完成——对录制可接受（合成队列独立于预览）。
+- **`loadAction=Clear` 用背景色铺底（`:431-432`）**：既是「背景色」语义，也兼当「每帧把整张画布刷一遍」**防 pool 复用的旧 buffer 残影**（pool 回收的 buffer 里可能还是上一帧内容）。一举两得，替代了旧 CoreImage 时代的「全屏铺底 quad」。
+- **layout→NDC，左下角原点，y 不翻（`:474-477`）**：画布 layout 用画布像素、左下原点；NDC y 直接线性映射不翻转。图像上下翻转放在 **texCoord 的 v 分量**（`:479-482` 底=1 顶=0），和 `vertexShader` 约定一致。把「翻转」固定在 texCoord 一处，避免 NDC 和 texCoord 两头都翻导致绕晕。
+- **`blending:YES` 的 painter's algorithm（pipeline 建于 `:88`）**：按 `streamOrder` 从底到顶画，源 alpha 叠加；不透明视频直接覆盖下层。z-order 就是数组顺序。
+- **空画布不输出（`:408`）**：没有任何背景/源时不产帧，避免录进一段纯黑空画布。
+- **`output(out, pts)` 转移所有权（`:506-509`）**：`out` 是 CF 对象，不受上面 `@autoreleasepool` 影响；交给 block 后由下游（`WLStreamsManager` 的 `mix.output`）负责 release（`WLStreamsManager.m:60-68`）。
+
+---
+
+### 8.F 「只改缓存、下个 tick 生效」的状态更新模式
+
+所有外部状态变更——`setLayoutFrame:`（`:197`）、`setBackgroundColor:`（`:125`）、`setBackgroundImage:`（`:143`）、`setStreamOrder:`（`:217`）、`updateCanvasSize:`（`:226`）——都是：`dispatch_async` 到 serialQueue，**只更新内部缓存，不主动触发合成**。下一个 tick 自然读到新值。
+
+**为什么**：
+- 与 tick 同队列串行 → **免锁**，且不会和正在进行的合成抢状态。
+- 拖动 layout / 改背景时，变更最多延迟 1 个 tick（60fps 下 ≈16ms）才反映到输出——**无感**，但换来了「6 处触发点收敛成 1 处 tick」的简洁（对比 §1 push 模型的 6 处 `renderWithPts`）。
+- `updateCanvasSize:`（`:226-237`）额外重建 `pixelBufferPool`（画布尺寸变了，pool 的 buffer 尺寸也得变），同样下个 tick 生效。
+
+---
+
+### 8.G 线程模型一句话总结
+
+> **一条 `serialQueue` 统管一切**：tick timer 挂它、所有 setter dispatch 到它、选帧/合成在它上面跑、`textureCache` 只在它上面碰。对外 API 可在任意线程调用（内部都 `dispatch_async` 收口）。`renderingEnabled` 是 `atomic` + 自定义 setter，ivar 立即写供 getter 读、启停 tick 入队执行。**没有锁，因为不需要锁。**
+
+---
+
+### 8.H 实现 vs 原计划的差异 / 取舍记录
+
+| 点 | §5/§6 原计划 | 实际落地 | 为什么改 |
+|---|---|---|---|
+| tick 载体 | 专用线程睡到绝对单调时刻 | `dispatch_source_timer` 挂 serialQueue | weak self 安全 + 同队列免锁（尤其 textureCache）+ leeway 省电；理论 pts 不依赖线程精度，jitter 不进时间戳 |
+| 输出 pts | 理论值 `n·interval` | ✅ 理论累加 `ptsAccum`（`:274`） | 一致：严格 CFR、改帧率单调连续 |
+| 选帧时钟 | （阶段二新增） | 实测 `sysOffset`（`:303`） | 实测才能掉帧追赶、不漂；与理论 pts 分工 |
+| 缓冲上限 | OBS `MAX_ASYNC_FRAMES=30` | ✅ 30 倒池 + 冷启动重锚（`:183`） | 一致 |
+| 平滑/重锚 | 2ms / 2s | ✅ 2ms（`:384`）/ 2s（`:374`） | 一致，照搬 OBS |
+
+---
+
+### 8.I 观测埋点（阶段二自带，验证用）
+
+为验证「fps 吸收 / 多源对齐 / 缓冲深度」是否真的对，阶段二带了**每秒一行**的汇总日志（commit `977c086`）。
+
+- **采集**（散在选帧/投帧里，几乎零成本）：`statIn`（每源投帧数，`:188`）、`statDup`（重复次数，`:356,392`）、`statDrop`（丢帧数，`:394`）、`statTickCount`（tick 数，`:311`）。
+- **每秒输出**（`emitStatsSummary` `:325-345`）：先 `WLLog shouldLog` gate（`:326`，**默认关时连字符串都不拼**，零开销）；一行含 `tick=实际fps`、各源 `in=投帧fps q=队深 dup= drop= pts=`、以及多源 `skew=（最大−最小当前 pts，毫秒）`。
+- **怎么读**：
+  - 慢源：`dup` 高、`drop≈0`、`q` 浅 → 「重复」在工作。
+  - 快源：`drop` 高、`q` 不爆 → 「抽帧」在工作。
+  - 多源：`skew` 应很小（个位/十几 ms）→ 「对齐同一墙钟」成立；若 skew 持续大，说明某源冷启动锚偏或在重锚。
+  - `tick=` 应≈设定合成 fps；明显偏低 = 合成跟不上（GPU/CPU 瓶颈）。
+
+> 这套埋点是「阶段二是否真生效」的体检表；调参/排查 judder 时先看它，再决定要不要动选帧逻辑。
 
 ---
 
