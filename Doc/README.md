@@ -51,6 +51,8 @@ Doc/
 - [OBS架构设计.md](WorkLabs设计/OBS架构设计.md) — WorkLabs OBS-Style 架构设计（WLScene/WLSceneRenderer 远期愿景）
 - [可切源推流时间戳设计.md](WorkLabs设计/可切源推流时间戳设计.md) — 可切源推流的时间戳设计方案
 - [视频源设置模块.md](WorkLabs设计/视频源设置模块.md) — 视频源设置模块设计
+- [音频断流漂移_AV同步精度方案.md](WorkLabs设计/音频断流漂移_AV同步精度方案.md) — 隐患 B：音频断流后超前于视频的漂移；根因＝混音器无数据跳帧（样本计数 vs 墙钟·范式混杂）+ 首选修法（断流补静音帧）
+- [AV同步_对齐OBS的剩余差距_晶振漂移与interleave.md](WorkLabs设计/AV同步_对齐OBS的剩余差距_晶振漂移与interleave.md) — 对齐 OBS 的剩余两块差距评估：晶振漂移补偿（真差距·低优先·建议先观测）+ 输出 interleave（实读后发现基本已覆盖，纠正先前判断）；附 OBS 音频时钟认知澄清
 - streams.drawio — 流结构图
 
 ---
@@ -109,5 +111,6 @@ Doc/
 | [WorkLabs设计/WLVideoMix_合成tick改造_原理与实施计划.md](WorkLabs设计/WLVideoMix_合成tick改造_原理与实施计划.md) | **合成端**：push→tick 节拍化；fps 不一致的虚拟时钟选帧（慢源重复/快源抽帧/多源对齐同一系统钟）；生产层(源节流)vs 消费层(tick选帧)分工；阶段三 a/v 用 timing_adjust 归一同一钟 |
 | [WorkLabs设计/可切源推流时间戳设计.md](WorkLabs设计/可切源推流时间戳设计.md) | 可切源推流时间戳设计方案 |
 | [WorkLabs设计/音频断流漂移_AV同步精度方案.md](WorkLabs设计/音频断流漂移_AV同步精度方案.md) | **音频断流漂移（隐患 B）修复方案**：根因＝混音器无数据跳帧（音频样本计数 vs 视频墙钟·范式混杂）；首选修法＝混音器断流补静音帧（对齐 OBS「混音窗口始终处理、缺数据贡献 0」）|
+| [WorkLabs设计/AV同步_对齐OBS的剩余差距_晶振漂移与interleave.md](WorkLabs设计/AV同步_对齐OBS的剩余差距_晶振漂移与interleave.md) | **对齐 OBS 剩余差距评估**：晶振漂移补偿（声卡晶振≠标称采样率,混音器墙钟节拍被动吸收 vs OBS 主动重采样补偿,真差距·低优先）+ interleave（`av_interleaved_write_frame`+首包归零已覆盖三件套,基本非差距,纠正先前判断）+ OBS 音频时钟澄清（回调＝打戳时机,基准＝系统单调钟）|
 | [调研/TVUExternalSource/时间戳调研](调研/TVUExternalSource/TVUExternalSource时间戳调研.md) · [设计评价](调研/TVUExternalSource/TVUExternalSource时间戳设计评价.md) | TVU 时钟漂移 / 同步设计评价 |
 | [调研/TVUExternalSource/plan.md](调研/TVUExternalSource/plan.md) · [分析.md](调研/TVUExternalSource/分析.md) | TVUAnywhere PTS 设计 / RTMP 聚合转发同步 |

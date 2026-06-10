@@ -107,7 +107,9 @@
 
 ### 修法 3：输出层 interleave 加固（另一维度，不是本隐患）
 
-OBS 输出层三件套（discard 早包 → 归零 → **按 dts 单调交错送出**，`OBS_输出侧...md:161-319`）。WorkLabs 的 `WLRecorder` 现在是「每包实时写」。这解决的是**「muxer 收到非单调 dts 会报错/丢帧」的健壮性**问题，**不是 drift**。建议作为**后续独立项**，与隐患 B 解耦。
+OBS 输出层三件套（discard 早包 → 归零 → **按 dts 单调交错送出**，`OBS_输出侧...md:161-319`）。这解决的是**「muxer 收到非单调 dts 会报错/丢帧」的健壮性**问题，**不是 drift**。
+
+> **更新（2026-06-10，实读代码后修正）**：`WLRecorder`/`WLPusher` 实际用的是 **`av_interleaved_write_frame`**（FFmpeg 自带 dts 排序交错）+ **首包归零**（`_baseUs = 首视频包.ptsUs`）+ **discard 早包**（首关键帧前丢弃 / 音频 `outPts<0` return），**三件套已基本具备**，并非「每包裸写」。interleave 因此**基本不是待补差距**；唯一残留的「interleave 队列饥饿（一条流长断流）」又被修法 1（断流补静音）顺带解决。详见 [AV同步_对齐OBS的剩余差距_晶振漂移与interleave.md](AV同步_对齐OBS的剩余差距_晶振漂移与interleave.md) §3。
 
 ---
 
