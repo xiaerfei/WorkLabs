@@ -22,7 +22,6 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly, nullable) id<MTLTexture> texture1; // 采样 YUV 时: CbCr，否则 nil
 @property (nonatomic, readonly) BOOL isYUV;
 @property (nonatomic, readonly) BOOL isFullRange;
-@property (nonatomic, readonly) BOOL is10Bit;  // 10-bit YUV（420YpCbCr10BiPlanar）
 @end
 
 @interface WLMetalContext : NSObject
@@ -41,7 +40,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable id<MTLRenderPipelineState>)pipelineWithFragment:(NSString *)fragmentName
                                                   blending:(BOOL)blending;
 
-// 将输入 CVPixelBuffer 绑成可采样纹理（NV12 双平面 / BGRA / RGBA，自动检测 full/video range）。
+// 将输入 CVPixelBuffer 绑成可采样纹理（NV12/P010 双平面 / BGRA / RGBA，自动检测 full/video range）。
 - (nullable WLMetalTextureBinding *)bindSamplingPixelBuffer:(CVPixelBufferRef)pixelBuffer
                                                      cache:(CVMetalTextureCacheRef)cache;
 

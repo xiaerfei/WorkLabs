@@ -23,9 +23,8 @@ typedef struct {
     float contrast;     //  0 ~ 2，围绕 0.5
     float saturation;   //  0 ~ 2，向 luma 插值
     float hueRadians;   // 色相旋转（弧度）
-    int   isYUV;        // 1=NV12 双平面(Y+CbCr) / 0=单纹理 RGB
+    int   isYUV;        // 1=双平面 YUV(Y+CbCr，8/10-bit 同路径) / 0=单纹理 RGB
     int   isFullRange;  // YUV 时：1=full range / 0=video range
-    int   is10Bit;      // YUV 时：1=10-bit（R16Unorm/RG16Unorm）/ 0=8-bit（R8Unorm/RG8Unorm）
 } WLFilterParams;
 
 #endif /* WLMetalShaderTypes_h */

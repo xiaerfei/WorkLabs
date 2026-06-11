@@ -12,7 +12,6 @@
 @property (nonatomic, strong, nullable) id<MTLTexture> texture1;
 @property (nonatomic, assign) BOOL isYUV;
 @property (nonatomic, assign) BOOL isFullRange;
-@property (nonatomic, assign) BOOL is10Bit;
 @end
 
 @implementation WLMetalTextureBinding {
@@ -136,7 +135,6 @@
     if (fmt == kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange ||
         fmt == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange) {
         b.isYUV = YES;
-        b.is10Bit = NO;
         b.isFullRange = (fmt == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange);
 
         size_t w0 = CVPixelBufferGetWidthOfPlane(pb, 0);
@@ -160,9 +158,9 @@
         b.texture1 = CVMetalTextureGetTexture(cRef);
     } else if (fmt == kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange ||
                fmt == kCVPixelFormatType_420YpCbCr10BiPlanarFullRange) {
-        // 10-bit YUV（HEVC Main 10 硬解输出）：Y 平面 R16Unorm，CbCr 平面 RG16Unorm
+        // 10-bit YUV（P010，HEVC Main 10 硬解输出）：Y 平面 R16Unorm，CbCr 平面 RG16Unorm。
+        // P010 的 10 位有效值在 16-bit 高位，Unorm 采样归一化值与 8-bit 一致，shader 无需区分位深。
         b.isYUV = YES;
-        b.is10Bit = YES;
         b.isFullRange = (fmt == kCVPixelFormatType_420YpCbCr10BiPlanarFullRange);
 
         size_t w0 = CVPixelBufferGetWidthOfPlane(pb, 0);

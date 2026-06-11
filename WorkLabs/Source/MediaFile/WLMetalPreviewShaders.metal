@@ -19,51 +19,27 @@ fragment float4 fragmentShader(VertexOut in [[stage_in]],
                                texture2d<float, access::sample> texture [[texture(0)]],
                                texture2d<float, access::sample> cbCrTexture [[texture(1)]],
                                constant bool &isYUV [[buffer(0)]],
-                               constant bool &isFullRange [[buffer(1)]],
-                               constant bool &is10Bit [[buffer(2)]]) {
+                               constant bool &isFullRange [[buffer(1)]]) {
     constexpr sampler s(coord::normalized, filter::linear);
 
     if (isYUV) {
-        float y, cb, cr;
-        if (is10Bit) {
-            // 10-bit YUV：R16Unorm 归一化到 [0,1]，乘 1023 恢复 10-bit 整数值
-            y  = texture.sample(s, in.texCoord).r * 1023.0;
-            float2 cbcr = cbCrTexture.sample(s, in.texCoord).rg * 1023.0;
-            cb = cbcr.x - 512.0;
-            cr = cbcr.y - 512.0;
-        } else {
-            y  = texture.sample(s, in.texCoord).r;
-            float2 cbcr = cbCrTexture.sample(s, in.texCoord).rg;
-            cb = cbcr.x - 0.5;
-            cr = cbcr.y - 0.5;
-        }
+        // 8-bit(NV12/R8Unorm) 与 10-bit(P010/R16Unorm) 共用：P010 的 10 位有效值存于
+        // 16-bit 高位，Unorm 归一化后的采样值与 8-bit 一致（偏差 <0.1%），无需按位深区分。
+        float y = texture.sample(s, in.texCoord).r;
+        float2 cbcr = cbCrTexture.sample(s, in.texCoord).rg;
+
+        float cb = cbcr.x - 0.5;
+        float cr = cbcr.y - 0.5;
 
         float r, g, b;
         if (isFullRange) {
-            if (is10Bit) {
-                // 10-bit full range: Y [0,1023], Cb/Cr [-512,511]
-                r = y + 1.402 * cr;
-                g = y - 0.344 * cb - 0.714 * cr;
-                b = y + 1.772 * cb;
-                r /= 1023.0; g /= 1023.0; b /= 1023.0;
-            } else {
-                r = y + 1.402 * cr;
-                g = y - 0.344 * cb - 0.714 * cr;
-                b = y + 1.772 * cb;
-            }
+            r = y + 1.402 * cr;
+            g = y - 0.344 * cb - 0.714 * cr;
+            b = y + 1.772 * cb;
         } else {
-            if (is10Bit) {
-                // 10-bit video range: Y [64,940], Cb/Cr [64,960]→偏移后 [-512,511]
-                // BT.709: 与 8-bit 同系数，但用 10-bit 偏移
-                float yy = (y - 64.0) * (1.164 * 255.0 / (940.0 - 64.0));
-                r = (yy + 1.793 * cr) / 1023.0;
-                g = (yy - 0.213 * cb - 0.533 * cr) / 1023.0;
-                b = (yy + 2.115 * cb) / 1023.0;
-            } else {
-                r = 1.164 * (y - 0.0625) + 1.793 * cr;
-                g = 1.164 * (y - 0.0625) - 0.213 * cb - 0.533 * cr;
-                b = 1.164 * (y - 0.0625) + 2.115 * cb;
-            }
+            r = 1.164 * (y - 0.0625) + 1.793 * cr;
+            g = 1.164 * (y - 0.0625) - 0.213 * cb - 0.533 * cr;
+            b = 1.164 * (y - 0.0625) + 2.115 * cb;
         }
 
         return float4(clamp(r, 0.0, 1.0),
@@ -94,43 +70,20 @@ fragment float4 filterFragment(VertexOut in [[stage_in]],
 
     float3 rgb;
     if (p.isYUV != 0) {
-        float y, cb, cr;
-        if (p.is10Bit != 0) {
-            // 10-bit YUV：R16Unorm 归一化到 [0,1]，乘 1023 恢复 10-bit 整数值
-            y  = tex0.sample(s, uv).r * 1023.0;
-            float2 cbcr = tex1.sample(s, uv).rg * 1023.0;
-            cb = cbcr.x - 512.0;
-            cr = cbcr.y - 512.0;
-        } else {
-            y  = tex0.sample(s, uv).r;
-            float2 cbcr = tex1.sample(s, uv).rg;
-            cb = cbcr.x - 0.5;
-            cr = cbcr.y - 0.5;
-        }
-
+        // 8/10-bit 共用归一化公式，理由同 fragmentShader
+        float y = tex0.sample(s, uv).r;
+        float2 cbcr = tex1.sample(s, uv).rg;
+        float cb = cbcr.x - 0.5;
+        float cr = cbcr.y - 0.5;
         if (p.isFullRange != 0) {
-            if (p.is10Bit != 0) {
-                rgb = float3(y + 1.402 * cr,
-                             y - 0.344 * cb - 0.714 * cr,
-                             y + 1.772 * cb) / 1023.0;
-            } else {
-                rgb = float3(y + 1.402 * cr,
-                             y - 0.344 * cb - 0.714 * cr,
-                             y + 1.772 * cb);
-            }
+            rgb = float3(y + 1.402 * cr,
+                         y - 0.344 * cb - 0.714 * cr,
+                         y + 1.772 * cb);
         } else {
-            if (p.is10Bit != 0) {
-                // 10-bit video range: Y [64,940], Cb/Cr [64,960]→偏移后 [-512,511]
-                float yy = (y - 64.0) * (1.164 * 255.0 / (940.0 - 64.0));
-                rgb = float3(yy + 1.793 * cr,
-                             yy - 0.213 * cb - 0.533 * cr,
-                             yy + 2.115 * cb) / 1023.0;
-            } else {
-                float yy = 1.164 * (y - 0.0625);
-                rgb = float3(yy + 1.793 * cr,
-                             yy - 0.213 * cb - 0.533 * cr,
-                             yy + 2.115 * cb);
-            }
+            float yy = 1.164 * (y - 0.0625);
+            rgb = float3(yy + 1.793 * cr,
+                         yy - 0.213 * cb - 0.533 * cr,
+                         yy + 2.115 * cb);
         }
     } else {
         rgb = tex0.sample(s, uv).rgb;
