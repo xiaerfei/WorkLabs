@@ -183,9 +183,13 @@
         self.sidFilters[streamID] = filter;
     }
     [filter applyParams:params];
-    // identity（全默认）→ 移出激活链路，透传零开销；否则挂上 perStreamFilter
+    // identity（全默认）→ 连实例一起移除：移出链路恢复透传，同时让滤镜的输出 pool 随实例
+    // 释放，归还激活期间堆高的 BGRA 高水位内存（CVPixelBufferPool 只增不缩）。在途帧各自
+    // retain 保活；正在执行的 processVideoFrame 持有字典读出的强引用，实例在调用结束后才 dealloc。
+    // 再次调参时按需重建实例，filterParamsForStreamID 对缺失实例返回默认值，UI 回读不受影响。
     if (filter.isIdentity) {
         [self.perStreamFilters removeObjectForKey:streamID];
+        [self.sidFilters removeObjectForKey:streamID];
     } else {
         self.perStreamFilters[streamID] = filter;
     }

@@ -71,11 +71,14 @@ NSString * const WLFilterKeyCropRight  = @"cropRight";
 - (WLNodeType)filterType { return WLNodeTypeVideo; }
 
 - (BOOL)isIdentity {
+    // 阈值比较：滑块拖回「0/1」时浮点值未必精确等于默认值，精确比较会让视觉上已归零的
+    // 滤镜驻留链路（持续渲染 + pool 内存不释放）
+    const float e = 0.001f;
     return !self.hMirror && !self.vMirror
-        && self.brightness == 0.0f && self.contrast == 1.0f
-        && self.saturation == 1.0f && self.hue == 0.0f
-        && self.cropTop == 0.0f && self.cropBottom == 0.0f
-        && self.cropLeft == 0.0f && self.cropRight == 0.0f;
+        && fabsf(self.brightness) < e && fabsf(self.contrast - 1.0f) < e
+        && fabsf(self.saturation - 1.0f) < e && fabsf(self.hue) < e
+        && self.cropTop < e && self.cropBottom < e
+        && self.cropLeft < e && self.cropRight < e;
 }
 
 #pragma mark - Params

@@ -170,6 +170,11 @@ static inline uint64_t wl_mono_now_ns(void) {
                streamID:(NSString *)streamID {
     if (!pixelBuffer || streamID.length == 0) return;
 
+    // 合成关闭（纯预览）时直接丢弃：tick 不在跑、无人消费，囤进 asyncFrames 只会滚到
+    // 30 帧上限反复倒掉（滤镜激活时即 ~1GB 的 4K BGRA 高水位）。重新开启时 startTick
+    // 已清陈帧 + 冷启动重锚，丢弃无副作用。
+    if (!self.isRenderingEnabled) return;
+
     CVPixelBufferRetain(pixelBuffer);   // 交给 WLMixFrame 持有
     dispatch_async(self.serialQueue, ^{
         WLMixFrame *f = [WLMixFrame new];
