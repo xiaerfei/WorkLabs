@@ -7,6 +7,7 @@
 #import <Masonry/Masonry.h>
 #import "WLBasicVideoFilter.h"
 #import "WLEncoderConfig.h"
+#import "WLLog.h"
 
 // scrollView documentView：翻转坐标系，使内容自上而下排布、初始显示在顶部
 @interface WLFlippedView : NSView
@@ -45,6 +46,7 @@
 @property (nonatomic, strong, nullable) NSPopUpButton *encAudioPopup;
 // 测试页
 @property (nonatomic, strong, nullable) NSTextField *testStatusLabel;
+@property (nonatomic, strong, nullable) NSPopUpButton *logLevelPopup;
 @end
 
 @implementation WLSettingsWindowController
@@ -389,9 +391,35 @@
     hint.lineBreakMode = NSLineBreakByWordWrapping;
     hint.maximumNumberOfLines = 0;
 
+    // 日志等级
+    self.logLevelPopup = [[NSPopUpButton alloc] init];
+    NSArray<NSDictionary *> *levels = @[
+        @{@"t": @"错误 (Error)",   @"v": @(WLLogLevelError)},
+        @{@"t": @"警告 (Warn)",    @"v": @(WLLogLevelWarn)},
+        @{@"t": @"信息 (Info)",    @"v": @(WLLogLevelInfo)},
+        @{@"t": @"调试 (Debug)",   @"v": @(WLLogLevelDebug)},
+        @{@"t": @"详细 (Verbose)", @"v": @(WLLogLevelVerbose)},
+    ];
+    for (NSDictionary *l in levels) {
+        [self.logLevelPopup addItemWithTitle:l[@"t"]];
+        self.logLevelPopup.lastItem.representedObject = l[@"v"];
+    }
+    [self selectPopup:self.logLevelPopup value:@([WLLog globalLevel])];
+    self.logLevelPopup.target = self;
+    self.logLevelPopup.action = @selector(logLevelChanged:);
+    NSView *logRow = [self rowWithTitle:@"日志等级" control:self.logLevelPopup];
+
+    NSTextField *logHint = [NSTextField labelWithString:@"低于所选等级的日志不输出，立即生效并持久保存。注：调试/详细 两档的日志在 Release 构建被编译裁剪。"];
+    logHint.textColor = [NSColor secondaryLabelColor];
+    logHint.font = [NSFont systemFontOfSize:11];
+    logHint.lineBreakMode = NSLineBreakByWordWrapping;
+    logHint.maximumNumberOfLines = 0;
+
     [panel addSubview:testBtn];
     [panel addSubview:self.testStatusLabel];
     [panel addSubview:hint];
+    [panel addSubview:logRow];
+    [panel addSubview:logHint];
     [testBtn mas_makeConstraints:^(MASConstraintMaker *make) {
         make.top.equalTo(panel).offset(24);
         make.left.equalTo(panel).offset(24);
@@ -406,7 +434,25 @@
         make.left.equalTo(panel).offset(24);
         make.right.equalTo(panel).offset(-24);
     }];
+    [logRow mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.top.equalTo(hint.mas_bottom).offset(24);
+        make.left.equalTo(panel).offset(24);
+        make.right.equalTo(panel).offset(-24);
+        make.height.equalTo(@24);
+    }];
+    [logHint mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.top.equalTo(logRow.mas_bottom).offset(8);
+        make.left.equalTo(logRow).offset(102);
+        make.right.equalTo(logRow);
+    }];
     return panel;
+}
+
+- (void)logLevelChanged:(NSPopUpButton *)sender {
+    NSNumber *v = sender.selectedItem.representedObject;
+    if (![v isKindOfClass:[NSNumber class]]) return;
+    [WLLog setGlobalLevelPersisted:(WLLogLevel)v.integerValue];
+    WLLogI(@"Settings", @"日志等级 → %@", sender.selectedItem.title);
 }
 
 - (void)testButtonClicked:(id)sender {
@@ -827,6 +873,7 @@
     [super showWindow:sender];
     [self syncPushFromDelegate];
     [self reloadSources];
+    [self selectPopup:self.logLevelPopup value:@([WLLog globalLevel])]; // 等级可能被代码改过，回显
 }
 
 - (void)syncPushFromDelegate {

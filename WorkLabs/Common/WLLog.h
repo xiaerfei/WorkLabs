@@ -32,6 +32,13 @@ typedef NS_ENUM(NSInteger, WLLogLevel) {
 /// 某 tag 单独阈值（覆盖全局），用于「只放开某模块的 debug/verbose」。
 + (void)setLevel:(WLLogLevel)level forTag:(NSString *)tag;
 
+/// 当前全局级别（设置界面回显用）。
++ (WLLogLevel)globalLevel;
+/// 设置全局级别并持久化到 NSUserDefaults（设置界面用）。
++ (void)setGlobalLevelPersisted:(WLLogLevel)level;
+/// App 启动时调用一次：恢复持久化的全局级别（无记录则保持默认 Info）。
++ (void)restorePersistedGlobalLevel;
+
 + (BOOL)shouldLog:(WLLogLevel)level tag:(NSString *)tag;
 + (void)log:(WLLogLevel)level tag:(NSString *)tag message:(NSString *)message;
 

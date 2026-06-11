@@ -9,9 +9,27 @@
 
 static WLLogLevel sGlobalLevel = WLLogLevelInfo;
 static NSMutableDictionary<NSString *, NSNumber *> *sTagLevels = nil;
+static NSString * const kWLLogGlobalLevelKey = @"WLLogGlobalLevel";
 
 + (void)setGlobalLevel:(WLLogLevel)level {
     sGlobalLevel = level;
+}
+
++ (WLLogLevel)globalLevel {
+    return sGlobalLevel;
+}
+
++ (void)setGlobalLevelPersisted:(WLLogLevel)level {
+    sGlobalLevel = level;
+    [[NSUserDefaults standardUserDefaults] setInteger:level forKey:kWLLogGlobalLevelKey];
+}
+
++ (void)restorePersistedGlobalLevel {
+    NSNumber *saved = [[NSUserDefaults standardUserDefaults] objectForKey:kWLLogGlobalLevelKey];
+    if (!saved) return;
+    NSInteger v = saved.integerValue;
+    if (v < WLLogLevelError || v > WLLogLevelVerbose) return; // 脏数据保持默认
+    sGlobalLevel = (WLLogLevel)v;
 }
 
 + (void)setLevel:(WLLogLevel)level forTag:(NSString *)tag {
