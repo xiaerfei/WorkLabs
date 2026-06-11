@@ -49,6 +49,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSDictionary *)settingsFilterParamsForStreamID:(NSString *)streamID;
 - (void)settingsDidSetFilterParams:(NSDictionary *)params forStreamID:(NSString *)streamID;
 
+// 移除某路输入源（停源 + 从画布/混音/合成中移除）。纯音频源在画布上无浮层，
+// 只能经设置界面删除，故删除入口统一收敛到此回调。
+- (void)settingsDidRequestRemoveSource:(NSString *)streamID;
+
 // 推流：服务器地址 + 密钥（推流码）。编辑结束即回调宿主保存；打开设置时回读做回填。
 - (void)settingsDidSetPushURL:(NSString *)url streamKey:(NSString *)streamKey;
 - (nullable NSString *)settingsPushURL;

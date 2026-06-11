@@ -474,16 +474,24 @@ static const CGFloat kIconBgAlpha = 0.05;
 
 - (void)renderingDidRequestRemove:(id<WLStreamRenderingProtocol>)rendering {
     if (![rendering isKindOfClass:[WLStreamPreview class]]) return;
-    WLStreamPreview *preview = (WLStreamPreview *)rendering;
-    NSString *sid = [self.previewToSID objectForKey:preview];
+    NSString *sid = [self.previewToSID objectForKey:(WLStreamPreview *)rendering];
+    [self removeSourceByStreamID:sid];
+}
+
+// 按 streamID 移除源：兼容有浮层（摄像头/媒体文件）与无浮层（麦克风等纯音频源）。
+// 画布右键删除与设置界面「移除此源」共用此路径。
+- (void)removeSourceByStreamID:(NSString *)sid {
     if (sid.length == 0) return;
     id<WLStreamSourceProtocol> source = self.sidToSource[sid];
-
     if (source) [self.manager removeSource:source];   // 停源 + 从 mixer/canvas/mix 移除
-    preview.selected = NO;
-    [preview flush];
-    [preview removeFromSuperview];
-    [self.previewToSID removeObjectForKey:preview];
+
+    WLStreamPreview *preview = [self previewForStreamID:sid];   // 纯音频源无浮层
+    if (preview) {
+        preview.selected = NO;
+        [preview flush];
+        [preview removeFromSuperview];
+        [self.previewToSID removeObjectForKey:preview];
+    }
     [self.sidToSource removeObjectForKey:sid];
     [self syncPreviewZOrder];
     [self.settingsWC reloadSources];
@@ -597,6 +605,10 @@ static const CGFloat kIconBgAlpha = 0.05;
 
 - (void)settingsDidSetFilterParams:(NSDictionary *)params forStreamID:(NSString *)streamID {
     [self.manager setFilterParams:params forStreamID:streamID];
+}
+
+- (void)settingsDidRequestRemoveSource:(NSString *)streamID {
+    [self removeSourceByStreamID:streamID];
 }
 
 - (void)settingsDidSetPushURL:(NSString *)url streamKey:(NSString *)streamKey {

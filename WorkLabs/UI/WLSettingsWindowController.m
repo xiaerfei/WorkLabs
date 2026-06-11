@@ -532,6 +532,7 @@
     WLFromType t = (WLFromType)[item[@"fromType"] integerValue];
     NSString *typeName = (t == WLFromTypeMic) ? @"麦克风"
                        : (t == WLFromTypeCamera) ? @"摄像头" : @"视频文件";
+    BOOL isAudioOnly = (t == WLFromTypeMic);   // 纯音频源：只显示音量（及将来音频滤镜），无视频滤镜
 
     // 当前源滤镜初值（向宿主回读，无则默认）
     NSDictionary *fp = [WLBasicVideoFilter defaultParams];
@@ -595,6 +596,33 @@
         self.sourceVolPercent = nil;
     }
 
+    // —— 视频滤镜（镜像/颜色校正/裁剪）：纯音频源不显示，位置预留给将来的音频滤镜 ——
+    if (!isAudioOnly) {
+        [self appendVideoFilterControlsToColumn:col params:fp];
+    }
+
+    // —— 移除此源 ——（音频源画布上无浮层，删除入口主要靠这里；视频源也多一个入口）
+    NSButton *removeBtn = [NSButton buttonWithTitle:@"移除此源" target:self action:@selector(removeCurrentSource:)];
+    NSMutableAttributedString *removeTitle =
+        [[NSMutableAttributedString alloc] initWithString:@"移除此源"];
+    [removeTitle addAttribute:NSForegroundColorAttributeName value:[NSColor systemRedColor]
+                        range:NSMakeRange(0, removeTitle.length)];
+    removeBtn.attributedTitle = removeTitle;
+    [col addArrangedSubview:removeBtn];
+
+    [col mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.edges.equalTo(doc);
+    }];
+    [doc mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.top.left.right.equalTo(scroll.contentView);
+        make.width.equalTo(scroll.contentView);
+    }];
+    return scroll;
+}
+
+// 视频滤镜控件区（镜像/颜色校正/裁剪 + 恢复默认）——仅含视频画面的源使用。
+// 控件登记到 self.filterControls / filterValueLabels，供 collectFilterParams / 重置复用。
+- (void)appendVideoFilterControlsToColumn:(NSStackView *)col params:(NSDictionary *)fp {
     // —— 镜像 ——
     NSTextField *mirrorTitle = [self filterSectionTitle:@"镜像"];
     [col addArrangedSubview:mirrorTitle];
@@ -642,15 +670,7 @@
     // —— 重置 ——
     NSButton *resetBtn = [NSButton buttonWithTitle:@"恢复默认滤镜" target:self action:@selector(resetFilters:)];
     [col addArrangedSubview:resetBtn];
-
-    [col mas_makeConstraints:^(MASConstraintMaker *make) {
-        make.edges.equalTo(doc);
-    }];
-    [doc mas_makeConstraints:^(MASConstraintMaker *make) {
-        make.top.left.right.equalTo(scroll.contentView);
-        make.width.equalTo(scroll.contentView);
-    }];
-    return scroll;
+    [col setCustomSpacing:18 afterView:resetBtn];
 }
 
 // 滤镜分区标题
@@ -769,6 +789,22 @@
 - (void)resetVolume:(id)sender {
     self.sourceVolSlider.doubleValue = 1.0;
     [self sourceVolumeChanged:self.sourceVolSlider];
+}
+
+// 「移除此源」：确认后请求宿主移除当前属性页对应的源（停源 + 从画布/混音/合成移除）
+- (void)removeCurrentSource:(id)sender {
+    NSString *sid = self.currentSourceSID;
+    if (sid.length == 0) return;
+    NSAlert *alert = [[NSAlert alloc] init];
+    alert.messageText = @"移除此输入源？";
+    alert.informativeText = @"将停止该源，并从画布、混音与合成中移除。";
+    [alert addButtonWithTitle:@"移除"];
+    [alert addButtonWithTitle:@"取消"];
+    alert.buttons.firstObject.hasDestructiveAction = YES;
+    if ([alert runModal] != NSAlertFirstButtonReturn) return;
+    if ([self.settingsDelegate respondsToSelector:@selector(settingsDidRequestRemoveSource:)]) {
+        [self.settingsDelegate settingsDidRequestRemoveSource:sid];
+    }
 }
 
 #pragma mark - 面板切换
