@@ -33,6 +33,10 @@ NS_ASSUME_NONNULL_BEGIN
 /// 显示时间戳（秒）
 @property (nonatomic, assign) Float64 pts;
 
+/// 循环播放累计时间线偏移（纳秒）：第 N 轮 = N×时长，把回绕的 pts 摊平成单调时间线，
+/// 使 render 的 baseTime 首帧锚定后永不重锚（绕开双 render 线程共享 baseTime 的重锚竞态）。
+@property (nonatomic, assign) int64_t timelineOffsetNs;
+
 /// 队列链表指针
 @property (nonatomic, strong, nullable) WLNode *next;
 

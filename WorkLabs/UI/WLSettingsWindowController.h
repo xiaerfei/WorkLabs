@@ -53,6 +53,10 @@ NS_ASSUME_NONNULL_BEGIN
 // 只能经设置界面删除，故删除入口统一收敛到此回调。
 - (void)settingsDidRequestRemoveSource:(NSString *)streamID;
 
+// 循环播放开关（仅视频文件源有意义；摄像头/麦克风为实时源，无循环概念）
+- (BOOL)settingsLoopEnabledForStreamID:(NSString *)streamID;
+- (void)settingsDidSetLoopEnabled:(BOOL)loop forStreamID:(NSString *)streamID;
+
 // 推流：服务器地址 + 密钥（推流码）。编辑结束即回调宿主保存；打开设置时回读做回填。
 - (void)settingsDidSetPushURL:(NSString *)url streamKey:(NSString *)streamKey;
 - (nullable NSString *)settingsPushURL;

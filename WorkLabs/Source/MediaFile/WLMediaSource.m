@@ -156,6 +156,7 @@ static inline int64_t wl_clamp_deadline(int64_t deadline) {
         self.videoPtsOffset = 0.0;
         self.audioPtsOffset = 0.0;
         atomic_init(&_baseTimeNs, 0);
+        _loopEnabled = YES;   // 默认循环播放（先验证核心逻辑，UI 开关后续接入）
     }
     return self;
 }
@@ -194,11 +195,30 @@ static inline int64_t wl_clamp_deadline(int64_t deadline) {
 
     AVPacket *packet = av_packet_alloc();
 
+    // 循环播放时间线：每完整播完一轮，offset 进位一个时长，使回绕的 pts 摊平成单调递增的
+    // effective pts（render 用），从而 baseTime 首帧锚定后永不重锚 —— 绕开双 render 线程
+    // 共享 baseTime 的重锚竞态。loop = seek 回起点（落在首个关键帧），不必丢帧/不必 flush 队列。
+    int64_t timelineOffsetNs = 0;
+    int64_t loopDurationNs = (int64_t)(self.totalDuration * 1e9);
+
     while (self.isRunning) {
 
         int ret = av_read_frame(self.formatContext, packet);
         if (ret == AVERROR_EOF) {
-            break;  // 正常结束
+            if (self.loopEnabled && self.isRunning && loopDurationNs > 0) {
+                // 回到容器起点继续；新一轮帧在时间线上接续而非回绕
+                int64_t startTs = (self.formatContext->start_time != AV_NOPTS_VALUE)
+                                  ? self.formatContext->start_time : 0;
+                int seekRet = avformat_seek_file(self.formatContext, -1,
+                                                 INT64_MIN, startTs, INT64_MAX, 0);
+                if (seekRet < 0) {
+                    NSLog(@"[WLMediaSource] loop seek 失败: %s", av_err2str(seekRet));
+                    break;
+                }
+                timelineOffsetNs += loopDurationNs;
+                continue;
+            }
+            break;  // 不循环 → 正常结束
         }
         if (ret < 0) {
             NSLog(@"[WLMediaSource] 读取错误: %s", av_err2str(ret));
@@ -209,9 +229,9 @@ static inline int64_t wl_clamp_deadline(int64_t deadline) {
             continue;  // 跳过空包
         }
         if (packet->stream_index == self.videoStreamIndex) {
-            [self addPacket:packet type:WLNodeTypeVideo];
+            [self addPacket:packet type:WLNodeTypeVideo offset:timelineOffsetNs];
         } else if (packet->stream_index == self.audioStreamIndex) {
-            [self addPacket:packet type:WLNodeTypeAudio];
+            [self addPacket:packet type:WLNodeTypeAudio offset:timelineOffsetNs];
         }
         av_packet_unref(packet);
     }
@@ -224,13 +244,14 @@ static inline int64_t wl_clamp_deadline(int64_t deadline) {
     [self.audioPacketQueue abort];
 }
 
-- (void)addPacket:(AVPacket *)packet type:(WLNodeType)type {
+- (void)addPacket:(AVPacket *)packet type:(WLNodeType)type offset:(int64_t)timelineOffsetNs {
     AVPacket *nodeP = av_packet_alloc();
     av_packet_ref(nodeP, packet);
 
     WLNode *node = [WLNode new];
     node.type = type;
     node.packet = nodeP;
+    node.timelineOffsetNs = timelineOffsetNs;
     if (type == WLNodeTypeVideo) {
         [self.videoPacketQueue enQueue:node];
     } else if (type == WLNodeTypeAudio) {
@@ -269,12 +290,14 @@ static inline int64_t wl_clamp_deadline(int64_t deadline) {
 - (void)videoDecodeThread {
     [NSThread currentThread].name = @"com.wl-decode-video.thread";
     AVFrame *frame = av_frame_alloc();
+    int64_t curOffset = 0;   // 跟随最近喂入解码器的包的时间线偏移（loop 用）
 
     while (self.isVideoDecoding) {
 
         int result = [self decodeFrame:self.videoCodecContext
                                  frame:frame
-                                 queue:self.videoPacketQueue];
+                                 queue:self.videoPacketQueue
+                                offset:&curOffset];
         if (result == 0) {
             // 封装 Node 并入队 FrameQueue
             WLNode *node = [[WLNode alloc] init];
@@ -282,6 +305,7 @@ static inline int64_t wl_clamp_deadline(int64_t deadline) {
             node.fromType = WLFromTypeMedia;
             node.type = WLNodeTypeVideo;
             node.pts = wl_pts_from_av(frame->pts, self.videoTimeBase);
+            node.timelineOffsetNs = curOffset;   // 继承本轮时间线偏移
             [self.videoFrameQueue enQueue:node];
         } else if (result == AVERROR_EOF) {
             break;
@@ -298,17 +322,20 @@ static inline int64_t wl_clamp_deadline(int64_t deadline) {
 - (void)audioDecodeThread {
     [NSThread currentThread].name = @"com.wl-decode-audio.thread";
     AVFrame *frame = av_frame_alloc();
+    int64_t curOffset = 0;   // 跟随最近喂入解码器的包的时间线偏移（loop 用）
     while (self.isAudioDecoding) {
 
         int result = [self decodeFrame:self.audioCodecContext
                                  frame:frame
-                                 queue:self.audioPacketQueue];
+                                 queue:self.audioPacketQueue
+                                offset:&curOffset];
         if (result == 0) {
             WLNode *node = [[WLNode alloc] init];
             node.frame = av_frame_clone(frame);
             node.fromType = WLFromTypeMedia;
             node.type = WLNodeTypeAudio;
             node.pts = wl_pts_from_av(frame->pts, self.audioTimeBase);
+            node.timelineOffsetNs = curOffset;   // 继承本轮时间线偏移
             [self.audioFrameQueue enQueue:node];
         } else if (result == AVERROR_EOF) {
             break;
@@ -324,7 +351,8 @@ static inline int64_t wl_clamp_deadline(int64_t deadline) {
 
 - (int)decodeFrame:(AVCodecContext *)avctx
              frame:(AVFrame *)frame
-             queue:(WLNodeQueue *)queue {
+             queue:(WLNodeQueue *)queue
+            offset:(int64_t *)ioOffset {
     int ret = AVERROR(EAGAIN);
 
     while (1) {
@@ -346,6 +374,8 @@ static inline int64_t wl_clamp_deadline(int64_t deadline) {
                 // 超时，继续等待
                 continue;
             }
+
+            *ioOffset = node.timelineOffsetNs;   // 记录最近喂入包的时间线偏移，供 frame 继承（loop）
 
             ret = avcodec_send_packet(avctx, node.packet);
 
@@ -377,14 +407,16 @@ static inline int64_t wl_clamp_deadline(int64_t deadline) {
             continue;
         }
         int64_t pts_ns = (int64_t)(normalized_pts * 1e9);   // 有符号：归一化后边界帧 pts 可能微负
+        // 循环播放：叠加本帧所属轮次的时间线偏移，使回绕的 pts 摊平成单调递增 → baseTime 永不重锚
+        int64_t eff_pts_ns = pts_ns + node.timelineOffsetNs;
 
         // 首帧用 CAS 锚定 baseTime = 现在(单调) - 首帧 pts，使首帧立即出。
         // video/audio 谁先到谁设、另一路读同一值 → 共享时基即 A/V 同步（无需轮询等待）。
         int64_t expected = 0;
         atomic_compare_exchange_strong(&_baseTimeNs, &expected,
-                                       (int64_t)wl_mono_now_ns() - pts_ns);
+                                       (int64_t)wl_mono_now_ns() - eff_pts_ns);
         int64_t baseTime = atomic_load_explicit(&_baseTimeNs, memory_order_relaxed);
-        int64_t deadline = baseTime + pts_ns + (int64_t)(self.videoPtsOffset * 1e9);
+        int64_t deadline = baseTime + eff_pts_ns + (int64_t)(self.videoPtsOffset * 1e9);
         deadline = wl_clamp_deadline(deadline);   // 坏 pts 兜底：离谱远的 deadline 钳到 now+1s，防挂死
 
         // 节流：分段睡到 deadline（单调钟），单段 ≤20ms，每段复查停止标志 → abort 最多延迟一段。
@@ -421,13 +453,14 @@ static inline int64_t wl_clamp_deadline(int64_t deadline) {
             continue;
         }
         int64_t pts_ns = (int64_t)(normalized_pts * 1e9);   // 有符号：归一化后边界帧 pts 可能微负
+        int64_t eff_pts_ns = pts_ns + node.timelineOffsetNs;   // 循环：叠加轮次偏移，摊平成单调
 
         // 与视频共享同一 baseTime（CAS 锚定，谁先到谁设）→ 相同 pts 同时刻输出，即 A/V 同步
         int64_t expected = 0;
         atomic_compare_exchange_strong(&_baseTimeNs, &expected,
-                                       (int64_t)wl_mono_now_ns() - pts_ns);
+                                       (int64_t)wl_mono_now_ns() - eff_pts_ns);
         int64_t baseTime = atomic_load_explicit(&_baseTimeNs, memory_order_relaxed);
-        int64_t deadline = baseTime + pts_ns + (int64_t)(self.audioPtsOffset * 1e9);
+        int64_t deadline = baseTime + eff_pts_ns + (int64_t)(self.audioPtsOffset * 1e9);
         deadline = wl_clamp_deadline(deadline);   // 坏 pts 兜底：离谱远的 deadline 钳到 now+1s，防挂死
 
         // 节流：分段睡到 deadline（单调钟），单段 ≤20ms，每段复查停止标志 → abort 最多延迟一段。

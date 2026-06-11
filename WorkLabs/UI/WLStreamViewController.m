@@ -611,6 +611,17 @@ static const CGFloat kIconBgAlpha = 0.05;
     [self removeSourceByStreamID:streamID];
 }
 
+- (BOOL)settingsLoopEnabledForStreamID:(NSString *)streamID {
+    id<WLStreamSourceProtocol> s = self.sidToSource[streamID];
+    if ([s isKindOfClass:[WLMediaSource class]]) return ((WLMediaSource *)s).loopEnabled;
+    return NO;
+}
+
+- (void)settingsDidSetLoopEnabled:(BOOL)loop forStreamID:(NSString *)streamID {
+    id<WLStreamSourceProtocol> s = self.sidToSource[streamID];
+    if ([s isKindOfClass:[WLMediaSource class]]) ((WLMediaSource *)s).loopEnabled = loop;
+}
+
 - (void)settingsDidSetPushURL:(NSString *)url streamKey:(NSString *)streamKey {
     self.pushURL = url;
     self.streamKey = streamKey;

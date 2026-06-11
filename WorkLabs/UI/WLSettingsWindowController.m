@@ -33,6 +33,7 @@
 @property (nonatomic, copy, nullable) NSString *currentSourceSID;
 @property (nonatomic, strong, nullable) NSSlider *sourceVolSlider;
 @property (nonatomic, strong, nullable) NSTextField *sourceVolPercent;
+@property (nonatomic, strong, nullable) NSButton *loopCheckbox;
 // 当前源属性页的滤镜控件（key 见 WLBasicVideoFilter）→ 控件 / 数值标签
 @property (nonatomic, strong, nullable) NSMutableDictionary<NSString *, NSControl *> *filterControls;
 @property (nonatomic, strong, nullable) NSMutableDictionary<NSString *, NSTextField *> *filterValueLabels;
@@ -596,6 +597,21 @@
         self.sourceVolPercent = nil;
     }
 
+    // —— 播放（仅视频文件源：摄像头/麦克风为实时源，无循环概念） ——
+    if (t == WLFromTypeMedia) {
+        NSButton *loopBox = [NSButton checkboxWithTitle:@"循环播放" target:self action:@selector(loopCheckboxChanged:)];
+        BOOL loop = YES;
+        if ([self.settingsDelegate respondsToSelector:@selector(settingsLoopEnabledForStreamID:)]) {
+            loop = [self.settingsDelegate settingsLoopEnabledForStreamID:sid];
+        }
+        loopBox.state = loop ? NSControlStateValueOn : NSControlStateValueOff;
+        self.loopCheckbox = loopBox;
+        [col addArrangedSubview:loopBox];
+        [col setCustomSpacing:18 afterView:loopBox];
+    } else {
+        self.loopCheckbox = nil;
+    }
+
     // —— 视频滤镜（镜像/颜色校正/裁剪）：纯音频源不显示，位置预留给将来的音频滤镜 ——
     if (!isAudioOnly) {
         [self appendVideoFilterControlsToColumn:col params:fp];
@@ -714,6 +730,14 @@
     if (self.currentSourceSID.length > 0 &&
         [self.settingsDelegate respondsToSelector:@selector(settingsDidSetVolume:forStreamID:)]) {
         [self.settingsDelegate settingsDidSetVolume:v forStreamID:self.currentSourceSID];
+    }
+}
+
+- (void)loopCheckboxChanged:(NSButton *)sender {
+    if (self.currentSourceSID.length > 0 &&
+        [self.settingsDelegate respondsToSelector:@selector(settingsDidSetLoopEnabled:forStreamID:)]) {
+        [self.settingsDelegate settingsDidSetLoopEnabled:(sender.state == NSControlStateValueOn)
+                                             forStreamID:self.currentSourceSID];
     }
 }
 

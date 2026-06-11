@@ -28,6 +28,9 @@ typedef NS_ENUM(NSUInteger, WLMediaSourceState) {
 @property (nonatomic, assign, readonly) WLMediaSourceState state;
 @property (nonatomic, assign, readonly) Float64 totalDuration;
 
+// 循环播放：YES 时播放到结尾自动 seek 回开头继续（默认 YES）
+@property (nonatomic, assign) BOOL loopEnabled;
+
 - (instancetype)initWithPath:(NSString *)path;
 
 @end
