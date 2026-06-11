@@ -37,6 +37,9 @@ NS_ASSUME_NONNULL_BEGIN
 /// 使 render 的 baseTime 首帧锚定后永不重锚（绕开双 render 线程共享 baseTime 的重锚竞态）。
 @property (nonatomic, assign) int64_t timelineOffsetNs;
 
+/// seek 世代号：每次 seek 自增。render 丢弃 epoch ≠ 当前世代的在途旧帧（跨 seek 边界的残留）。
+@property (nonatomic, assign) int epoch;
+
 /// 队列链表指针
 @property (nonatomic, strong, nullable) WLNode *next;
 

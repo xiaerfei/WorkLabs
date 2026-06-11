@@ -124,6 +124,15 @@ static inline int64_t wl_clamp_deadline(int64_t deadline) {
     // 0 = 未锚定；由首个出帧的 render 线程用 CAS 设定，video/audio 共享同一值即 A/V 同步。
     _Atomic(int64_t) _baseTimeNs;
 
+    // seek：世代号 + 请求标志/目标位置。parse 线程执行 seek 时自增 _epoch，render 据此
+    // 丢弃跨 seek 边界的在途旧帧。_pendingSeekNs 为目标文件内位置（纳秒，未含 startTime）。
+    _Atomic int _epoch;
+    _Atomic(_Bool) _seekRequested;
+    _Atomic(int64_t) _pendingSeekNs;
+
+    // 当前播放位置（纳秒，文件内归一化时间，循环回绕到 0）：video render 写、UI 原子读。
+    _Atomic(int64_t) _currentTimeNs;
+
     // 软解视频帧转换: AVFrame → BGRA CVPixelBufferRef
     struct SwsContext *_swsCtx;
     int _swsSrcW, _swsSrcH;
@@ -156,6 +165,10 @@ static inline int64_t wl_clamp_deadline(int64_t deadline) {
         self.videoPtsOffset = 0.0;
         self.audioPtsOffset = 0.0;
         atomic_init(&_baseTimeNs, 0);
+        atomic_init(&_epoch, 0);
+        atomic_init(&_seekRequested, false);
+        atomic_init(&_pendingSeekNs, 0);
+        atomic_init(&_currentTimeNs, 0);
         _loopEnabled = YES;   // 默认循环播放（先验证核心逻辑，UI 开关后续接入）
     }
     return self;
@@ -177,6 +190,17 @@ static inline int64_t wl_clamp_deadline(int64_t deadline) {
 
 - (WLNodeType)streamType {
     return WLNodeTypeVideo;
+}
+
+- (Float64)currentTime {
+    return atomic_load_explicit(&_currentTimeNs, memory_order_relaxed) / 1e9;
+}
+
+// 仅置请求标志 + 目标位置；真正的 seek 在 parse 线程的读包循环里执行（避免跨线程动 FFmpeg）。
+- (void)seekTo:(Float64)seconds {
+    if (seconds < 0) seconds = 0;
+    atomic_store_explicit(&_pendingSeekNs, (int64_t)(seconds * 1e9), memory_order_relaxed);
+    atomic_store_explicit(&_seekRequested, true, memory_order_release);
 }
 
 #pragma mark - Parse Thread
@@ -202,6 +226,24 @@ static inline int64_t wl_clamp_deadline(int64_t deadline) {
     int64_t loopDurationNs = (int64_t)(self.totalDuration * 1e9);
 
     while (self.isRunning) {
+
+        // seek 请求：集中在读包循环里执行（FFmpeg 操作只在 parse 线程）。
+        if (atomic_exchange_explicit(&_seekRequested, false, memory_order_acquire)) {
+            double targetSec = atomic_load_explicit(&_pendingSeekNs, memory_order_relaxed) / 1e9;
+            int64_t ts = (int64_t)((targetSec + self.startTime) * AV_TIME_BASE);
+            int sret = avformat_seek_file(self.formatContext, -1, INT64_MIN, ts, INT64_MAX, 0);
+            if (sret >= 0) {
+                // 清旧位置缓冲的包；epoch 进位让 render 丢弃跨边界的在途旧帧；时间线 offset 与
+                // baseTime 归零 → 新位置首帧重锚、从目标点开始节流（解码器由 decode 线程按 epoch flush）。
+                [self.videoPacketQueue flush];
+                [self.audioPacketQueue flush];
+                atomic_fetch_add_explicit(&_epoch, 1, memory_order_release);
+                timelineOffsetNs = 0;
+                atomic_store_explicit(&_baseTimeNs, 0, memory_order_relaxed);
+            } else {
+                NSLog(@"[WLMediaSource] seek 失败: %s", av_err2str(sret));
+            }
+        }
 
         int ret = av_read_frame(self.formatContext, packet);
         if (ret == AVERROR_EOF) {
@@ -252,6 +294,7 @@ static inline int64_t wl_clamp_deadline(int64_t deadline) {
     node.type = type;
     node.packet = nodeP;
     node.timelineOffsetNs = timelineOffsetNs;
+    node.epoch = atomic_load_explicit(&_epoch, memory_order_relaxed);
     if (type == WLNodeTypeVideo) {
         [self.videoPacketQueue enQueue:node];
     } else if (type == WLNodeTypeAudio) {
@@ -291,13 +334,15 @@ static inline int64_t wl_clamp_deadline(int64_t deadline) {
     [NSThread currentThread].name = @"com.wl-decode-video.thread";
     AVFrame *frame = av_frame_alloc();
     int64_t curOffset = 0;   // 跟随最近喂入解码器的包的时间线偏移（loop 用）
+    int curEpoch = 0;        // 跟随最近喂入包的 seek 世代号
 
     while (self.isVideoDecoding) {
 
         int result = [self decodeFrame:self.videoCodecContext
                                  frame:frame
                                  queue:self.videoPacketQueue
-                                offset:&curOffset];
+                                offset:&curOffset
+                                 epoch:&curEpoch];
         if (result == 0) {
             // 封装 Node 并入队 FrameQueue
             WLNode *node = [[WLNode alloc] init];
@@ -306,6 +351,7 @@ static inline int64_t wl_clamp_deadline(int64_t deadline) {
             node.type = WLNodeTypeVideo;
             node.pts = wl_pts_from_av(frame->pts, self.videoTimeBase);
             node.timelineOffsetNs = curOffset;   // 继承本轮时间线偏移
+            node.epoch = curEpoch;               // 继承 seek 世代号
             [self.videoFrameQueue enQueue:node];
         } else if (result == AVERROR_EOF) {
             break;
@@ -323,12 +369,14 @@ static inline int64_t wl_clamp_deadline(int64_t deadline) {
     [NSThread currentThread].name = @"com.wl-decode-audio.thread";
     AVFrame *frame = av_frame_alloc();
     int64_t curOffset = 0;   // 跟随最近喂入解码器的包的时间线偏移（loop 用）
+    int curEpoch = 0;        // 跟随最近喂入包的 seek 世代号
     while (self.isAudioDecoding) {
 
         int result = [self decodeFrame:self.audioCodecContext
                                  frame:frame
                                  queue:self.audioPacketQueue
-                                offset:&curOffset];
+                                offset:&curOffset
+                                 epoch:&curEpoch];
         if (result == 0) {
             WLNode *node = [[WLNode alloc] init];
             node.frame = av_frame_clone(frame);
@@ -336,6 +384,7 @@ static inline int64_t wl_clamp_deadline(int64_t deadline) {
             node.type = WLNodeTypeAudio;
             node.pts = wl_pts_from_av(frame->pts, self.audioTimeBase);
             node.timelineOffsetNs = curOffset;   // 继承本轮时间线偏移
+            node.epoch = curEpoch;               // 继承 seek 世代号
             [self.audioFrameQueue enQueue:node];
         } else if (result == AVERROR_EOF) {
             break;
@@ -352,7 +401,8 @@ static inline int64_t wl_clamp_deadline(int64_t deadline) {
 - (int)decodeFrame:(AVCodecContext *)avctx
              frame:(AVFrame *)frame
              queue:(WLNodeQueue *)queue
-            offset:(int64_t *)ioOffset {
+            offset:(int64_t *)ioOffset
+             epoch:(int *)ioEpoch {
     int ret = AVERROR(EAGAIN);
 
     while (1) {
@@ -375,6 +425,11 @@ static inline int64_t wl_clamp_deadline(int64_t deadline) {
                 continue;
             }
 
+            // 跨 seek 边界的首个新世代包：先 flush 解码器内部状态再喂入，否则旧参考帧污染新位置。
+            if (node.epoch != *ioEpoch) {
+                avcodec_flush_buffers(avctx);
+                *ioEpoch = node.epoch;
+            }
             *ioOffset = node.timelineOffsetNs;   // 记录最近喂入包的时间线偏移，供 frame 继承（loop）
 
             ret = avcodec_send_packet(avctx, node.packet);
@@ -400,6 +455,12 @@ static inline int64_t wl_clamp_deadline(int64_t deadline) {
         WLNode *node = [self.videoFrameQueue deQueueWithBlock:YES];
         if (!node) break;
 
+        // 跨 seek 边界的旧世代帧（队列里的积压）：直接丢弃，不输出、不参与重锚。
+        if (node.epoch != atomic_load_explicit(&_epoch, memory_order_acquire)) {
+            [node flush];
+            continue;
+        }
+
         // start_time 归一化（参照 mpv demux.c:2858 ts_offset = -start_time）
         Float64 normalized_pts = wl_add_pts(node.pts, -self.startTime);
         if (!wl_pts_is_valid(normalized_pts)) {
@@ -419,10 +480,16 @@ static inline int64_t wl_clamp_deadline(int64_t deadline) {
         int64_t deadline = baseTime + eff_pts_ns + (int64_t)(self.videoPtsOffset * 1e9);
         deadline = wl_clamp_deadline(deadline);   // 坏 pts 兜底：离谱远的 deadline 钳到 now+1s，防挂死
 
-        // 节流：分段睡到 deadline（单调钟），单段 ≤20ms，每段复查停止标志 → abort 最多延迟一段。
-        // deadline 已过（微负 pts / 过期帧）则首次即返回 YES，不睡，立即输出。
-        while (self.isVideoRendering && !wl_sleep_until_segment(deadline, 20000000LL /* 20ms */)) { }
+        // 节流：分段睡到 deadline（单调钟），单段 ≤20ms，每段复查停止标志与 seek 世代 →
+        // abort/seek 最多延迟一段。deadline 已过（微负 pts / 过期帧）则首次即返回 YES，立即输出。
+        while (self.isVideoRendering
+               && node.epoch == atomic_load_explicit(&_epoch, memory_order_acquire)
+               && !wl_sleep_until_segment(deadline, 20000000LL /* 20ms */)) { }
         if (!self.isVideoRendering) { [node flush]; break; }   // 睡眠期间被叫停：丢帧退出
+        // 睡眠期间发生 seek → 当前帧已属旧世代，丢弃不输出
+        if (node.epoch != atomic_load_explicit(&_epoch, memory_order_acquire)) { [node flush]; continue; }
+
+        atomic_store_explicit(&_currentTimeNs, (int64_t)(normalized_pts * 1e9), memory_order_relaxed);  // 回显当前播放位置
 
         CVPixelBufferRef pixelBuffer = [self convertVideoFrame:node.frame];
         if (pixelBuffer && _delegate) {
@@ -446,6 +513,12 @@ static inline int64_t wl_clamp_deadline(int64_t deadline) {
         WLNode *node = [self.audioFrameQueue deQueueWithBlock:YES];
         if (!node) break;
 
+        // 跨 seek 边界的旧世代帧（队列里的积压）：直接丢弃。
+        if (node.epoch != atomic_load_explicit(&_epoch, memory_order_acquire)) {
+            [node flush];
+            continue;
+        }
+
         // start_time 归一化（参照 mpv demux.c:2858 ts_offset = -start_time）
         Float64 normalized_pts = wl_add_pts(node.pts, -self.startTime);
         if (!wl_pts_is_valid(normalized_pts)) {
@@ -463,9 +536,13 @@ static inline int64_t wl_clamp_deadline(int64_t deadline) {
         int64_t deadline = baseTime + eff_pts_ns + (int64_t)(self.audioPtsOffset * 1e9);
         deadline = wl_clamp_deadline(deadline);   // 坏 pts 兜底：离谱远的 deadline 钳到 now+1s，防挂死
 
-        // 节流：分段睡到 deadline（单调钟），单段 ≤20ms，每段复查停止标志 → abort 最多延迟一段。
-        while (self.isAudioRendering && !wl_sleep_until_segment(deadline, 20000000LL /* 20ms */)) { }
+        // 节流：分段睡到 deadline（单调钟），单段 ≤20ms，每段复查停止标志与 seek 世代。
+        while (self.isAudioRendering
+               && node.epoch == atomic_load_explicit(&_epoch, memory_order_acquire)
+               && !wl_sleep_until_segment(deadline, 20000000LL /* 20ms */)) { }
         if (!self.isAudioRendering) { [node flush]; break; }   // 睡眠期间被叫停：丢帧退出
+        // 睡眠期间发生 seek → 当前帧已属旧世代，丢弃不输出
+        if (node.epoch != atomic_load_explicit(&_epoch, memory_order_acquire)) { [node flush]; continue; }
 
         CMSampleBufferRef sampleBuffer = [self convertAudioFrame:node.frame];
         if (sampleBuffer && _delegate) {

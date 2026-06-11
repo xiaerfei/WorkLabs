@@ -179,8 +179,14 @@ static const CGFloat kIconBgAlpha = 0.05;
 @property (nonatomic, strong) WLSettingsWindowController *settingsWC;
 
 // 进度条
+@property (nonatomic, strong) NSView *progressBar;               // 进度条容器（画布与工具栏之间）
 @property (nonatomic, strong) NSSlider *progressSlider;
-@property (nonatomic, assign) BOOL sliderVisible;
+@property (nonatomic, strong) NSTextField *curTimeLabel;        // 当前位置 mm:ss
+@property (nonatomic, strong) NSTextField *durTimeLabel;        // 总时长 mm:ss
+@property (nonatomic, strong, nullable) NSTimer *progressTimer; // 200ms 回显
+@property (nonatomic, copy, nullable) NSString *selectedSID;    // 当前选中的源
+@property (nonatomic, assign) BOOL isDraggingSlider;            // 拖动中：回显不覆盖 thumb
+@property (nonatomic, assign) NSTimeInterval suppressRehomeUntil; // 松手 seek 后抑制回显到此刻（单调秒），等 seek 生效
 
 // 底部工具栏
 @property (nonatomic, strong) NSView *toolbarView;
@@ -197,6 +203,7 @@ static const CGFloat kIconBgAlpha = 0.05;
 
 - (void)dealloc {
     [[NSNotificationCenter defaultCenter] removeObserver:self];
+    [_progressTimer invalidate];
 }
 
 - (void)viewDidLoad {
@@ -228,7 +235,7 @@ static const CGFloat kIconBgAlpha = 0.05;
     };
 
     [self setupCanvas];
-    [self setupSlider];
+    [self setupProgressBar];
     [self setupToolbar];
     [self layoutUI];
 }
@@ -265,16 +272,51 @@ static const CGFloat kIconBgAlpha = 0.05;
                object:canvas];
 }
 
-- (void)setupSlider {
+- (void)setupProgressBar {
+    self.progressBar = [[NSView alloc] init];
+    self.progressBar.wantsLayer = YES;
+    self.progressBar.layer.backgroundColor = [NSColor colorWithWhite:0.12 alpha:1.0].CGColor;
+    self.progressBar.layer.masksToBounds = YES;   // 高度收 0 隐藏时裁掉内部控件，免溢出
+    self.progressBar.translatesAutoresizingMaskIntoConstraints = NO;
+    self.progressBar.hidden = YES;                // 初始无选中媒体源
+    [self.view addSubview:self.progressBar];
+
+    self.curTimeLabel = [NSTextField labelWithString:@"00:00"];
+    self.curTimeLabel.textColor = [NSColor secondaryLabelColor];
+    self.curTimeLabel.font = [NSFont monospacedDigitSystemFontOfSize:11 weight:NSFontWeightRegular];
+    self.curTimeLabel.alignment = NSTextAlignmentRight;
+
+    self.durTimeLabel = [NSTextField labelWithString:@"00:00"];
+    self.durTimeLabel.textColor = [NSColor secondaryLabelColor];
+    self.durTimeLabel.font = [NSFont monospacedDigitSystemFontOfSize:11 weight:NSFontWeightRegular];
+
     self.progressSlider = [[NSSlider alloc] init];
     self.progressSlider.minValue = 0;
     self.progressSlider.maxValue = 1;
     self.progressSlider.doubleValue = 0;
+    self.progressSlider.continuous = YES;         // 拖动中持续回调 → 实时更新目标时间
     self.progressSlider.target = self;
     self.progressSlider.action = @selector(sliderValueChanged:);
-    self.progressSlider.translatesAutoresizingMaskIntoConstraints = NO;
-    self.progressSlider.hidden = YES;
-    [self.view addSubview:self.progressSlider];
+
+    [self.progressBar addSubview:self.curTimeLabel];
+    [self.progressBar addSubview:self.progressSlider];
+    [self.progressBar addSubview:self.durTimeLabel];
+
+    [self.curTimeLabel mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.left.equalTo(self.progressBar).offset(16);
+        make.centerY.equalTo(self.progressBar);
+        make.width.mas_equalTo(44);
+    }];
+    [self.durTimeLabel mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.right.equalTo(self.progressBar).offset(-16);
+        make.centerY.equalTo(self.progressBar);
+        make.width.mas_equalTo(44);
+    }];
+    [self.progressSlider mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.left.equalTo(self.curTimeLabel.mas_right).offset(8);
+        make.right.equalTo(self.durTimeLabel.mas_left).offset(-8);
+        make.centerY.equalTo(self.progressBar);
+    }];
 }
 
 - (void)setupToolbar {
@@ -331,18 +373,17 @@ static const CGFloat kIconBgAlpha = 0.05;
 - (void)layoutUI {
     [self.canvasArea mas_makeConstraints:^(MASConstraintMaker *make) {
         make.top.left.right.equalTo(self.view);
-        make.bottom.equalTo(self.progressSlider.mas_top);
+        make.bottom.equalTo(self.progressBar.mas_top);
     }];
     [self updateCanvasAspect];
 
-    [self.progressSlider mas_makeConstraints:^(MASConstraintMaker *make) {
-        make.left.equalTo(self.view).offset(16);
-        make.right.equalTo(self.view).offset(-16);
-        make.height.mas_equalTo(20);
+    [self.progressBar mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.left.right.equalTo(self.view);
+        make.height.mas_equalTo(0);   // 初始隐藏 = 0 高；选中媒体源时 update 为 28
     }];
 
     [self.toolbarView mas_makeConstraints:^(MASConstraintMaker *make) {
-        make.top.equalTo(self.progressSlider.mas_bottom);
+        make.top.equalTo(self.progressBar.mas_bottom);
         make.left.right.equalTo(self.view);
         make.bottom.equalTo(self.view);
         make.height.mas_equalTo(56);
@@ -460,12 +501,18 @@ static const CGFloat kIconBgAlpha = 0.05;
     for (WLStreamPreview *p in [[self.previewToSID keyEnumerator] allObjects]) {
         p.selected = (p == rendering);
     }
+    if ([rendering isKindOfClass:[WLStreamPreview class]]) {
+        self.selectedSID = [self.previewToSID objectForKey:(WLStreamPreview *)rendering];
+        [self updateProgressBar];
+    }
 }
 
 - (void)deselectAllPreviews {
     for (WLStreamPreview *p in [[self.previewToSID keyEnumerator] allObjects]) {
         p.selected = NO;
     }
+    self.selectedSID = nil;
+    [self updateProgressBar];
 }
 
 - (void)renderingDidRequestDeselect:(id<WLStreamRenderingProtocol>)rendering {
@@ -493,6 +540,10 @@ static const CGFloat kIconBgAlpha = 0.05;
         [self.previewToSID removeObjectForKey:preview];
     }
     [self.sidToSource removeObjectForKey:sid];
+    if ([self.selectedSID isEqualToString:sid]) {
+        self.selectedSID = nil;
+        [self updateProgressBar];   // 选中的源被删 → 收起进度条
+    }
     [self syncPreviewZOrder];
     [self.settingsWC reloadSources];
     NSLog(@"[WLStreamViewController] 已移除源 sid=%@", sid);
@@ -1048,7 +1099,79 @@ static const CGFloat kIconBgAlpha = 0.05;
 }
 
 - (void)sliderValueChanged:(id)sender {
-    NSLog(@"[WLStreamViewController] slider: %.2f", self.progressSlider.doubleValue);
+    WLMediaSource *m = [self boundMediaSource];
+    if (!m) return;
+    double frac = self.progressSlider.doubleValue;
+    Float64 dur = m.totalDuration;
+    self.curTimeLabel.stringValue = [self formatTime:frac * dur];   // 拖动中预览目标时间
+    // NSSlider 拖动持续发 action；松手那次事件是 LeftMouseUp → 此时才真正 seek（避免频繁 flush）
+    if (self.view.window.currentEvent.type == NSEventTypeLeftMouseUp) {
+        self.isDraggingSlider = NO;
+        // seek 异步生效（解码线程几十 ms 后才到新位置）：抑制回显 0.5s，让 thumb 停在松手位置，
+        // 否则这段空档里 progressTick 读到旧 currentTime 会把 thumb 拉回原处再跳到目标（闪一下）。
+        self.suppressRehomeUntil = NSProcessInfo.processInfo.systemUptime + 0.5;
+        [m seekTo:frac * dur];
+    } else {
+        self.isDraggingSlider = YES;
+    }
+}
+
+#pragma mark - 进度条（跟随选中的媒体源）
+
+- (WLMediaSource *)boundMediaSource {
+    if (self.selectedSID.length == 0) return nil;
+    id<WLStreamSourceProtocol> s = self.sidToSource[self.selectedSID];
+    return [s isKindOfClass:[WLMediaSource class]] ? (WLMediaSource *)s : nil;
+}
+
+// 选中态变化时调用：选中视频文件源 → 显示进度条 + 启回显；否则收起并停回显
+- (void)updateProgressBar {
+    if ([self boundMediaSource]) {
+        [self setProgressBarVisible:YES];
+        [self startProgressTimer];
+        [self progressTick:nil];   // 立即刷新一次
+    } else {
+        [self setProgressBarVisible:NO];
+        [self stopProgressTimer];
+    }
+}
+
+- (void)setProgressBarVisible:(BOOL)visible {
+    self.progressBar.hidden = !visible;
+    [self.progressBar mas_updateConstraints:^(MASConstraintMaker *make) {
+        make.height.mas_equalTo(visible ? 28 : 0);
+    }];
+}
+
+- (void)startProgressTimer {
+    if (self.progressTimer) return;
+    __weak typeof(self) wself = self;
+    self.progressTimer = [NSTimer scheduledTimerWithTimeInterval:0.2 repeats:YES block:^(NSTimer *t) {
+        [wself progressTick:t];
+    }];
+}
+
+- (void)stopProgressTimer {
+    [self.progressTimer invalidate];
+    self.progressTimer = nil;
+}
+
+- (void)progressTick:(NSTimer *)timer {
+    WLMediaSource *m = [self boundMediaSource];
+    if (!m) return;
+    Float64 dur = m.totalDuration;
+    self.durTimeLabel.stringValue = [self formatTime:dur];
+    if (self.isDraggingSlider) return;   // 拖动中由 slider action 主导，不被回显覆盖
+    if (NSProcessInfo.processInfo.systemUptime < self.suppressRehomeUntil) return;  // seek 刚触发，等生效
+    Float64 cur = m.currentTime;
+    if (dur > 0) self.progressSlider.doubleValue = cur / dur;
+    self.curTimeLabel.stringValue = [self formatTime:cur];
+}
+
+- (NSString *)formatTime:(Float64)sec {
+    if (sec < 0 || !isfinite(sec)) sec = 0;
+    int s = (int)(sec + 0.5);
+    return [NSString stringWithFormat:@"%02d:%02d", s / 60, s % 60];
 }
 
 #pragma mark - Private

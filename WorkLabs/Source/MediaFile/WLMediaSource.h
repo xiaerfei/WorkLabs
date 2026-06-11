@@ -31,6 +31,12 @@ typedef NS_ENUM(NSUInteger, WLMediaSourceState) {
 // 循环播放：YES 时播放到结尾自动 seek 回开头继续（默认 YES）
 @property (nonatomic, assign) BOOL loopEnabled;
 
+// 当前播放位置（秒，文件内归一化时间；循环时回绕到 0）。供进度条回显，原子读。
+@property (atomic, readonly) Float64 currentTime;
+
+// 跳转到指定位置（秒，文件内时间）。线程安全：仅置请求标志，由 parse 线程异步执行。
+- (void)seekTo:(Float64)seconds;
+
 - (instancetype)initWithPath:(NSString *)path;
 
 @end
