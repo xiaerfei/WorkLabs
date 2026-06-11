@@ -37,6 +37,10 @@ typedef NS_ENUM(NSUInteger, WLMediaSourceState) {
 // 跳转到指定位置（秒，文件内时间）。线程安全：仅置请求标志，由 parse 线程异步执行。
 - (void)seekTo:(Float64)seconds;
 
+// 暂停/播放：暂停时画面定格、音频静默、播放时间冻结（恢复后从暂停点接续，不追赶）。线程安全。
+- (BOOL)isPaused;
+- (void)setPaused:(BOOL)paused;
+
 - (instancetype)initWithPath:(NSString *)path;
 
 @end

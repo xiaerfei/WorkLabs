@@ -133,6 +133,12 @@ static inline int64_t wl_clamp_deadline(int64_t deadline) {
     // 当前播放位置（纳秒，文件内归一化时间，循环回绕到 0）：video render 写、UI 原子读。
     _Atomic(int64_t) _currentTimeNs;
 
+    // 暂停：_paused 为真时 render 原地等待（画面定格 + 音频静默）。_pauseOffsetNs 累计暂停总时长，
+    // render 的 deadline 加上它 → 恢复后时间线整体后移，不会狂刷追赶暂停时长。_pauseStartNs 记暂停起点墙钟。
+    _Atomic(_Bool) _paused;
+    _Atomic(int64_t) _pauseOffsetNs;
+    _Atomic(int64_t) _pauseStartNs;
+
     // 软解视频帧转换: AVFrame → BGRA CVPixelBufferRef
     struct SwsContext *_swsCtx;
     int _swsSrcW, _swsSrcH;
@@ -169,6 +175,9 @@ static inline int64_t wl_clamp_deadline(int64_t deadline) {
         atomic_init(&_seekRequested, false);
         atomic_init(&_pendingSeekNs, 0);
         atomic_init(&_currentTimeNs, 0);
+        atomic_init(&_paused, false);
+        atomic_init(&_pauseOffsetNs, 0);
+        atomic_init(&_pauseStartNs, 0);
         _loopEnabled = YES;   // 默认循环播放（先验证核心逻辑，UI 开关后续接入）
     }
     return self;
@@ -201,6 +210,25 @@ static inline int64_t wl_clamp_deadline(int64_t deadline) {
     if (seconds < 0) seconds = 0;
     atomic_store_explicit(&_pendingSeekNs, (int64_t)(seconds * 1e9), memory_order_relaxed);
     atomic_store_explicit(&_seekRequested, true, memory_order_release);
+    // seek 必恢复播放：暂停时 render 不消费 → 全链路背压 → parse 卡死 → seek 无法执行。清暂停解背压。
+    atomic_store_explicit(&_paused, false, memory_order_release);
+}
+
+- (BOOL)isPaused {
+    return atomic_load_explicit(&_paused, memory_order_relaxed);
+}
+
+- (void)setPaused:(BOOL)paused {
+    if (paused == atomic_load_explicit(&_paused, memory_order_relaxed)) return;
+    if (paused) {
+        atomic_store_explicit(&_pauseStartNs, (int64_t)wl_mono_now_ns(), memory_order_relaxed);
+        atomic_store_explicit(&_paused, true, memory_order_release);
+    } else {
+        // 恢复：把本次暂停的墙钟时长累加进补偿 → render 的 deadline 整体后移，恢复后从暂停点接续。
+        int64_t start = atomic_load_explicit(&_pauseStartNs, memory_order_relaxed);
+        atomic_fetch_add_explicit(&_pauseOffsetNs, (int64_t)wl_mono_now_ns() - start, memory_order_relaxed);
+        atomic_store_explicit(&_paused, false, memory_order_release);
+    }
 }
 
 #pragma mark - Parse Thread
@@ -240,6 +268,7 @@ static inline int64_t wl_clamp_deadline(int64_t deadline) {
                 atomic_fetch_add_explicit(&_epoch, 1, memory_order_release);
                 timelineOffsetNs = 0;
                 atomic_store_explicit(&_baseTimeNs, 0, memory_order_relaxed);
+                atomic_store_explicit(&_pauseOffsetNs, 0, memory_order_relaxed);  // 时间线随 seek 重置
             } else {
                 NSLog(@"[WLMediaSource] seek 失败: %s", av_err2str(sret));
             }
@@ -476,16 +505,21 @@ static inline int64_t wl_clamp_deadline(int64_t deadline) {
         int64_t expected = 0;
         atomic_compare_exchange_strong(&_baseTimeNs, &expected,
                                        (int64_t)wl_mono_now_ns() - eff_pts_ns);
-        int64_t baseTime = atomic_load_explicit(&_baseTimeNs, memory_order_relaxed);
-        int64_t deadline = baseTime + eff_pts_ns + (int64_t)(self.videoPtsOffset * 1e9);
-        deadline = wl_clamp_deadline(deadline);   // 坏 pts 兜底：离谱远的 deadline 钳到 now+1s，防挂死
-
-        // 节流：分段睡到 deadline（单调钟），单段 ≤20ms，每段复查停止标志与 seek 世代 →
-        // abort/seek 最多延迟一段。deadline 已过（微负 pts / 过期帧）则首次即返回 YES，立即输出。
+        // 节流 + 暂停：循环内重算 deadline（含暂停补偿 pauseOffset）；暂停时原地等待，不前进、不输出。
+        // 每段 ≤20ms 复查停止 / seek 世代 / 暂停 → 响应及时；deadline 已过（过期帧）则跳出立即输出。
         while (self.isVideoRendering
-               && node.epoch == atomic_load_explicit(&_epoch, memory_order_acquire)
-               && !wl_sleep_until_segment(deadline, 20000000LL /* 20ms */)) { }
-        if (!self.isVideoRendering) { [node flush]; break; }   // 睡眠期间被叫停：丢帧退出
+               && node.epoch == atomic_load_explicit(&_epoch, memory_order_acquire)) {
+            if (atomic_load_explicit(&_paused, memory_order_acquire)) {
+                wl_sleep_until_segment((int64_t)wl_mono_now_ns() + 20000000LL, 20000000LL);
+                continue;   // 暂停：原地睡 20ms 轮询，不消费、不前进
+            }
+            int64_t baseTime = atomic_load_explicit(&_baseTimeNs, memory_order_relaxed);
+            int64_t pauseOff = atomic_load_explicit(&_pauseOffsetNs, memory_order_relaxed);
+            int64_t deadline = wl_clamp_deadline(baseTime + eff_pts_ns + pauseOff
+                                                 + (int64_t)(self.videoPtsOffset * 1e9));
+            if (wl_sleep_until_segment(deadline, 20000000LL /* 20ms */)) break;   // 到点 → 输出
+        }
+        if (!self.isVideoRendering) { [node flush]; break; }   // 被叫停：丢帧退出
         // 睡眠期间发生 seek → 当前帧已属旧世代，丢弃不输出
         if (node.epoch != atomic_load_explicit(&_epoch, memory_order_acquire)) { [node flush]; continue; }
 
@@ -532,16 +566,20 @@ static inline int64_t wl_clamp_deadline(int64_t deadline) {
         int64_t expected = 0;
         atomic_compare_exchange_strong(&_baseTimeNs, &expected,
                                        (int64_t)wl_mono_now_ns() - eff_pts_ns);
-        int64_t baseTime = atomic_load_explicit(&_baseTimeNs, memory_order_relaxed);
-        int64_t deadline = baseTime + eff_pts_ns + (int64_t)(self.audioPtsOffset * 1e9);
-        deadline = wl_clamp_deadline(deadline);   // 坏 pts 兜底：离谱远的 deadline 钳到 now+1s，防挂死
-
-        // 节流：分段睡到 deadline（单调钟），单段 ≤20ms，每段复查停止标志与 seek 世代。
+        // 节流 + 暂停：循环内重算 deadline（含暂停补偿）；暂停时原地等待，不前进、不输出。
         while (self.isAudioRendering
-               && node.epoch == atomic_load_explicit(&_epoch, memory_order_acquire)
-               && !wl_sleep_until_segment(deadline, 20000000LL /* 20ms */)) { }
-        if (!self.isAudioRendering) { [node flush]; break; }   // 睡眠期间被叫停：丢帧退出
-        // 睡眠期间发生 seek → 当前帧已属旧世代，丢弃不输出
+               && node.epoch == atomic_load_explicit(&_epoch, memory_order_acquire)) {
+            if (atomic_load_explicit(&_paused, memory_order_acquire)) {
+                wl_sleep_until_segment((int64_t)wl_mono_now_ns() + 20000000LL, 20000000LL);
+                continue;   // 暂停：原地睡 20ms 轮询
+            }
+            int64_t baseTime = atomic_load_explicit(&_baseTimeNs, memory_order_relaxed);
+            int64_t pauseOff = atomic_load_explicit(&_pauseOffsetNs, memory_order_relaxed);
+            int64_t deadline = wl_clamp_deadline(baseTime + eff_pts_ns + pauseOff
+                                                 + (int64_t)(self.audioPtsOffset * 1e9));
+            if (wl_sleep_until_segment(deadline, 20000000LL /* 20ms */)) break;
+        }
+        if (!self.isAudioRendering) { [node flush]; break; }
         if (node.epoch != atomic_load_explicit(&_epoch, memory_order_acquire)) { [node flush]; continue; }
 
         CMSampleBufferRef sampleBuffer = [self convertAudioFrame:node.frame];

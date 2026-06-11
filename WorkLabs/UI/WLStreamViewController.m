@@ -180,6 +180,7 @@ static const CGFloat kIconBgAlpha = 0.05;
 
 // 进度条
 @property (nonatomic, strong) NSView *progressBar;               // 进度条容器（画布与工具栏之间）
+@property (nonatomic, strong) NSButton *playPauseButton;        // 播放/暂停（进度条左侧）
 @property (nonatomic, strong) NSSlider *progressSlider;
 @property (nonatomic, strong) NSTextField *curTimeLabel;        // 当前位置 mm:ss
 @property (nonatomic, strong) NSTextField *durTimeLabel;        // 总时长 mm:ss
@@ -298,12 +299,28 @@ static const CGFloat kIconBgAlpha = 0.05;
     self.progressSlider.target = self;
     self.progressSlider.action = @selector(sliderValueChanged:);
 
+    self.playPauseButton = [[NSButton alloc] init];
+    self.playPauseButton.bordered = NO;
+    self.playPauseButton.imagePosition = NSImageOnly;
+    self.playPauseButton.target = self;
+    self.playPauseButton.action = @selector(playPauseClicked:);
+    self.playPauseButton.contentTintColor = [NSColor labelColor];
+    if (@available(macOS 11.0, *)) {
+        self.playPauseButton.image = [NSImage imageWithSystemSymbolName:@"pause.fill" accessibilityDescription:@"暂停/播放"];
+    }
+
+    [self.progressBar addSubview:self.playPauseButton];
     [self.progressBar addSubview:self.curTimeLabel];
     [self.progressBar addSubview:self.progressSlider];
     [self.progressBar addSubview:self.durTimeLabel];
 
+    [self.playPauseButton mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.left.equalTo(self.progressBar).offset(12);
+        make.centerY.equalTo(self.progressBar);
+        make.width.height.mas_equalTo(18);
+    }];
     [self.curTimeLabel mas_makeConstraints:^(MASConstraintMaker *make) {
-        make.left.equalTo(self.progressBar).offset(16);
+        make.left.equalTo(self.playPauseButton.mas_right).offset(10);
         make.centerY.equalTo(self.progressBar);
         make.width.mas_equalTo(44);
     }];
@@ -1124,6 +1141,22 @@ static const CGFloat kIconBgAlpha = 0.05;
     return [s isKindOfClass:[WLMediaSource class]] ? (WLMediaSource *)s : nil;
 }
 
+- (void)playPauseClicked:(id)sender {
+    WLMediaSource *m = [self boundMediaSource];
+    if (!m) return;
+    [m setPaused:!m.isPaused];
+    [self refreshPlayPauseIcon];
+}
+
+// 图标显示「点击将执行的操作」：播放中→pause.fill，暂停中→play.fill
+- (void)refreshPlayPauseIcon {
+    if (@available(macOS 11.0, *)) {
+        BOOL paused = [self boundMediaSource].isPaused;
+        NSString *sym = paused ? @"play.fill" : @"pause.fill";
+        self.playPauseButton.image = [NSImage imageWithSystemSymbolName:sym accessibilityDescription:nil];
+    }
+}
+
 // 选中态变化时调用：选中视频文件源 → 显示进度条 + 启回显；否则收起并停回显
 - (void)updateProgressBar {
     if ([self boundMediaSource]) {
@@ -1159,6 +1192,7 @@ static const CGFloat kIconBgAlpha = 0.05;
 - (void)progressTick:(NSTimer *)timer {
     WLMediaSource *m = [self boundMediaSource];
     if (!m) return;
+    [self refreshPlayPauseIcon];   // 图标始终同步（含 seek 自动恢复播放后）
     Float64 dur = m.totalDuration;
     self.durTimeLabel.stringValue = [self formatTime:dur];
     if (self.isDraggingSlider) return;   // 拖动中由 slider action 主导，不被回显覆盖
