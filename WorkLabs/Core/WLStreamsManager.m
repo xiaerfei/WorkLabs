@@ -266,6 +266,12 @@
     return v ? v.floatValue : 1.0f;
 }
 
+- (float)audioLevelForStreamID:(NSString *)streamID {
+    if (streamID.length == 0) return 0;
+    // 直访 ivar：电平轮询是只读路径，不该触发懒创建（self.mixer getter 会创建并启动混音器）
+    return _mixer ? [_mixer peakLevelForInput:streamID] : 0;
+}
+
 #pragma mark - Z-order（同步 canvas + mix）
 
 - (void)bringStreamToFront:(NSString *)streamID {

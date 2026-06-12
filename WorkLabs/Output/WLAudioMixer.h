@@ -24,6 +24,10 @@ NS_ASSUME_NONNULL_BEGIN
 // 设置某路增益（1.0=原始；<1 减小，>1 放大）。混音时该路样本乘以此增益。
 - (void)setGain:(float)gain forInput:(NSString *)inputID;
 
+// 读取某路当前电平（最近一拍混音中该路增益后的样本峰值，线性 0~1+）；
+// 无数据 / 断流 / 输入不存在时为 0。供 UI 电平表轮询，转 dBFS = 20·log10(level)。
+- (float)peakLevelForInput:(NSString *)inputID;
+
 // 写入某路 PCM（任意采样率/声道，Float32 或 S16 交错）；内部重采样进该路环形缓冲。
 - (void)writeSampleBuffer:(CMSampleBufferRef)sampleBuffer forInput:(NSString *)inputID;
 

@@ -7,6 +7,7 @@
 #import <Masonry/Masonry.h>
 #import "WLBasicVideoFilter.h"
 #import "WLEncoderConfig.h"
+#import "WLAudioLevelMeterView.h"
 #import "WLLog.h"
 
 // scrollView documentView：翻转坐标系，使内容自上而下排布、初始显示在顶部
@@ -16,7 +17,7 @@
 - (BOOL)isFlipped { return YES; }
 @end
 
-@interface WLSettingsWindowController () <NSTableViewDataSource, NSTableViewDelegate>
+@interface WLSettingsWindowController () <NSTableViewDataSource, NSTableViewDelegate, NSWindowDelegate>
 @property (nonatomic, strong) NSArray<NSDictionary *> *fixedCategories;    // 固定分类 {kind,title,symbol,panel}
 @property (nonatomic, strong) NSArray<NSDictionary *> *sidebarItems;       // 实际渲染项：固定分类 + group + 各源
 @property (nonatomic, strong) NSArray<NSDictionary *> *resolutionPresets;  // {t, w, h}
@@ -34,6 +35,10 @@
 @property (nonatomic, strong, nullable) NSSlider *sourceVolSlider;
 @property (nonatomic, strong, nullable) NSTextField *sourceVolPercent;
 @property (nonatomic, strong, nullable) NSButton *loopCheckbox;
+// 电平表（分贝指示）：源属性页可见且源有音频时以 30Hz 轮询宿主刷新
+@property (nonatomic, strong, nullable) WLAudioLevelMeterView *sourceLevelMeter;
+@property (nonatomic, strong, nullable) NSTextField *sourceLevelDbLabel;
+@property (nonatomic, strong, nullable) NSTimer *levelTimer;
 // 当前源属性页的滤镜控件（key 见 WLBasicVideoFilter）→ 控件 / 数值标签
 @property (nonatomic, strong, nullable) NSMutableDictionary<NSString *, NSControl *> *filterControls;
 @property (nonatomic, strong, nullable) NSMutableDictionary<NSString *, NSTextField *> *filterValueLabels;
@@ -62,6 +67,8 @@
 
     self = [super initWithWindow:window];
     if (self) {
+        window.delegate = self;   // windowWillClose: 停电平表轮询
+
         _currentCanvasSize = CGSizeMake(1920, 1080);
         _fixedCategories = @[
             @{@"kind": @"category", @"title": @"画布", @"symbol": @"display", @"panel": @0},
@@ -591,10 +598,30 @@
         volRow.spacing = 8;
         volRow.alignment = NSLayoutAttributeCenterY;
         [col addArrangedSubview:volRow];
-        [col setCustomSpacing:18 afterView:volRow];
+        [col setCustomSpacing:8 afterView:volRow];
+
+        // —— 电平（分贝指示）：混音节拍内实测、增益后（拖音量滑块表针随之变化） ——
+        NSTextField *mLabel = [NSTextField labelWithString:@"电平"];
+        mLabel.alignment = NSTextAlignmentRight;
+        [mLabel.widthAnchor constraintEqualToConstant:64].active = YES;
+        self.sourceLevelMeter = [[WLAudioLevelMeterView alloc] init];
+        [self.sourceLevelMeter.widthAnchor constraintEqualToConstant:170].active = YES;
+        [self.sourceLevelMeter.heightAnchor constraintEqualToConstant:8].active = YES;
+        self.sourceLevelDbLabel = [NSTextField labelWithString:@"-∞ dB"];
+        self.sourceLevelDbLabel.font = [NSFont monospacedDigitSystemFontOfSize:11 weight:NSFontWeightRegular];
+        self.sourceLevelDbLabel.textColor = [NSColor secondaryLabelColor];
+        [self.sourceLevelDbLabel.widthAnchor constraintEqualToConstant:56].active = YES;
+        NSStackView *meterRow = [NSStackView stackViewWithViews:@[mLabel, self.sourceLevelMeter, self.sourceLevelDbLabel]];
+        meterRow.orientation = NSUserInterfaceLayoutOrientationHorizontal;
+        meterRow.spacing = 8;
+        meterRow.alignment = NSLayoutAttributeCenterY;
+        [col addArrangedSubview:meterRow];
+        [col setCustomSpacing:18 afterView:meterRow];
     } else {
         self.sourceVolSlider = nil;
         self.sourceVolPercent = nil;
+        self.sourceLevelMeter = nil;
+        self.sourceLevelDbLabel = nil;
     }
 
     // —— 播放（仅视频文件源：摄像头/麦克风为实时源，无循环概念） ——
@@ -836,6 +863,9 @@
 - (void)showFixedPanelAtIndex:(NSInteger)idx {
     if (idx < 0 || idx >= (NSInteger)self.panels.count) return;
     self.currentSourceSID = nil;
+    self.sourceLevelMeter = nil;
+    self.sourceLevelDbLabel = nil;
+    [self updateLevelTimer];
     for (NSView *v in self.contentContainer.subviews) [v removeFromSuperview];
     NSView *panel = self.panels[idx];
     [self.contentContainer addSubview:panel];
@@ -852,6 +882,41 @@
     [panel mas_remakeConstraints:^(MASConstraintMaker *make) {
         make.edges.equalTo(self.contentContainer);
     }];
+    [self updateLevelTimer];
+}
+
+#pragma mark - 电平表轮询（源属性页可见且源有音频时 30Hz）
+
+- (void)updateLevelTimer {
+    BOOL need = (self.sourceLevelMeter != nil && self.currentSourceSID.length > 0 && self.window.isVisible);
+    if (need && !self.levelTimer) {
+        __weak typeof(self) wself = self;
+        self.levelTimer = [NSTimer timerWithTimeInterval:1.0 / 30.0 repeats:YES block:^(NSTimer *t) {
+            [wself levelTimerTick];
+        }];
+        // CommonModes：拖滑块/滚动期间表针不冻结
+        [[NSRunLoop mainRunLoop] addTimer:self.levelTimer forMode:NSRunLoopCommonModes];
+    } else if (!need && self.levelTimer) {
+        [self.levelTimer invalidate];
+        self.levelTimer = nil;
+    }
+}
+
+- (void)levelTimerTick {
+    if (!self.sourceLevelMeter || self.currentSourceSID.length == 0) return;
+    float pk = 0;
+    if ([self.settingsDelegate respondsToSelector:@selector(settingsAudioLevelForStreamID:)]) {
+        pk = [self.settingsDelegate settingsAudioLevelForStreamID:self.currentSourceSID];
+    }
+    [self.sourceLevelMeter updateWithLinearPeak:pk];
+    float db = self.sourceLevelMeter.displayDb;
+    self.sourceLevelDbLabel.stringValue = (db <= -59.5f) ? @"-∞ dB"
+                                        : [NSString stringWithFormat:@"%.0f dB", db];
+}
+
+- (void)windowWillClose:(NSNotification *)notification {
+    [self.levelTimer invalidate];
+    self.levelTimer = nil;
 }
 
 #pragma mark - sidebar 数据（固定分类 + 动态源）
@@ -934,6 +999,7 @@
     [self syncPushFromDelegate];
     [self reloadSources];
     [self selectPopup:self.logLevelPopup value:@([WLLog globalLevel])]; // 等级可能被代码改过，回显
+    [self updateLevelTimer];   // 关窗后重开：若停在源属性页则恢复电平轮询
 }
 
 - (void)syncPushFromDelegate {

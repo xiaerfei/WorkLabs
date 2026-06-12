@@ -32,6 +32,7 @@ static const int kRingSeconds = 1;                    // 每路环形缓冲容�
     int              srcChannels;
     int              srcFmt;     // enum AVSampleFormat
     float            gain;       // 混音增益（1.0=原始）
+    float            levelPeak;  // 最近一拍增益后的样本峰值（线性，电平表用）
 }
 @end
 
@@ -72,6 +73,7 @@ static const int kRingSeconds = 1;                    // 每路环形缓冲容�
         TPCircularBufferInit(&in->ring, kMixRate * kMixChannels * (int)sizeof(float) * kRingSeconds);
         in->swr = NULL; in->srcRate = 0; in->srcChannels = 0; in->srcFmt = -1;
         in->gain = 1.0f;
+        in->levelPeak = 0;
         self.inputs[inputID] = in;
     }
 }
@@ -93,6 +95,14 @@ static const int kRingSeconds = 1;                    // 每路环形缓冲容�
     @synchronized (self) {
         WLMixerInput *in = self.inputs[inputID];
         if (in) in->gain = gain;
+    }
+}
+
+- (float)peakLevelForInput:(NSString *)inputID {
+    if (inputID.length == 0) return 0;
+    @synchronized (self) {
+        WLMixerInput *in = self.inputs[inputID];
+        return in ? in->levelPeak : 0;
     }
 }
 
@@ -201,13 +211,20 @@ static const int kRingSeconds = 1;                    // 每路环形缓冲容�
         for (WLMixerInput *in in self.inputs.allValues) {
             int32_t availBytes = 0;
             void *tail = TPCircularBufferTail(&in->ring, &availBytes);
-            if (!tail || availBytes <= 0) continue;
+            if (!tail || availBytes <= 0) { in->levelPeak = 0; continue; }   // 断流/无数据 → 电平归零
             int wantBytes = frameFloats * (int)sizeof(float);
             int useBytes = MIN(availBytes, wantBytes);
             int useFloats = useBytes / (int)sizeof(float);
             const float *src = (const float *)tail;
             float g = in->gain;
-            for (int i = 0; i < useFloats; i++) mix[i] += src[i] * g;   // 增益后叠加
+            float pk = 0;
+            for (int i = 0; i < useFloats; i++) {                       // 增益后叠加，顺手测峰值
+                float v = src[i] * g;
+                mix[i] += v;
+                float a = fabsf(v);
+                if (a > pk) pk = a;
+            }
+            in->levelPeak = pk;                                          // 该路本拍电平（post-fader，随音量变化）
             TPCircularBufferConsume(&in->ring, useBytes);
             any = YES;
         }

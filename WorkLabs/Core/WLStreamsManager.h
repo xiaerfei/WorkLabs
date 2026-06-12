@@ -79,6 +79,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setVolume:(float)volume forStreamID:(NSString *)streamID;
 - (float)volumeForStreamID:(NSString *)streamID;
 
+// 读取某路源当前混音电平（增益后线性峰值 0~1+；无音频数据/断流为 0）。供 UI 电平表轮询。
+- (float)audioLevelForStreamID:(NSString *)streamID;
+
 // z-order 调整（同步 canvas + mix；调用方负责同步预览 subview 顺序）
 - (void)bringStreamToFront:(NSString *)streamID;
 - (void)sendStreamToBack:(NSString *)streamID;

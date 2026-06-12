@@ -667,6 +667,10 @@ static const CGFloat kIconBgAlpha = 0.05;
     return [self.manager volumeForStreamID:streamID];
 }
 
+- (float)settingsAudioLevelForStreamID:(NSString *)streamID {
+    return [self.manager audioLevelForStreamID:streamID];
+}
+
 - (NSDictionary *)settingsFilterParamsForStreamID:(NSString *)streamID {
     return [self.manager filterParamsForStreamID:streamID];
 }
