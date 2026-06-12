@@ -13,6 +13,7 @@
 #import "WLMediaSource.h"
 #import "WLMicSource.h"
 #import "WLSettingsWindowController.h"
+#import "WLAddSourceWindowController.h"
 #import "WLPusher.h"
 #import "WLCameraSource.h"
 #import "WLCameraSourceConfig.h"
@@ -143,7 +144,7 @@ static const CGFloat kIconBgAlpha = 0.05;
 
 #pragma mark - WLStreamViewController
 
-@interface WLStreamViewController () <WLStreamRenderingDelegate, WLSettingsWindowControllerDelegate, WLPusherDelegate>
+@interface WLStreamViewController () <WLStreamRenderingDelegate, WLSettingsWindowControllerDelegate, WLPusherDelegate, WLAddSourceWindowControllerDelegate>
 
 // 可用区（黑底，letterbox 背景）
 @property (nonatomic, strong) WLCanvasContainerView *canvasArea;
@@ -177,6 +178,9 @@ static const CGFloat kIconBgAlpha = 0.05;
 
 // 设置窗口
 @property (nonatomic, strong) WLSettingsWindowController *settingsWC;
+
+// 「添加源」窗口（左右双栏：已添加源 + 文件/摄像头/麦克风可添加项）
+@property (nonatomic, strong) WLAddSourceWindowController *addSourceWC;
 
 // 进度条
 @property (nonatomic, strong) NSView *progressBar;               // 进度条容器（画布与工具栏之间）
@@ -449,6 +453,7 @@ static const CGFloat kIconBgAlpha = 0.05;
     [self.previewToSID setObject:sid forKey:preview];
     self.sidToSource[sid] = source;
     [self.settingsWC reloadSources];
+    [self.addSourceWC reloadSources];
 
     [self.canvasView addSubview:preview];
 
@@ -494,6 +499,7 @@ static const CGFloat kIconBgAlpha = 0.05;
     [self.previewToSID setObject:sid forKey:preview];
     self.sidToSource[sid] = source;
     [self.settingsWC reloadSources];
+    [self.addSourceWC reloadSources];
 
     [self.canvasView addSubview:preview];
 
@@ -563,6 +569,7 @@ static const CGFloat kIconBgAlpha = 0.05;
     }
     [self syncPreviewZOrder];
     [self.settingsWC reloadSources];
+    [self.addSourceWC reloadSources];
     NSLog(@"[WLStreamViewController] 已移除源 sid=%@", sid);
 }
 
@@ -974,68 +981,53 @@ static const CGFloat kIconBgAlpha = 0.05;
 }
 
 - (void)addClicked:(id)sender {
-    NSMenu *menu = [[NSMenu alloc] init];
-
-    NSMenuItem *fileItem = [menu addItemWithTitle:@"添加视频文件…"
-                                           action:@selector(addVideoFileClicked:)
-                                    keyEquivalent:@""];
-    fileItem.target = self;
-
-    // 「添加摄像头」子菜单：动态列出当前视频采集设备
-    NSMenuItem *camItem = [menu addItemWithTitle:@"添加摄像头" action:nil keyEquivalent:@""];
-    NSMenu *camMenu = [[NSMenu alloc] init];
-    NSArray<WLDeviceItem *> *devices = [[WLDevicesManager manager] currentVideoDevices];
-    if (devices.count == 0) {
-        NSMenuItem *empty = [camMenu addItemWithTitle:@"未检测到摄像头" action:nil keyEquivalent:@""];
-        empty.enabled = NO;
-    } else {
-        for (WLDeviceItem *item in devices) {
-            NSMenuItem *di = [camMenu addItemWithTitle:(item.localizedName ?: @"未知设备")
-                                                action:@selector(cameraDeviceSelected:)
-                                         keyEquivalent:@""];
-            di.target = self;
-            di.representedObject = item.device;
-        }
+    if (!self.addSourceWC) {
+        self.addSourceWC = [[WLAddSourceWindowController alloc] init];
+        self.addSourceWC.addSourceDelegate = self;
     }
-    [menu setSubmenu:camMenu forItem:camItem];
-
-    // 「添加麦克风」子菜单：动态列出当前音频采集设备
-    NSMenuItem *micItem = [menu addItemWithTitle:@"添加麦克风" action:nil keyEquivalent:@""];
-    NSMenu *micMenu = [[NSMenu alloc] init];
-    NSArray<WLDeviceItem *> *audioDevices = [[WLDevicesManager manager] currentAudioDevices];
-    if (audioDevices.count == 0) {
-        NSMenuItem *empty = [micMenu addItemWithTitle:@"未检测到麦克风" action:nil keyEquivalent:@""];
-        empty.enabled = NO;
-    } else {
-        for (WLDeviceItem *item in audioDevices) {
-            NSMenuItem *di = [micMenu addItemWithTitle:(item.localizedName ?: @"未知设备")
-                                                action:@selector(micDeviceSelected:)
-                                         keyEquivalent:@""];
-            di.target = self;
-            di.representedObject = item.device;
-        }
-    }
-    [menu setSubmenu:micMenu forItem:micItem];
-
-    NSView *btn = [sender isKindOfClass:[NSView class]] ? (NSView *)sender : self.addButton;
-    [menu popUpMenuPositioningItem:nil
-                        atLocation:NSMakePoint(0, NSHeight(btn.bounds))
-                            inView:btn];
+    [self.addSourceWC showWindow:nil];
 }
 
-- (void)addVideoFileClicked:(id)sender {
-    NSOpenPanel *panel = [NSOpenPanel openPanel];
-    panel.allowedFileTypes = @[@"mp4", @"mov", @"m4v", @"mkv", @"flv", @"ts", @"avi"];
-    panel.allowsMultipleSelection = NO;
-    __weak typeof(self) wself = self;
-    [panel beginWithCompletionHandler:^(NSModalResponse result) {
-        if (result != NSModalResponseOK || panel.URLs.count == 0) return;
-        [wself addMediaSourceWithPath:panel.URLs.firstObject.path];
-    }];
+#pragma mark - WLAddSourceWindowControllerDelegate
+
+- (NSArray<NSDictionary *> *)addSourceCurrentSources {
+    NSMutableArray<NSDictionary *> *list = [NSMutableArray array];
+    for (NSString *sid in self.sidToSource) {
+        id<WLStreamSourceProtocol> s = self.sidToSource[sid];
+        NSMutableDictionary *d = [@{@"sid": sid,
+                                    @"name": (s.displayName ?: @"源"),
+                                    @"fromType": @(s.fromType)} mutableCopy];
+        // 设备型源带 uniqueID，供「✓ 已添加」判定（与 addCameraSource/addMicSource 的去重同源）
+        if ([s isKindOfClass:[WLCameraSource class]]) {
+            NSString *uid = [(WLCameraSource *)s config].device.uniqueID;
+            if (uid.length > 0) d[@"deviceUID"] = uid;
+        } else if ([s isKindOfClass:[WLMicSource class]]) {
+            NSString *uid = [(WLMicSource *)s device].uniqueID;
+            if (uid.length > 0) d[@"deviceUID"] = uid;
+        }
+        [list addObject:d];
+    }
+    return list;
 }
 
-- (void)cameraDeviceSelected:(NSMenuItem *)sender {
-    AVCaptureDevice *device = sender.representedObject;
+- (void)addSourceDidPickMediaPath:(NSString *)path {
+    [self addMediaSourceWithPath:path];
+}
+
+- (void)addSourceDidPickCameraDevice:(AVCaptureDevice *)device {
+    [self requestAddCameraDevice:device];
+}
+
+- (void)addSourceDidPickMicDevice:(AVCaptureDevice *)device {
+    [self requestAddMicDevice:device];
+}
+
+- (void)addSourceDidRequestRemove:(NSString *)streamID {
+    [self removeSourceByStreamID:streamID];
+}
+
+// 摄像头授权流程（授权通过后真正添加）
+- (void)requestAddCameraDevice:(AVCaptureDevice *)device {
     if (!device) return;
 
     AVAuthorizationStatus status = [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeVideo];
@@ -1065,8 +1057,8 @@ static const CGFloat kIconBgAlpha = 0.05;
 
 #pragma mark - 添加麦克风源
 
-- (void)micDeviceSelected:(NSMenuItem *)sender {
-    AVCaptureDevice *device = sender.representedObject;
+// 麦克风授权流程（授权通过后真正添加）
+- (void)requestAddMicDevice:(AVCaptureDevice *)device {
     if (!device) return;
 
     AVAuthorizationStatus status = [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeAudio];
@@ -1104,6 +1096,7 @@ static const CGFloat kIconBgAlpha = 0.05;
     if (sid.length == 0) return;
     self.sidToSource[sid] = source;
     [self.settingsWC reloadSources];
+    [self.addSourceWC reloadSources];
 
     NSError *err = nil;
     if (![source start:&err]) {
