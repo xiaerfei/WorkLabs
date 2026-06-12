@@ -2,10 +2,13 @@
 
 > 基于 tvuanywhere_ios 仓库 `products/TVUTransportIOS/TVUAnywherePro/Transmitter/TVUExternalSource/` 目录
 
-> 📚 **系列文档**
+> 📚 **系列文档**（完整索引见 [README.md](./README.md)）
 > - 本文：模块结构 / 类关系 / 数据流（架构视角）
-> - [TVUExternalSource时间戳调研.md](./TVUExternalSource时间戳调研.md) — PTS 链路 / Camera 时钟 / 漂移处理（同步视角）
-> - [TVUExternalSource时间戳设计评价.md](./TVUExternalSource时间戳设计评价.md) — 亮点 / 脆弱点 / 重构建议（评价视角）
+> - [02-合流层-TVUAVStream.md](./02-合流层-TVUAVStream.md) — 队列合并 / PIP·PBP 合成 / 编码入口
+> - [03-编码层-TVUEncoder.md](./03-编码层-TVUEncoder.md) — VideoToolbox 硬编码 / AAC
+> - [04-推流层-Mux与Transport.md](./04-推流层-Mux与Transport.md) — Mux / SEI / 传输库边界
+> - [时间戳专题/02-时间戳与时钟漂移调研.md](./时间戳专题/02-时间戳与时钟漂移调研.md) — PTS 链路 / Camera 时钟 / 漂移处理（同步视角）
+> - [时间戳专题/03-时间戳设计评价.md](./时间戳专题/03-时间戳设计评价.md) — 亮点 / 脆弱点 / 重构建议（评价视角）
 
 ---
 
@@ -943,9 +946,9 @@ graph LR
 
 | 文档 | 视角 | 核心内容 |
 |---|---|---|
-| **本文** `TVUExternalSource模块分析.md` | 架构 / 静态结构 | 模块分层、目录、类关系、数据流图、线程模型 |
-| [TVUExternalSource时间戳调研.md](./TVUExternalSource时间戳调研.md) | 时间戳 / 同步 | SortQueueManager 时间戳、PTS 链路、Camera 时钟、`g_vstarttime`、NTP 补偿、漂移处理评估 |
-| [TVUExternalSource时间戳设计评价.md](./TVUExternalSource时间戳设计评价.md) | 评价 / 重构决策 | 设计亮点、脆弱点、重构建议、Review 提问清单 |
+| **本文** `01-外部源模块-TVUExternalSource.md` | 架构 / 静态结构 | 模块分层、目录、类关系、数据流图、线程模型 |
+| [时间戳专题/02-时间戳与时钟漂移调研.md](./时间戳专题/02-时间戳与时钟漂移调研.md) | 时间戳 / 同步 | SortQueueManager 时间戳、PTS 链路、Camera 时钟、`g_vstarttime`、NTP 补偿、漂移处理评估 |
+| [时间戳专题/03-时间戳设计评价.md](./时间戳专题/03-时间戳设计评价.md) | 评价 / 重构决策 | 设计亮点、脆弱点、重构建议、Review 提问清单 |
 
 **两份文档的承接关系：**
 
