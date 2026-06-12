@@ -11,7 +11,9 @@
 @property (nonatomic, strong) AVCaptureSession *session;
 @property (nonatomic, strong) AVCaptureDeviceInput *input;
 @property (nonatomic, strong) AVCaptureAudioDataOutput *audioOutput;
-@property (nonatomic, assign) dispatch_queue_t audioQueue;
+// 注意必须 strong：ARC 下 dispatch_queue_t 是 ObjC 对象，assign 不持有 →
+// init 创建的队列立刻被释放，悬垂指针交给 AVFoundation，采集线程投帧时跳垃圾地址崩溃
+@property (nonatomic, strong) dispatch_queue_t audioQueue;
 @end
 
 @implementation WLMicSource
