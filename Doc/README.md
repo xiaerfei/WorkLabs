@@ -35,12 +35,11 @@ Doc/
   - [OBS_合成tick_音频混音_AV同步.md](调研/OBS/OBS_合成tick_音频混音_AV同步.md) — ③ 固定 fps 合成主循环 · 时间窗口混音 · 双管线共享系统时钟的 A/V 同步（vs mpv 视频追音频）
   - [OBS_输出侧_编码_复用_录制推流.md](调研/OBS/OBS_输出侧_编码_复用_录制推流.md) — ④ 编码 pts · interleave a/v 对齐（discard→归零→单调交错）· 录制/推流共用
 
-### TVUExternalSource/
-- [TVUExternalSource模块分析.md](调研/TVUExternalSource/TVUExternalSource模块分析.md) — 外部源模块详细分析
-- [TVUExternalSource时间戳调研.md](调研/TVUExternalSource/TVUExternalSource时间戳调研.md) — 时间戳与时钟漂移调研
-- [TVUExternalSource时间戳设计评价.md](调研/TVUExternalSource/TVUExternalSource时间戳设计评价.md) — 时间戳/时钟同步设计评价
-- [plan.md](调研/TVUExternalSource/plan.md) — TVUAnywhere iOS PTS 时间戳设计逻辑分析
-- [分析.md](调研/TVUExternalSource/分析.md) — RTMP 聚合转发：时间戳重算与音视频同步
+### TVUExternalSource/（tvuanywhere_ios 直播管线调研，已重组为编号系列）
+- [README.md](调研/TVUExternalSource/README.md) — **系列索引**：全链路 mermaid 一图流 + 文档清单（行号基线 `89e4c235a`，2026-06-12）
+- 管线模块（按数据流向）：[01 外部源模块](调研/TVUExternalSource/01-外部源模块-TVUExternalSource.md) · [02 合流层 TVUAVStream](调研/TVUExternalSource/02-合流层-TVUAVStream.md) · [03 编码层 TVUEncoder](调研/TVUExternalSource/03-编码层-TVUEncoder.md) · [04 推流层 Mux与Transport](调研/TVUExternalSource/04-推流层-Mux与Transport.md) · [05 多源采集入队](调研/TVUExternalSource/05-多源采集入队.md) · [06 本地录制旁路](调研/TVUExternalSource/06-本地录制旁路.md)
+- **时间戳专题/** — [01 PTS设计逻辑分析](调研/TVUExternalSource/时间戳专题/01-PTS设计逻辑分析.md) · [02 时间戳与时钟漂移调研](调研/TVUExternalSource/时间戳专题/02-时间戳与时钟漂移调研.md) · [03 时间戳设计评价](调研/TVUExternalSource/时间戳专题/03-时间戳设计评价.md) · [04 NTP时钟同步 TVUHostTimer](调研/TVUExternalSource/时间戳专题/04-NTP时钟同步-TVUHostTimer.md)
+- **方案/** — [RTMP聚合转发-时间戳重算与PLL方案](调研/TVUExternalSource/方案/RTMP聚合转发-时间戳重算与PLL方案.md)
 
 ---
 
@@ -74,10 +73,12 @@ Doc/
 ## 📖 基础知识/ —— 音视频基础学习笔记
 - **aac/** — [aac.md](基础知识/aac/aac.md) · 深入理解 AudioUnit（IO / Mixing）· [音频基础记录.md](基础知识/aac/音频基础记录.md) · images/
 - **h264/** — [h264.md](基础知识/h264/h264.md) · [YUV.md](基础知识/h264/YUV.md) · [Gemini-YUV.md](基础知识/h264/Gemini-YUV.md) · images/
+- **视频编码原理/** — [README（索引）](基础知识/视频编码原理/README.md) · [01 原文解读：七步构建玩具编码器](基础知识/视频编码原理/01-原文解读-七步构建玩具编码器.md) · [02 实现难度评估与避坑](基础知识/视频编码原理/02-实现难度评估与避坑.md) · [03 与WorkLabs管线对照](基础知识/视频编码原理/03-与WorkLabs管线对照.md) — 基于 skywind《视频编码原理简介》的专题
 - **书籍/** — [音视频开发.md](基础知识/书籍/音视频开发.md)
-- **杂项记录/** — [something.md](基础知识/杂项记录/something.md)（音视频技术资料整理）· images/
+- **杂项记录/** — [something.md](基础知识/杂项记录/something.md)（音视频技术资料整理）· [我的音视频技术路线_文章分析.md](基础知识/杂项记录/我的音视频技术路线_文章分析.md)（知乎文章定性分析：内容地图/为什么杂/对 WorkLabs 有用的三块）· images/
 - 散篇笔记：
   - [AAC总结.md](基础知识/AAC总结.md) — AAC 音频编码完全指南
+  - [滤镜特效Shader参考_LUT_美颜_转场_movit.md](基础知识/滤镜特效Shader参考_LUT_美颜_转场_movit.md) — **滤镜方向参考资料**：1D/3D LUT 采样 · 磨皮滤波器家族 · 转场双输入+progress 范式 · movit shader 链组装（单 pass）；每节附 Metal 落地注记
   - [<AudioStreamBasicDescription 结构体含义.md>](<基础知识/AudioStreamBasicDescription 结构体含义.md>)
   - [<SwrContext 使用.md>](<基础知识/SwrContext 使用.md>) — swr_init / swr_convert 用法
   - [TPCircularBuffer高性能环形缓冲区原理.md](基础知识/TPCircularBuffer高性能环形缓冲区原理.md)
@@ -112,5 +113,5 @@ Doc/
 | [WorkLabs设计/可切源推流时间戳设计.md](WorkLabs设计/可切源推流时间戳设计.md) | 可切源推流时间戳设计方案 |
 | [WorkLabs设计/音频断流漂移_AV同步精度方案.md](WorkLabs设计/音频断流漂移_AV同步精度方案.md) | **音频断流漂移（隐患 B）修复方案**：根因＝混音器无数据跳帧（音频样本计数 vs 视频墙钟·范式混杂）；首选修法＝混音器断流补静音帧（对齐 OBS「混音窗口始终处理、缺数据贡献 0」）|
 | [WorkLabs设计/AV同步_对齐OBS的剩余差距_晶振漂移与interleave.md](WorkLabs设计/AV同步_对齐OBS的剩余差距_晶振漂移与interleave.md) | **对齐 OBS 剩余差距评估**：晶振漂移补偿（声卡晶振≠标称采样率）三家族——WorkLabs 被动吸收（看水位丢/补）vs OBS 时间戳对齐（看戳排+静音/丢弃）vs mpv ASRC 重采样（平滑变速）；真差距·低优先·建议先观测 + interleave（`av_interleaved_write_frame`+首包归零已覆盖三件套,基本非差距,纠正先前判断）+ OBS 音频时钟澄清（回调＝打戳时机,基准＝系统单调钟）|
-| [调研/TVUExternalSource/时间戳调研](调研/TVUExternalSource/TVUExternalSource时间戳调研.md) · [设计评价](调研/TVUExternalSource/TVUExternalSource时间戳设计评价.md) | TVU 时钟漂移 / 同步设计评价 |
-| [调研/TVUExternalSource/plan.md](调研/TVUExternalSource/plan.md) · [分析.md](调研/TVUExternalSource/分析.md) | TVUAnywhere PTS 设计 / RTMP 聚合转发同步 |
+| [调研/TVUExternalSource/时间戳专题](调研/TVUExternalSource/时间戳专题/01-PTS设计逻辑分析.md)（01 PTS设计 · [02 时钟漂移调研](调研/TVUExternalSource/时间戳专题/02-时间戳与时钟漂移调研.md) · [03 设计评价](调研/TVUExternalSource/时间戳专题/03-时间戳设计评价.md)） | TVUAnywhere PTS 设计 / 时钟漂移 / 同步设计评价 |
+| [调研/TVUExternalSource/方案/RTMP聚合转发-时间戳重算与PLL方案.md](调研/TVUExternalSource/方案/RTMP聚合转发-时间戳重算与PLL方案.md) | RTMP 聚合转发：时间戳重算与音视频同步 |
