@@ -121,7 +121,7 @@ bool JpegEncoder::yuvToBlocks(const uint8_t *y, const uint8_t *u, const uint8_t 
 
 分块后的结果类似下面这样，假设源[图像像素](https://zhida.zhihu.com/search?content_id=171793642&content_type=Article&match_order=1&q=%E5%9B%BE%E5%83%8F%E5%83%8F%E7%B4%A0&zhida_source=entity)宽高为64x64，颜色转换并分块后将变成YUV三个通道，且每通道按8x8进行拆分：
 
-![](%7BpageTitle%7D/v2-f1d065e2ebe8b6d2c8d15a2a7a567b54_1440w.jpg)
+![](images/jpeg-yuv-block-split.jpg)
 
 ## DCT
 
@@ -129,7 +129,7 @@ JPEG 里要对数据压缩，就需要先要做一次 DCT 变换。数学方面�
 
 先贴一下公式，对[数学原理](https://zhida.zhihu.com/search?content_id=171793642&content_type=Article&match_order=1&q=%E6%95%B0%E5%AD%A6%E5%8E%9F%E7%90%86&zhida_source=entity)感兴趣的话可以扩展看看[JPEG编码&算术编码、LZW编码](https://link.zhihu.com/?target=https%3A//durant35.github.io/2017/07/11/programPearls_JPEG%2524Arithmetic%2524LZW/)等资料：
 
-![](%7BpageTitle%7D/v2-8670403692be38bd1230c12fff8db888_1440w.jpg)
+![](images/jpeg-dct-formula.jpg)
 
 [DCT变换与图像压缩、去燥](https://link.zhihu.com/?target=http%3A//zhaoxuhui.top/blog/2018/05/26/DCTforImageDenoising.html)里面还讲到了为什么JPEG选择DCT而不选择DFT的原因。
 
@@ -300,15 +300,15 @@ JPEG 里是对每 8x8 个点作为一个单位处理的，上述代码就是对�
 
 假定有一个8x8的图像数据如下图所示：
 
-![](%7BpageTitle%7D/v2-6e7735aaa0f94e3bc0762d1bd7699a3d_1440w.jpg)
+![](images/jpeg-8x8-raw-data.jpg)
 
 那么在减去`128`之后，将变成：
 
-![](%7BpageTitle%7D/v2-ad3f8999a300d65711f1d07dc995382c_1440w.jpg)
+![](images/jpeg-8x8-minus-128.jpg)
 
 再经过DCT变换，最终将变成`DCT系数矩阵`：
 
-![](%7BpageTitle%7D/v2-8eacfa6feb0632e4e6f789961abce14a_1440w.jpg)
+![](images/jpeg-dct-coefficients.jpg)
 
 > 对应于u=0，v=0的系数，称做[直流分量](https://zhida.zhihu.com/search?content_id=171793642&content_type=Article&match_order=1&q=%E7%9B%B4%E6%B5%81%E5%88%86%E9%87%8F&zhida_source=entity)，即DC系数，即位于矩阵的最左上角，上图是-415的位置 对于除DC系数意外的[矩阵](https://zhida.zhihu.com/search?content_id=171793642&content_type=Article&match_order=4&q=%E7%9F%A9%E9%98%B5&zhida_source=entity)中的其余 63 个则称为是交流系数（`AC`）  
 
@@ -324,11 +324,11 @@ DCT 输出的频率系数矩阵中最左上角的直流（`DC`）系数幅度最
 
 因为人眼对[亮度信号](https://zhida.zhihu.com/search?content_id=171793642&content_type=Article&match_order=1&q=%E4%BA%AE%E5%BA%A6%E4%BF%A1%E5%8F%B7&zhida_source=entity)比对色差信号更敏感，因此使用了两种量化表：亮度量化值和色差量化值。
 
-![](%7BpageTitle%7D/v2-df9185c9f51f28614bad72f7e5d603ff_1440w.jpg)
+![](images/jpeg-quant-table.jpg)
 
 将前面所得到的 DCT [系数矩阵](https://zhida.zhihu.com/search?content_id=171793642&content_type=Article&match_order=3&q=%E7%B3%BB%E6%95%B0%E7%9F%A9%E9%98%B5&zhida_source=entity)与上图中的亮度/色度量化矩阵进行相除并四舍五入后可得到：
 
-![](%7BpageTitle%7D/v2-35f1fb89e01561fbfac2e2658672c6ba_1440w.jpg)
+![](images/jpeg-quant-result.jpg)
 
 总体来说这个过程就类似于是一个空间域的[低通滤波器](https://zhida.zhihu.com/search?content_id=171793642&content_type=Article&match_order=1&q=%E4%BD%8E%E9%80%9A%E6%BB%A4%E6%B3%A2%E5%99%A8&zhida_source=entity)，对 Y 分量采用细量化，对 UV 采用[粗量化](https://zhida.zhihu.com/search?content_id=171793642&content_type=Article&match_order=1&q=%E7%B2%97%E9%87%8F%E5%8C%96&zhida_source=entity)，对低频细量化，对高频粗量化。对于滤波器感兴趣的话可以扩展看看这篇文章：[常见低通、高通、带通三种滤波器的工作原理](https://link.zhihu.com/?target=http%3A//murata.eetrend.com/article/2019-11/1003137.html)
 
@@ -373,7 +373,7 @@ void JpegQuant::quantEncode8x8(int *data8x8, bool luminance) {
 
 这就出现了“Z”字形编排的想法，主要思路就是从左上角第一个像素开始以Z字形进行编排：
 
-![](%7BpageTitle%7D/v2-9ab739778aa4678a224c3994f294e72c_1440w.jpg)
+![](images/jpeg-zigzag-scan.jpg)
 
 至于为什么使用 Zigzag 进行扫描排序，我_个人认为_主要是因为图像信息的大部分集中于直流系数及其附近的低频频谱上，离 DC 系数越来越远的[高频频谱](https://zhida.zhihu.com/search?content_id=171793642&content_type=Article&match_order=2&q=%E9%AB%98%E9%A2%91%E9%A2%91%E8%B0%B1&zhida_source=entity)几乎不含图像信息，因此通过该方式可以将更多的[高频数据](https://zhida.zhihu.com/search?content_id=171793642&content_type=Article&match_order=1&q=%E9%AB%98%E9%A2%91%E6%95%B0%E6%8D%AE&zhida_source=entity)排序到一起，以便于后续的`游程编码(RLE：Run Length Coding)`对它们进行编码。大家可以对照上面量化后的矩阵看下使用ZigZag排序与不使用的话0数据的连续性上的差异。
 
@@ -433,7 +433,7 @@ code = diff;
 
 JPEG 中为了更进一步节约空间，并不直接保存数据的具体数值，而是将数据按照位数分为 16 组，保存在表里面。这也就是所谓的`变长整数编码 VLI`。即，第 0 组中保存的编码位数为 0，其编码所代表的数字为 0；第 1 组中保存的编码位数为 1，编码所代表的数字为 -1 或者 1 ......，如下面的表格所示，这里，暂且称其为 `VLI 编码表`：
 
-![](%7BpageTitle%7D/v2-aee4308ce83aee103d327997227e0d23_1440w.jpg)
+![](images/jpeg-vli-table.jpg)
 
 如果 DC 系数差值为 3，通过查找 VLI 可以发现，整数 3 位于 VLI 表格的第 2 组，因此，可以写成（2）（3）的形式，这里的2代表后面的数字（3）的编码长度为2位，该形式称之为 `DC 系数的中间格式`。
 
@@ -627,7 +627,7 @@ JPEG 文件大体上可以分成两个部分：`标记码(Tag)`和`压缩数据`
 
 常用的标记有 `SOI`、`APP0`、`APPn`、`DQT`、`SOF0`、`DHT`、`DRI`、`SOS`、`EOI`：
 
-![](%7BpageTitle%7D/v2-dcd8428fa709d987e1a4f9e7cae65baa_1440w.jpg)
+![](images/jpeg-file-markers.jpg)
 
 更具体的细节可扩展阅读下[JPEG文件格式详解](https://link.zhihu.com/?target=https%3A//www.ihubin.com/blog/audio-video-basic-14-jpeg-file-format-detail/)。
 
@@ -738,7 +738,7 @@ bool JpegEncoder::writeToFile(char* buffer, long dataLength,
 
 到这里我们编写的`JpegEncoder`就可以将传入的`RGB24`格式的数据压缩编码成`YUV444`的JPEG文件了，可以运行 [avcodec\_tutorial](https://link.zhihu.com/?target=https%3A//github.com/LinBinghe/avcodec_tutorial) 项目，运行后将在你的桌面看到如下内容随机生成的图片：
 
-![](%7BpageTitle%7D/v2-a4b840d26d093d50fa9f2bf1f728f376_1440w.jpg)
+![](images/jpeg-encoder-output.jpg)
 
 ## 参考文章
 
