@@ -1,0 +1,17 @@
+# 编译产物
+*.o
+*.a
+*.dSYM/
+
+# 媒体测试素材 / 原始数据导出（别进 git）
+*.mp4
+*.mov
+*.yuv
+*.pcm
+*.bmp
+*.png
+*.h264
+*.aac
+
+# Learning 各 demo 的可执行（无扩展名，按需补充具体名）
+Learning/01_decode_one_frame/decode_one_frame
