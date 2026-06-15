@@ -1,5 +1,10 @@
 # ControlPanel 重构计划
 
+> ⚠️ **已废弃 · 历史文档（2026-06-15 核对）**
+> 本文是基于旧 UI（`WLScenePanel` / `WLTransitionPanel` / `WLControlPanelContainerView` / `WLMenuPanelViewController` / `WLSceneManager`）的底部控制面板重构方案。
+> 这套旧 UI **已在 [TaskNewPlan.md](NewPlan/TaskNewPlan.md) v0.12 整体删除**。当前 UI 入口为 `WLStreamViewController`（所见即所得画布 + 工具栏），设置项收敛到独立的 `WLSettingsWindowController`（左右分栏：画布/背景/推流/编码 + 各输入源属性页）。
+> 本文仅作历史参考，**勿据此实现**。
+
 ## 一、设计目标
 
 将底部控制面板从当前 5 面板水平布局重构为 `WLPanelViewController` 驱动 3 面板水平布局：

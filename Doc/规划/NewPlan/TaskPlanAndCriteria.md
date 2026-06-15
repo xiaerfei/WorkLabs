@@ -1,6 +1,8 @@
 # 实施计划与验收标准
 
 > 从 TaskNewPlan.md 拆分，便于独立跟踪进度。
+>
+> 🔄 **状态核对（2026-06-15）**：§2 组件清单的部分 ⏳ 已过时，下表已就地修正——`WLAudioMixer`（多路混音）、`WLEncoder`（共享编码器，编一次分发录制/推流两路）、`WLPushStreamer`（实际类名 `WLPusher`，FLV/RTMP 推流）均**已落地**；`WLAudioOutput` 已被 `WLAudioRenderer` 取代；视频滤镜实际类名为 `WLBasicVideoFilter`（镜像/颜色校正/裁剪）。**仍未做**：`WLNetWorkSource`（网络拉流）、`WLScreenCaptureSource`（屏幕采集）、`WLAudioFilter`（独立降噪/AEC——增益与重采样已并入 `WLAudioMixer`）。完整 changelog 见 [TaskNewPlan.md](TaskNewPlan.md) §4.2（已至 v0.22）。
 
 ---
 
@@ -81,9 +83,9 @@ Step 5: WLStreamsManager 串联所有组件
 
 | 组件 | Protocol | 功能 | 状态 |
 |------|----------|------|------|
-| **WLVideoFilter** | `WLVideoFilterProtocol` | 缩放、裁剪、镜像（CoreImage 实现，CVPixelBufferPool 复用） | ✅ |
-| **WLAudioFilter** | `WLAudioFilterProtocol` | 重采样、增益、降噪、音频格式转换 | ⏳ |
-| **WLAudioMixer** | `WLAudioFilterProtocol` | 多路音频混音、音量控制 | ⏳ |
+| **WLVideoFilter** | `WLVideoFilterProtocol` | 缩放、裁剪、镜像（实际类名 `WLBasicVideoFilter`，Core Image + Metal `CIContext`；含颜色校正） | ✅ |
+| **WLAudioFilter** | `WLAudioFilterProtocol` | 重采样、增益、降噪、音频格式转换 | 🚧 部分（重采样/增益已并入 `WLAudioMixer`；独立降噪/AEC 未做） |
+| **WLAudioMixer** | — | 多路音频混音、按源音量控制（swresample 统一格式 + TPCircularBuffer + ~23ms 定时器叠加限幅） | ✅ |
 | **WLVideoMix** | —（带 layoutFrame 的合成器，非 Filter） | 固定画布上多路视频按 layoutFrame 合成（CoreImage） | ✅ |
 
 > **格式转换**：不同 Source 输出的像素格式（BGRA / YUV）和音频格式（采样率 / 声道数）差异，由 Filter 组件统一处理。
@@ -96,10 +98,11 @@ Step 5: WLStreamsManager 串联所有组件
 
 | 组件 | Protocol | 功能 | 状态 |
 |------|----------|------|------|
-| **WLEncoder** | `WLVideoOutputProtocol` + `WLAudioOutputProtocol` | VideoToolbox H264 + AudioToolbox AAC | ⏳ |
+| **WLEncoder** | — | 共享编码器：`h264_videotoolbox` + `aac_at` + swscale/swresample，编一次分发录制/推流两路（配套 `WLEncodedPacket` / `WLEncoderConfig`） | ✅ |
 | **WLStreamPreview** | `WLStreamRenderingProtocol`（继承 `WLVideoOutputProtocol`） | AVSampleBufferDisplayLayer 渲染 + 拖动/缩放交互 + interactive 开关 | ✅ |
-| **WLAudioOutput** | `WLAudioOutputProtocol` | 系统音频播放 | ✅ |
-| **WLPushStreamer** | `WLVideoOutputProtocol` + `WLAudioOutputProtocol` | RTMP 推流 | ⏳ |
+| **WLAudioRenderer**（原 WLAudioOutput） | — | 系统音频播放（AudioQueue，按首帧 formatDescription 动态适配） | ✅ |
+| **WLPusher**（原 WLPushStreamer） | — | RTMP 推流（FLV muxer + `avio_open2` rtmp，纯 muxer 接 `WLEncoder` 输出包） | ✅ |
+| **WLRecorder** | — | mp4 录制（FLV/mp4 muxer，纯 muxer 接 `WLEncoder` 输出包；header 延迟首视频包） | ✅ |
 
 ### Step 5: WLStreamsManager 串联
 
@@ -214,12 +217,12 @@ Source ─delegate→ WLStreamsManager
 ## 5. 成功标准与验收指标
 
 ### 5.1 功能完整性
-- [ ] 每个组件能独立运行和测试
-- [ ] 组件通过 Protocol 解耦，可自由组合
-- [ ] 支持 Camera + Mic 推流
-- [ ] 支持 MediaFile 作为备选源
-- [ ] 运行时切换视频源
-- [ ] 音视频同步（唇同步 < 100ms）
+- [x] 每个组件能独立运行和测试
+- [x] 组件通过 Protocol 解耦，可自由组合
+- [x] 支持 Camera + Mic 推流
+- [x] 支持 MediaFile 作为备选源
+- [ ] 运行时切换视频源（设计见《可切源推流时间戳设计.md》，未落地）
+- [~] 音视频同步（主体已实现：a/v 共享单调墙钟同一零点；唇同步 < 100ms 未量化实测）
 
 ### 5.2 性能指标
 - **CPU 占用** < 50% (Mac mini M1)

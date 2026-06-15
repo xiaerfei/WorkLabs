@@ -207,7 +207,9 @@ lastSysTs          : 全局，上次 tick 实测系统时刻（算 sys_offset �
 - 比阶段一大：数据结构「一张→一队列」，CVPixelBuffer 在队列里的 retain/release 配平（用 `WLMixFrame` + ARC 兜住）。
 - 有阶段一打底：tick 框架 / renderComposite / 启停现成，阶段二只换「挑哪张」+ 数据结构。
 
-### 阶段三：录制带音频的 A/V 同步（接 AAC mux 时）
+### 阶段三：录制带音频的 A/V 同步（接 AAC mux 时）✅ 已落地
+
+> ✅ **已落地（2026-06-15 核对）**：带音频录制（AAC `aac_at`）+ 音视频同步已实现（TaskNewPlan v0.14 起）；视频帧时间戳改用单调墙钟、a/v 共享同一 `_baseUs`（首视频帧 pts）公共零点，麦克风录制无声、音频断流补静音漂移均已实测通过。本节为当初的实施设想，结论与落地一致，保留备查。
 
 按 OBS `timing_adjust = wallclock − 源pts` 把每源音频 pts 归一到**同一单调钟**；视频帧 + 音频包都带该钟时间戳交 muxer interleave。**不要 video 追 audio**（合成器范式）。WLRecorder 已用同一 `_baseUs`（首视频帧 pts）做 a/v 公共零点（`WLRecorder.m:25/155/192/205`），正好契合——音视频必须共享同一零点，否则音画错位。
 

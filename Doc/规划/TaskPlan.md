@@ -1,3 +1,10 @@
+> ⚠️ **已废弃 · 历史文档（2026-06-15 核对）**
+> 本文是早期「WLScene 全家桶」场景化设计（`WLSceneManager` / `WLMediaSourceItem` / `WLSceneRenderer` / `WLMediaSourcePreview` / `WLAudioMixer`(旧) / `WLPushStreamsManager` 等）。
+> 该方案**已被 NewPlan 简化版管线取代**，上述类已在 [TaskNewPlan.md](NewPlan/TaskNewPlan.md) **v0.12 整体删除**（场景层 → 单一 `WLCanvasModel` + `WLStreamsManager` 编排）。
+> 当前实际架构见 [TaskNewPlan.md](NewPlan/TaskNewPlan.md) 与项目根 `CLAUDE.md`。本文仅作历史参考，**勿据此实现**。
+
+---
+
 我想设计一个类似 obs 的简单场景，全局只有一个场景即：WLScene，在这个场景中可以添加多个 MediaSource（视频、音频、Camera）
 
 ## 一、设计目标
