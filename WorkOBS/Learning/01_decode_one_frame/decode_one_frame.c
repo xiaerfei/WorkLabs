@@ -169,10 +169,35 @@ int main(int argc, char *argv[])
 
     int width = frame->width;
     int height = frame->height;
-    int size = width * height * 3 / 2;
 
-    printf("size = %d, width = %d, height = %d\n", size, width, height);
-    printf("linesizeY = %d, linesizeU = %d, linesizeV = %d\n", linesizeY, linesizeU, linesizeV);
+    int rgbSize = frame->width * frame->height * 3;
+    uint8_t* rgbBuf = (uint8_t*)malloc(rgbSize);
+
+    for (int y = 0; y < height; y++)
+    {
+        for (int x = 0; x < width; x++)
+        {
+            int y_index = y * linesizeY + x;
+            int u_index = (y / 2) * linesizeU + (x / 2);
+            int v_index = (y / 2) * linesizeV + (x / 2);
+            uint8_t y = dataY[y_index];
+            uint8_t u = dataU[u_index];
+            uint8_t v = dataV[v_index];
+
+            uint8_t r = y + 1.402 * (v - 128);
+            uint8_t g = y - 0.344136 * (u - 128) - 0.714136 * (v - 128);
+            uint8_t b = y + 1.772 * (u - 128);
+            // 溢出截断 Clamp
+            r = clamp(r, 0, 255);
+            g = clamp(g, 0, 255);
+            b = clamp(b, 0, 255);
+
+            int rgbIdx = (y * frame->width + x) * 3;
+            rgbBuf[rgbIdx] = b;
+            rgbBuf[rgbIdx + 1] = g;
+            rgbBuf[rgbIdx + 2] = r;
+        }
+    }
 
     /* 步骤 5 · YUV420P → RGB（BT.601）——先自己按公式手写，别用 sws_scale（那是后面的事）
      *   frame->data[0]=Y, data[1]=U, data[2]=V；frame->linesize[] 是每行字节数（可能 > 宽度，有 padding！）
