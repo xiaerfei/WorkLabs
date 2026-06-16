@@ -20,26 +20,34 @@
 #include "libavcodec/avcodec.h"
 #include "libavutil/imgutils.h"
 
+static void print_av_error(const char *prefix, int errnum)
+{
+    char errbuf[AV_ERROR_MAX_STRING_SIZE];
+    av_strerror(errnum, errbuf, sizeof(errbuf));
+    fprintf(stderr, "%s: %s\n", prefix, errbuf);
+}
+
+
 int main(int argc, char *argv[])
 {
-    const char *in_path = "/Users/erfeixia/Downloads/small.mp4";
-    const char *out_path = "decoded.bmp";
+    const char *in_path = "./small.mp4";
+    const char *out_path = "./decoded.bmp";
 
     AVFormatContext *fmt_ctx = NULL;
     /* 步骤 1 · 打开文件 + 读流信息
      *   avformat_open_input() / avformat_find_stream_info()
      *   自查：返回值怎么判错？fmt_ctx 用完谁释放？
      **/
-    avformat_open_input(&fmt_ctx, in_path, NULL, NULL);
-    if (fmt_ctx == NULL)
-    {
-        fprintf(stderr, "avformat_open_input() failed\n");
-        return 1;
-    }
-    int ret = avformat_find_stream_info(fmt_ctx, NULL);
+    int ret = avformat_open_input(&fmt_ctx, in_path, NULL, NULL);
     if (ret < 0)
     {
-        fprintf(stderr, "avformat_find_stream_info() failed\n");
+        print_av_error("avformat_open_input", ret);
+        return 1;
+    }
+    ret = avformat_find_stream_info(fmt_ctx, NULL);
+    if (ret < 0)
+    {
+        print_av_error("avformat_find_stream_info", ret);
         return 1;
     }
     /* 步骤 2 · 找到视频流，拿它的 codecpar
@@ -57,7 +65,7 @@ int main(int argc, char *argv[])
     }
     if (video_stream_index < 0)
     {
-        fprintf(stderr, "video stream not found\n");
+        print_av_error("video stream not found", AVERROR(EINVAL));
         return 1;
     }
     /* 步骤 3 · 建解码器上下文并打开
@@ -67,32 +75,32 @@ int main(int argc, char *argv[])
     AVCodec *codec = avcodec_find_decoder(fmt_ctx->streams[video_stream_index]->codecpar->codec_id);
     if (codec == NULL)
     {
-        fprintf(stderr, "avcodec_find_decoder() failed\n");
+        print_av_error("avcodec_find_decoder", AVERROR(EINVAL));
         return 1;
     }
     AVCodecContext *codec_ctx = avcodec_alloc_context3(codec);
     if (codec_ctx == NULL)
     {
-        fprintf(stderr, "avcodec_alloc_context3() failed\n");
+        print_av_error("avcodec_alloc_context3", AVERROR(ENOMEM));
         return 1;
     }
     ret = avcodec_parameters_to_context(codec_ctx, fmt_ctx->streams[video_stream_index]->codecpar);
     if (ret < 0)
     {
-        fprintf(stderr, "avcodec_parameters_to_context() failed\n");
+        print_av_error("avcodec_parameters_to_context", ret);
         return 1;
     }
 
     ret = avcodec_open2(codec_ctx, codec, NULL);
     if (ret < 0)
     {
-        fprintf(stderr, "avcodec_open2() failed\n");
+        print_av_error("avcodec_open2", ret);
         return 1;
     }
     AVFrame *frame = av_frame_alloc();
     if (frame == NULL)
     {
-        fprintf(stderr, "av_frame_alloc() failed\n");
+        print_av_error("av_frame_alloc", AVERROR(ENOMEM));
         return 1;
     }
     /* 步骤 4 · 读包 + 送解码，拿到「第一帧视频」就停
@@ -105,52 +113,66 @@ int main(int argc, char *argv[])
         AVPacket *pkt = av_packet_alloc();
         if (pkt == NULL)
         {
-            fprintf(stderr, "av_packet_alloc() failed\n");
+            print_av_error("av_packet_alloc", AVERROR(ENOMEM));
             return 1;
         }
         ret = av_read_frame(fmt_ctx, pkt);
         if (ret < 0)
         {
-            fprintf(stderr, "av_read_frame() failed\n");
+            print_av_error("av_read_frame", ret);
             return 1;
         }
         if (pkt->stream_index != video_stream_index)
         {
-            fprintf(stderr, "pkt stream index not video stream index\n");
             av_packet_free(&pkt);
-            return 1;
+            continue;
         }
 
         ret = avcodec_send_packet(codec_ctx, pkt);
         if (ret < 0)
         {
-            fprintf(stderr, "avcodec_send_packet() failed\n");
+            print_av_error("avcodec_send_packet", ret);
             av_packet_free(&pkt);
             av_frame_free(&frame);
             return 1;
         }
         ret = avcodec_receive_frame(codec_ctx, frame);
+        if (ret == AVERROR(EAGAIN))
+        {
+            // 需要继续喂包
+            av_packet_free(&pkt);
+            continue;
+        }
+
         if (ret < 0)
         {
-            char errbuf[1024];
-            av_strerror(ret, errbuf, sizeof(errbuf));
-            fprintf(stderr, "avcodec_receive_frame() failed: %s\n", errbuf);
+            print_av_error("avcodec_receive_frame", ret);
             av_packet_free(&pkt);
             av_frame_free(&frame);
             return 1;
         }
-        break;
         av_packet_free(&pkt);
+        break;
     }
+    // 获取像素格式的名称
+    const char *fmt_name = av_get_pix_fmt_name(frame->format);
+    printf("当前帧的像素格式是: %s\n", fmt_name);
+    if (frame->format != AV_PIX_FMT_YUV420P) return 0;
 
-    uint8_t *data = frame->data[0];
-    int linesize = frame->linesize[0];
+    uint8_t *dataY = frame->data[0];
+    uint8_t *dataU = frame->data[1];
+    uint8_t *dataV = frame->data[2];
+
+    int linesizeY = frame->linesize[0];
+    int linesizeU = frame->linesize[1];
+    int linesizeV = frame->linesize[2];
+
     int width = frame->width;
     int height = frame->height;
     int size = width * height * 3 / 2;
 
     printf("size = %d, width = %d, height = %d\n", size, width, height);
-
+    printf("linesizeY = %d, linesizeU = %d, linesizeV = %d\n", linesizeY, linesizeU, linesizeV);
 
     /* 步骤 5 · YUV420P → RGB（BT.601）——先自己按公式手写，别用 sws_scale（那是后面的事）
      *   frame->data[0]=Y, data[1]=U, data[2]=V；frame->linesize[] 是每行字节数（可能 > 宽度，有 padding！）
