@@ -16,41 +16,141 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-/* TODO: 引入 FFmpeg 头文件
- *   #include "libavformat/avformat.h"
- *   #include "libavcodec/avcodec.h"
- *   #include "libavutil/imgutils.h"
- */
+#include "libavformat/avformat.h"
+#include "libavcodec/avcodec.h"
+#include "libavutil/imgutils.h"
 
-int main(int argc, char *argv[]) {
-    if (argc < 3) {
-        fprintf(stderr, "用法: %s <input.mp4> <out.bmp>\n", argv[0]);
-        return 1;
-    }
-    const char *in_path  = argv[1];
-    const char *out_path = argv[2];
-    (void)in_path; (void)out_path; /* 实现后删掉这行 */
+int main(int argc, char *argv[])
+{
+    const char *in_path = "/Users/erfeixia/Downloads/small.mp4";
+    const char *out_path = "decoded.bmp";
 
+    AVFormatContext *fmt_ctx = NULL;
     /* 步骤 1 · 打开文件 + 读流信息
      *   avformat_open_input() / avformat_find_stream_info()
      *   自查：返回值怎么判错？fmt_ctx 用完谁释放？
-     * TODO */
-
+     **/
+    avformat_open_input(&fmt_ctx, in_path, NULL, NULL);
+    if (fmt_ctx == NULL)
+    {
+        fprintf(stderr, "avformat_open_input() failed\n");
+        return 1;
+    }
+    int ret = avformat_find_stream_info(fmt_ctx, NULL);
+    if (ret < 0)
+    {
+        fprintf(stderr, "avformat_find_stream_info() failed\n");
+        return 1;
+    }
     /* 步骤 2 · 找到视频流，拿它的 codecpar
      *   遍历 fmt_ctx->streams[i]，找 codecpar->codec_type == AVMEDIA_TYPE_VIDEO
      *   记下 video_stream_index
-     * TODO */
-
+     * */
+    int video_stream_index = -1;
+    for (int i = 0; i < fmt_ctx->nb_streams; i++)
+    {
+        if (fmt_ctx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO)
+        {
+            video_stream_index = i;
+            break;
+        }
+    }
+    if (video_stream_index < 0)
+    {
+        fprintf(stderr, "video stream not found\n");
+        return 1;
+    }
     /* 步骤 3 · 建解码器上下文并打开
      *   avcodec_find_decoder(codecpar->codec_id)
      *   avcodec_alloc_context3() / avcodec_parameters_to_context() / avcodec_open2()
-     * TODO */
+     * */
+    AVCodec *codec = avcodec_find_decoder(fmt_ctx->streams[video_stream_index]->codecpar->codec_id);
+    if (codec == NULL)
+    {
+        fprintf(stderr, "avcodec_find_decoder() failed\n");
+        return 1;
+    }
+    AVCodecContext *codec_ctx = avcodec_alloc_context3(codec);
+    if (codec_ctx == NULL)
+    {
+        fprintf(stderr, "avcodec_alloc_context3() failed\n");
+        return 1;
+    }
+    ret = avcodec_parameters_to_context(codec_ctx, fmt_ctx->streams[video_stream_index]->codecpar);
+    if (ret < 0)
+    {
+        fprintf(stderr, "avcodec_parameters_to_context() failed\n");
+        return 1;
+    }
 
+    ret = avcodec_open2(codec_ctx, codec, NULL);
+    if (ret < 0)
+    {
+        fprintf(stderr, "avcodec_open2() failed\n");
+        return 1;
+    }
+    AVFrame *frame = av_frame_alloc();
+    if (frame == NULL)
+    {
+        fprintf(stderr, "av_frame_alloc() failed\n");
+        return 1;
+    }
     /* 步骤 4 · 读包 + 送解码，拿到「第一帧视频」就停
      *   av_read_frame() → 是视频流？ → avcodec_send_packet() → avcodec_receive_frame()
      *   注意 receive 可能返回 EAGAIN（要继续喂包）
      *   自查：AVPacket / AVFrame 谁是压缩的？
-     * TODO */
+     * */
+    while (1)
+    {
+        AVPacket *pkt = av_packet_alloc();
+        if (pkt == NULL)
+        {
+            fprintf(stderr, "av_packet_alloc() failed\n");
+            return 1;
+        }
+        ret = av_read_frame(fmt_ctx, pkt);
+        if (ret < 0)
+        {
+            fprintf(stderr, "av_read_frame() failed\n");
+            return 1;
+        }
+        if (pkt->stream_index != video_stream_index)
+        {
+            fprintf(stderr, "pkt stream index not video stream index\n");
+            av_packet_free(&pkt);
+            return 1;
+        }
+
+        ret = avcodec_send_packet(codec_ctx, pkt);
+        if (ret < 0)
+        {
+            fprintf(stderr, "avcodec_send_packet() failed\n");
+            av_packet_free(&pkt);
+            av_frame_free(&frame);
+            return 1;
+        }
+        ret = avcodec_receive_frame(codec_ctx, frame);
+        if (ret < 0)
+        {
+            char errbuf[1024];
+            av_strerror(ret, errbuf, sizeof(errbuf));
+            fprintf(stderr, "avcodec_receive_frame() failed: %s\n", errbuf);
+            av_packet_free(&pkt);
+            av_frame_free(&frame);
+            return 1;
+        }
+        break;
+        av_packet_free(&pkt);
+    }
+
+    uint8_t *data = frame->data[0];
+    int linesize = frame->linesize[0];
+    int width = frame->width;
+    int height = frame->height;
+    int size = width * height * 3 / 2;
+
+    printf("size = %d, width = %d, height = %d\n", size, width, height);
+
 
     /* 步骤 5 · YUV420P → RGB（BT.601）——先自己按公式手写，别用 sws_scale（那是后面的事）
      *   frame->data[0]=Y, data[1]=U, data[2]=V；frame->linesize[] 是每行字节数（可能 > 宽度，有 padding！）
