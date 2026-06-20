@@ -1,0 +1,492 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		686C3E55625AB1E69BB0AFDC /* Pods_OBSLabs.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DED66BFB305821D0B066F92C /* Pods_OBSLabs.framework */; };
+		9C2BCF6A2FE68147002EE829 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 9C2BCF632FE68147002EE829 /* Assets.xcassets */; };
+		9C2BCF6B2FE68147002EE829 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 9C2BCF662FE68147002EE829 /* Main.storyboard */; };
+		9C2BCF6C2FE68147002EE829 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 9C2BCF622FE68147002EE829 /* AppDelegate.m */; };
+		9C2BCF6D2FE68147002EE829 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 9C2BCF642FE68147002EE829 /* main.m */; };
+		9C2BCF6E2FE68147002EE829 /* ViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 9C2BCF682FE68147002EE829 /* ViewController.m */; };
+		9C2BCF752FE681EE002EE829 /* wl_decoder.c in Sources */ = {isa = PBXBuildFile; fileRef = 9C2BCF742FE681EE002EE829 /* wl_decoder.c */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		307840F0B33A27FA72FC4685 /* Pods-OBSLabs.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-OBSLabs.debug.xcconfig"; path = "Target Support Files/Pods-OBSLabs/Pods-OBSLabs.debug.xcconfig"; sourceTree = "<group>"; };
+		49F65ED8BDC79250705A9C43 /* Pods-OBSLabs.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-OBSLabs.release.xcconfig"; path = "Target Support Files/Pods-OBSLabs/Pods-OBSLabs.release.xcconfig"; sourceTree = "<group>"; };
+		9C2BCF322FE679BE002EE829 /* OBSLabs.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OBSLabs.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		9C2BCF612FE68147002EE829 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
+		9C2BCF622FE68147002EE829 /* AppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
+		9C2BCF632FE68147002EE829 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		9C2BCF642FE68147002EE829 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
+		9C2BCF652FE68147002EE829 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
+		9C2BCF672FE68147002EE829 /* ViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ViewController.h; sourceTree = "<group>"; };
+		9C2BCF682FE68147002EE829 /* ViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ViewController.m; sourceTree = "<group>"; };
+		9C2BCF732FE681EE002EE829 /* wl_decoder.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = wl_decoder.h; sourceTree = "<group>"; };
+		9C2BCF742FE681EE002EE829 /* wl_decoder.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = wl_decoder.c; sourceTree = "<group>"; };
+		DED66BFB305821D0B066F92C /* Pods_OBSLabs.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_OBSLabs.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		9C2BCF2F2FE679BE002EE829 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				686C3E55625AB1E69BB0AFDC /* Pods_OBSLabs.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		007DF12A1282FEDC791F3A9E /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				DED66BFB305821D0B066F92C /* Pods_OBSLabs.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		65E9053392E9FA8B9FF96899 /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				307840F0B33A27FA72FC4685 /* Pods-OBSLabs.debug.xcconfig */,
+				49F65ED8BDC79250705A9C43 /* Pods-OBSLabs.release.xcconfig */,
+			);
+			path = Pods;
+			sourceTree = "<group>";
+		};
+		9C2BCF292FE679BE002EE829 = {
+			isa = PBXGroup;
+			children = (
+				9C2BCF6F2FE6817F002EE829 /* libwl */,
+				9C2BCF692FE68147002EE829 /* OBSLabs */,
+				9C2BCF332FE679BE002EE829 /* Products */,
+				65E9053392E9FA8B9FF96899 /* Pods */,
+				007DF12A1282FEDC791F3A9E /* Frameworks */,
+			);
+			sourceTree = "<group>";
+		};
+		9C2BCF332FE679BE002EE829 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				9C2BCF322FE679BE002EE829 /* OBSLabs.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		9C2BCF692FE68147002EE829 /* OBSLabs */ = {
+			isa = PBXGroup;
+			children = (
+				9C2BCF612FE68147002EE829 /* AppDelegate.h */,
+				9C2BCF622FE68147002EE829 /* AppDelegate.m */,
+				9C2BCF632FE68147002EE829 /* Assets.xcassets */,
+				9C2BCF642FE68147002EE829 /* main.m */,
+				9C2BCF662FE68147002EE829 /* Main.storyboard */,
+				9C2BCF672FE68147002EE829 /* ViewController.h */,
+				9C2BCF682FE68147002EE829 /* ViewController.m */,
+			);
+			path = OBSLabs;
+			sourceTree = "<group>";
+		};
+		9C2BCF6F2FE6817F002EE829 /* libwl */ = {
+			isa = PBXGroup;
+			children = (
+				9C2BCF712FE681A6002EE829 /* src */,
+			);
+			path = libwl;
+			sourceTree = "<group>";
+		};
+		9C2BCF712FE681A6002EE829 /* src */ = {
+			isa = PBXGroup;
+			children = (
+				9C2BCF722FE681C0002EE829 /* decoder */,
+			);
+			path = src;
+			sourceTree = "<group>";
+		};
+		9C2BCF722FE681C0002EE829 /* decoder */ = {
+			isa = PBXGroup;
+			children = (
+				9C2BCF732FE681EE002EE829 /* wl_decoder.h */,
+				9C2BCF742FE681EE002EE829 /* wl_decoder.c */,
+			);
+			path = decoder;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		9C2BCF312FE679BE002EE829 /* OBSLabs */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9C2BCF442FE679BE002EE829 /* Build configuration list for PBXNativeTarget "OBSLabs" */;
+			buildPhases = (
+				5C6FA56C97E50BFDBA39CA37 /* [CP] Check Pods Manifest.lock */,
+				9C2BCF2E2FE679BE002EE829 /* Sources */,
+				9C2BCF2F2FE679BE002EE829 /* Frameworks */,
+				9C2BCF302FE679BE002EE829 /* Resources */,
+				F6A35E02F8A62E609967C90F /* [CP] Embed Pods Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = OBSLabs;
+			productName = OBSLabs;
+			productReference = 9C2BCF322FE679BE002EE829 /* OBSLabs.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		9C2BCF2A2FE679BE002EE829 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastUpgradeCheck = 2640;
+				TargetAttributes = {
+					9C2BCF312FE679BE002EE829 = {
+						CreatedOnToolsVersion = 26.4.1;
+					};
+				};
+			};
+			buildConfigurationList = 9C2BCF2D2FE679BE002EE829 /* Build configuration list for PBXProject "OBSLabs" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 9C2BCF292FE679BE002EE829;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 9C2BCF332FE679BE002EE829 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				9C2BCF312FE679BE002EE829 /* OBSLabs */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		9C2BCF302FE679BE002EE829 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9C2BCF6A2FE68147002EE829 /* Assets.xcassets in Resources */,
+				9C2BCF6B2FE68147002EE829 /* Main.storyboard in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		5C6FA56C97E50BFDBA39CA37 /* [CP] Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
+				"${PODS_ROOT}/Manifest.lock",
+			);
+			name = "[CP] Check Pods Manifest.lock";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Pods-OBSLabs-checkManifestLockResult.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
+		F6A35E02F8A62E609967C90F /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-OBSLabs/Pods-OBSLabs-frameworks-${CONFIGURATION}-input-files.xcfilelist",
+			);
+			inputPaths = (
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-OBSLabs/Pods-OBSLabs-frameworks-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-OBSLabs/Pods-OBSLabs-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		9C2BCF2E2FE679BE002EE829 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9C2BCF6C2FE68147002EE829 /* AppDelegate.m in Sources */,
+				9C2BCF752FE681EE002EE829 /* wl_decoder.c in Sources */,
+				9C2BCF6D2FE68147002EE829 /* main.m in Sources */,
+				9C2BCF6E2FE68147002EE829 /* ViewController.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXVariantGroup section */
+		9C2BCF662FE68147002EE829 /* Main.storyboard */ = {
+			isa = PBXVariantGroup;
+			children = (
+				9C2BCF652FE68147002EE829 /* Base */,
+			);
+			name = Main.storyboard;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
+/* Begin XCBuildConfiguration section */
+		9C2BCF422FE679BE002EE829 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = UG4W2B7XPD;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.4;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+			};
+			name = Debug;
+		};
+		9C2BCF432FE679BE002EE829 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = UG4W2B7XPD;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.4;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+			};
+			name = Release;
+		};
+		9C2BCF452FE679BE002EE829 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 307840F0B33A27FA72FC4685 /* Pods-OBSLabs.debug.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = UG4W2B7XPD;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_FILE_ACCESS_DOWNLOADS_FOLDER = readwrite;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = NO;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = NO;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
+				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
+				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
+				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
+				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
+				ENABLE_RESOURCE_ACCESS_USB = NO;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSMainStoryboardFile = Main;
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.OBSLabs;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+			name = Debug;
+		};
+		9C2BCF462FE679BE002EE829 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 49F65ED8BDC79250705A9C43 /* Pods-OBSLabs.release.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = UG4W2B7XPD;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_FILE_ACCESS_DOWNLOADS_FOLDER = readwrite;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = NO;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = NO;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
+				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
+				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
+				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
+				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
+				ENABLE_RESOURCE_ACCESS_USB = NO;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSMainStoryboardFile = Main;
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.OBSLabs;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		9C2BCF2D2FE679BE002EE829 /* Build configuration list for PBXProject "OBSLabs" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9C2BCF422FE679BE002EE829 /* Debug */,
+				9C2BCF432FE679BE002EE829 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		9C2BCF442FE679BE002EE829 /* Build configuration list for PBXNativeTarget "OBSLabs" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9C2BCF452FE679BE002EE829 /* Debug */,
+				9C2BCF462FE679BE002EE829 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 9C2BCF2A2FE679BE002EE829 /* Project object */;
+}
