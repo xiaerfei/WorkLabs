@@ -790,4 +790,102 @@ YUV 数据存在两种数值范围，这是"颜色看起来不对劲"的另一�
 
 ---
 
+### A.8 YUV420P → RGB 转换的坐标映射
+
+将 YUV420P 转为 RGB 时，核心痛点是 **Y 和 UV 的网格大小不一致**。Y 是 `W×H`，UV 是 `W/2 × H/2`。
+
+对于 RGB 图像中坐标为 `(x, y)` 的像素：
+
+| 分量 | 二维坐标 | 该平面行宽 | 一维内存偏移量 |
+|------|----------|-----------|---------------|
+| **Y** | `(x, y)` | `W` | `y * linesize[0] + x` |
+| **U/V** | `(x/2, y/2)` | `W/2` | `(y/2) * linesize[1] + (x/2)` |
+
+> **关键**：计算内存偏移时用 `linesize`（含 padding），遍历边界用 `width`/`height`（逻辑像素数）。两者混用会导致画面斜切或崩溃。
+
+**BT.601 Full Range 转换公式**：
+```
+R = Y + 1.402 × (V - 128)
+G = Y - 0.344136 × (U - 128) - 0.714136 × (V - 128)
+B = Y + 1.772 × (U - 128)
+```
+
+> 算出的 R/G/B 可能超出 `[0, 255]`，必须 clamp 截断后再写入。
+
+---
+
+### A.9 BMP 文件写入要点
+
+BMP 是验证 YUV→RGB 转换最直观的方式（54 字节头 + BGR 像素数据，无需第三方库）。
+
+**三大潜规则**：
+
+1. **自底向上**：BMP 默认从画面最后一行开始存储。利用 `biHeight = -height`（负数）可声明数据是 Top-Down 正序排列，避免画面倒立。
+2. **BGR 顺序**：内存中是 `B, G, R`，不是 `R, G, B`。
+3. **行对齐到 4 字节**：每行字节数必须是 4 的倍数。若 `width * 3` 不是 4 的倍数，需在行末补 0。（常见分辨率如 1920、1280、720 均满足，可暂不处理。）
+
+**BMP 头部结构**（需 `#pragma pack(push, 1)` 强制 1 字节对齐）：
+
+```c
+typedef struct {          // 14 字节
+    uint16_t bfType;      // 0x4D42 ("BM")
+    uint32_t bfSize;      // 文件总大小
+    uint16_t bfReserved1; // 0
+    uint16_t bfReserved2; // 0
+    uint32_t bfOffBits;   // 像素数据偏移 (54)
+} BMPFileHeader;
+
+typedef struct {          // 40 字节
+    uint32_t biSize;      // 40
+    int32_t  biWidth;     // 宽度
+    int32_t  biHeight;    // 高度（负数 = Top-Down）
+    uint16_t biPlanes;    // 1
+    uint16_t biBitCount;  // 24
+    uint32_t biCompression; // 0（不压缩）
+    uint32_t biSizeImage; // width * height * 3
+    int32_t  biXPelsPerMeter; // 0
+    int32_t  biYPelsPerMeter; // 0
+    uint32_t biClrUsed;   // 0
+    uint32_t biClrImportant; // 0
+} BMPInfoHeader;
+```
+
+---
+
+### A.10 10-bit YUV420P10LE 处理
+
+现代 4K/HDR 视频常使用 `AV_PIX_FMT_YUV420P10LE`：每个分量占 **2 字节**（`uint16_t`），数值范围 `0~1023`，色度居中点为 `512`。
+
+**与 8-bit 的关键差异**：
+
+| | 8-bit (YUV420P) | 10-bit (YUV420P10LE) |
+|---|---|---|
+| 每分量字节数 | 1 (`uint8_t`) | 2 (`uint16_t`) |
+| Y 范围 | 0~255 | 0~1023 |
+| UV 居中点 | 128 | 512 |
+| linesize 含义 | 字节数 = 元素数 | 字节数 = 元素数 × 2 |
+
+**10-bit → 8-bit BMP 转换**（BT.709 Limited Range）：
+```c
+uint16_t *dataY = (uint16_t*)frame->data[0];
+int strideY = frame->linesize[0] / 2;  // 字节数转元素数
+
+// 公式：Y-64 (16<<2), UV-512 (128<<2), >>2 回到 8-bit
+int r = (int)(1.1644 * (Y - 64) + 1.7927 * (V - 512)) >> 2;
+```
+
+**`>> 2` 的含义**：10-bit 最大值 1023，8-bit 最大值 255，比值恰好为 4。右移 2 位 = 除以 4，等比例缩放。会丢失低位 2 bit 精度（量化），肉眼通常不可察觉。追求极致画质可用 Floyd-Steinberg 抖动算法（Dithering）。
+
+---
+
+### A.11 C 语言踩坑经验
+
+手写 YUV→RGB 转换时常见的三个坑：
+
+1. **变量名冲突**：内层循环 `uint8_t y = dataY[idx]` 会覆盖外层循环变量 `int y`，导致循环提前退出、画面只有顶部几行有数据。**像素值用大写 `Y, U, V`**。
+2. **`uint8_t` 运算溢出**：`(V - 128)` 可能为负数，赋值给 `uint8_t` 会截断回绕。**中间计算结果必须用 `int`**，clamp 后再强转 `uint8_t`。
+3. **无效的 clamp**：`uint8_t` 永远 ≥ 0，`r < 0 ? 0 : ...` 不会生效。必须先用 `int` 算完再 clamp。
+
+---
+
 原文作者： 雷霄骅
