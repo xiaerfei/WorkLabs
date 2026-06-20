@@ -1,9 +1,28 @@
-# 编译产物
+# ─── 编译产物 ───
 *.o
 *.a
 *.dSYM/
+build/
+DerivedData/
 
-# 媒体测试素材 / 原始数据导出（别进 git）
+# ─── Xcode ───
+xcuserdata/
+*.xcuserdatad/
+*.xcscmblueprint
+*.xccheckout
+
+# ─── CocoaPods ───
+Pods/
+# xcworkspace 由 pod install 生成，不提交
+OBSLabs/OBSLabs.xcworkspace/
+
+# ─── macOS ───
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# ─── 媒体测试素材 / 原始数据导出（别进 git）───
 *.mp4
 *.mov
 *.yuv
@@ -13,5 +32,5 @@
 *.h264
 *.aac
 
-# Learning 各 demo 的可执行（无扩展名，按需补充具体名）
+# ─── Learning 各 demo 的可执行 ───
 Learning/01_decode_one_frame/decode_one_frame
