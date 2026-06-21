@@ -47,9 +47,6 @@ static int wl_decoder_find_stream(wl_decoder_t *decoder) {
         return -1;
     }
     
-    
-    
-    
     return 0;
 }
 
@@ -142,8 +139,14 @@ void wl_decoder_video_codec_free(wl_decoder_t *decoder) {
 
 
 static int wl_decoder_find_audio_stream(wl_decoder_t *decoder) {
-    
-    
+    AVFormatContext *fmt_ctx = decoder->fmt_ctx;
+    const AVCodec *codec = NULL;
+    int streamIndex = av_find_best_stream(fmt_ctx, AVMEDIA_TYPE_AUDIO, -1, -1, &codec, 0);
+    if (streamIndex < 0) {
+        print_av_error("avformat_find_audio_stream_info", streamIndex);
+        return -1;
+    }
+    decoder->audio_index = streamIndex;
     return 0;
 }
 
