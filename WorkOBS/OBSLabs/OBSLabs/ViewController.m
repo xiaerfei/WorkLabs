@@ -18,9 +18,6 @@
     // Do any additional setup after loading the view.
     
     NSLog(@"%u", avformat_version());
-    
-    wl_decoder_create("kkkkkkkk");
-    
 }
 
 

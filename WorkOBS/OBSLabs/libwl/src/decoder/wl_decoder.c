@@ -176,5 +176,32 @@ void wl_decoder_free(wl_decoder_t *decoder) {
     free(decoder);
 }
 
-
+/**
+ * 获取当前 FFmpeg 构建版本及当前主机系统真正支持的硬件加速列表
+ * @return HWAccelList 结构体（值传递，无需外部手动 free）
+ */
+HWAccelList wl_decoder_get_supported_hwaccels(void) {
+    HWAccelList list;
+    list.count = 0;
+    
+    enum AVHWDeviceType type = AV_HWDEVICE_TYPE_NONE;
+    
+    // 迭代遍历当前环境编译进去的所有硬件设备类型
+    while ((type = av_hwdevice_iterate_types(type)) != AV_HWDEVICE_TYPE_NONE) {
+        const char *name = av_hwdevice_get_type_name(type);
+        
+        if (name) {
+            // 工业级防御性编程：防止未来 FFmpeg 支持的硬解类型超出我们数组的上限
+            if (list.count < MAX_HW_ACCELS) {
+                list.names[list.count] = name;
+                list.count++;
+            } else {
+                fprintf(stderr, "[HW] Warning: Supported hardware accelerators exceeded MAX_HW_ACCELS\n");
+                break;
+            }
+        }
+    }
+    
+    return list;
+}
 
