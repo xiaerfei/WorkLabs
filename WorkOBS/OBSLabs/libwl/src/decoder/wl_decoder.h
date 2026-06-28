@@ -21,7 +21,12 @@ typedef struct HWAccelList {
 // 仅仅告诉外部有这个结构体类型，但不透露里面有什么
 typedef struct wl_decoder_t wl_decoder_t;
 
-wl_decoder_t *wl_decoder_create(const char *path);
+/**
+ * 创建解码器
+ * @param path  媒体文件路径
+ * @param hw_type  硬件加速类型名称（如 "videotoolbox"），传 NULL 则纯软解
+ */
+wl_decoder_t *wl_decoder_create(const char *path, const char *hw_type);
 void wl_decoder_free(wl_decoder_t *decoder);
 
 
