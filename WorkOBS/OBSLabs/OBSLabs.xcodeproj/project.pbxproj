@@ -7,114 +7,126 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		686C3E55625AB1E69BB0AFDC /* Pods_OBSLabs.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DED66BFB305821D0B066F92C /* Pods_OBSLabs.framework */; };
-		9C2BCF6A2FE68147002EE829 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 9C2BCF632FE68147002EE829 /* Assets.xcassets */; };
-		9C2BCF6B2FE68147002EE829 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 9C2BCF662FE68147002EE829 /* Main.storyboard */; };
-		9C2BCF6C2FE68147002EE829 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 9C2BCF622FE68147002EE829 /* AppDelegate.m */; };
-		9C2BCF6D2FE68147002EE829 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 9C2BCF642FE68147002EE829 /* main.m */; };
-		9C2BCF6E2FE68147002EE829 /* ViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 9C2BCF682FE68147002EE829 /* ViewController.m */; };
-		9C2BCF752FE681EE002EE829 /* wl_decoder.c in Sources */ = {isa = PBXBuildFile; fileRef = 9C2BCF742FE681EE002EE829 /* wl_decoder.c */; };
+		260215496D9C28AF5360A8C7 /* wl_decoder.c in Sources */ = {isa = PBXBuildFile; fileRef = 66A8008ED678FBDFEF9572BC /* wl_decoder.c */; };
+		27101E6475B80D4284FEE10A /* wl_queue.c in Sources */ = {isa = PBXBuildFile; fileRef = 17C6366A425003B3DCC5F3DE /* wl_queue.c */; };
+		4AD253F5E00C5ABD1AB019B6 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = C78377A235C2D7BC747F0613 /* AppDelegate.m */; };
+		63198C269497E1A5A1BB10C6 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 161AB26AA735EE3349382FFD /* Assets.xcassets */; };
+		796DB15F0A16454983AE35D5 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = E50A6BBCF7F77C758F750B34 /* Main.storyboard */; };
+		88675F3AEAE3B20A7B7E9D11 /* wl_node.c in Sources */ = {isa = PBXBuildFile; fileRef = E3CB57DB49451863D6A2BE5F /* wl_node.c */; };
+		BF3968E2B096E55ED66F8651 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 56441A426792D5C02105697B /* main.m */; };
+		E814837C50C3B67FC763DAE8 /* ViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 6BACD6D279C198302E069F12 /* ViewController.m */; };
+		F2FE995BA994EBD682965428 /* Pods_OBSLabs.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2156DFF260EA7513C78FA433 /* Pods_OBSLabs.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		307840F0B33A27FA72FC4685 /* Pods-OBSLabs.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-OBSLabs.debug.xcconfig"; path = "Target Support Files/Pods-OBSLabs/Pods-OBSLabs.debug.xcconfig"; sourceTree = "<group>"; };
-		49F65ED8BDC79250705A9C43 /* Pods-OBSLabs.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-OBSLabs.release.xcconfig"; path = "Target Support Files/Pods-OBSLabs/Pods-OBSLabs.release.xcconfig"; sourceTree = "<group>"; };
-		9C2BCF322FE679BE002EE829 /* OBSLabs.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OBSLabs.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		9C2BCF612FE68147002EE829 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
-		9C2BCF622FE68147002EE829 /* AppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
-		9C2BCF632FE68147002EE829 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		9C2BCF642FE68147002EE829 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
-		9C2BCF652FE68147002EE829 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
-		9C2BCF672FE68147002EE829 /* ViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ViewController.h; sourceTree = "<group>"; };
-		9C2BCF682FE68147002EE829 /* ViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ViewController.m; sourceTree = "<group>"; };
-		9C2BCF732FE681EE002EE829 /* wl_decoder.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = wl_decoder.h; sourceTree = "<group>"; };
-		9C2BCF742FE681EE002EE829 /* wl_decoder.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = wl_decoder.c; sourceTree = "<group>"; };
-		DED66BFB305821D0B066F92C /* Pods_OBSLabs.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_OBSLabs.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		09F31CCC7C632F757B0A2C9F /* wl_queue.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = wl_queue.h; sourceTree = "<group>"; };
+		13475E41D5B5DBFEE452C271 /* OBSLabs.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OBSLabs.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		161AB26AA735EE3349382FFD /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		17C6366A425003B3DCC5F3DE /* wl_queue.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = wl_queue.c; sourceTree = "<group>"; };
+		2044733C283F31524D4E796A /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
+		2156DFF260EA7513C78FA433 /* Pods_OBSLabs.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_OBSLabs.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		4FD5A230B30669D375019221 /* ViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ViewController.h; sourceTree = "<group>"; };
+		51E19821CFDA8FB36E7EAB32 /* Pods-OBSLabs.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-OBSLabs.debug.xcconfig"; path = "Target Support Files/Pods-OBSLabs/Pods-OBSLabs.debug.xcconfig"; sourceTree = "<group>"; };
+		53A743768F4B18F25B033514 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
+		55C3684B103D24C197325581 /* wl_decoder.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = wl_decoder.h; sourceTree = "<group>"; };
+		56441A426792D5C02105697B /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
+		66A8008ED678FBDFEF9572BC /* wl_decoder.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = wl_decoder.c; sourceTree = "<group>"; };
+		6BACD6D279C198302E069F12 /* ViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ViewController.m; sourceTree = "<group>"; };
+		C78377A235C2D7BC747F0613 /* AppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
+		E2122D4E294BAA3EF822177E /* Pods-OBSLabs.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-OBSLabs.release.xcconfig"; path = "Target Support Files/Pods-OBSLabs/Pods-OBSLabs.release.xcconfig"; sourceTree = "<group>"; };
+		E3CB57DB49451863D6A2BE5F /* wl_node.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = wl_node.c; sourceTree = "<group>"; };
+		F245EEAE34D35797F216B16B /* wl_node.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = wl_node.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		9C2BCF2F2FE679BE002EE829 /* Frameworks */ = {
+		DEB428663CFEDB36B78BF352 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				686C3E55625AB1E69BB0AFDC /* Pods_OBSLabs.framework in Frameworks */,
+				F2FE995BA994EBD682965428 /* Pods_OBSLabs.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		007DF12A1282FEDC791F3A9E /* Frameworks */ = {
+		2118EEED580E06656EF17CC9 = {
 			isa = PBXGroup;
 			children = (
-				DED66BFB305821D0B066F92C /* Pods_OBSLabs.framework */,
+				7FCEB47BCE246F8AE6F73D23 /* OBSLabs */,
+				5961F480CE4C72A9B438F3E5 /* src */,
+				B2C19F66B368B8F27F6D3AC3 /* Products */,
+				48C5390CD5B01173B1B91D78 /* Pods */,
+				C09B18D5532B160D8D140C2D /* Frameworks */,
 			);
-			name = Frameworks;
 			sourceTree = "<group>";
 		};
-		65E9053392E9FA8B9FF96899 /* Pods */ = {
+		48C5390CD5B01173B1B91D78 /* Pods */ = {
 			isa = PBXGroup;
 			children = (
-				307840F0B33A27FA72FC4685 /* Pods-OBSLabs.debug.xcconfig */,
-				49F65ED8BDC79250705A9C43 /* Pods-OBSLabs.release.xcconfig */,
+				51E19821CFDA8FB36E7EAB32 /* Pods-OBSLabs.debug.xcconfig */,
+				E2122D4E294BAA3EF822177E /* Pods-OBSLabs.release.xcconfig */,
 			);
+			name = Pods;
 			path = Pods;
 			sourceTree = "<group>";
 		};
-		9C2BCF292FE679BE002EE829 = {
+		5961F480CE4C72A9B438F3E5 /* src */ = {
 			isa = PBXGroup;
 			children = (
-				9C2BCF6F2FE6817F002EE829 /* libwl */,
-				9C2BCF692FE68147002EE829 /* OBSLabs */,
-				9C2BCF332FE679BE002EE829 /* Products */,
-				65E9053392E9FA8B9FF96899 /* Pods */,
-				007DF12A1282FEDC791F3A9E /* Frameworks */,
+				E392995B53F7C4908E887EC9 /* decoder */,
+				94546DB134A9564F99CCFEAF /* queue */,
 			);
+			name = src;
+			path = libwl/src;
 			sourceTree = "<group>";
 		};
-		9C2BCF332FE679BE002EE829 /* Products */ = {
+		7FCEB47BCE246F8AE6F73D23 /* OBSLabs */ = {
 			isa = PBXGroup;
 			children = (
-				9C2BCF322FE679BE002EE829 /* OBSLabs.app */,
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
-		9C2BCF692FE68147002EE829 /* OBSLabs */ = {
-			isa = PBXGroup;
-			children = (
-				9C2BCF612FE68147002EE829 /* AppDelegate.h */,
-				9C2BCF622FE68147002EE829 /* AppDelegate.m */,
-				9C2BCF632FE68147002EE829 /* Assets.xcassets */,
-				9C2BCF642FE68147002EE829 /* main.m */,
-				9C2BCF662FE68147002EE829 /* Main.storyboard */,
-				9C2BCF672FE68147002EE829 /* ViewController.h */,
-				9C2BCF682FE68147002EE829 /* ViewController.m */,
+				53A743768F4B18F25B033514 /* AppDelegate.h */,
+				C78377A235C2D7BC747F0613 /* AppDelegate.m */,
+				161AB26AA735EE3349382FFD /* Assets.xcassets */,
+				56441A426792D5C02105697B /* main.m */,
+				4FD5A230B30669D375019221 /* ViewController.h */,
+				6BACD6D279C198302E069F12 /* ViewController.m */,
+				E50A6BBCF7F77C758F750B34 /* Main.storyboard */,
 			);
 			path = OBSLabs;
 			sourceTree = "<group>";
 		};
-		9C2BCF6F2FE6817F002EE829 /* libwl */ = {
+		94546DB134A9564F99CCFEAF /* queue */ = {
 			isa = PBXGroup;
 			children = (
-				9C2BCF712FE681A6002EE829 /* src */,
+				E3CB57DB49451863D6A2BE5F /* wl_node.c */,
+				F245EEAE34D35797F216B16B /* wl_node.h */,
+				17C6366A425003B3DCC5F3DE /* wl_queue.c */,
+				09F31CCC7C632F757B0A2C9F /* wl_queue.h */,
 			);
-			path = libwl;
+			path = queue;
 			sourceTree = "<group>";
 		};
-		9C2BCF712FE681A6002EE829 /* src */ = {
+		B2C19F66B368B8F27F6D3AC3 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				9C2BCF722FE681C0002EE829 /* decoder */,
+				13475E41D5B5DBFEE452C271 /* OBSLabs.app */,
 			);
-			path = src;
+			name = Products;
 			sourceTree = "<group>";
 		};
-		9C2BCF722FE681C0002EE829 /* decoder */ = {
+		C09B18D5532B160D8D140C2D /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				9C2BCF732FE681EE002EE829 /* wl_decoder.h */,
-				9C2BCF742FE681EE002EE829 /* wl_decoder.c */,
+				2156DFF260EA7513C78FA433 /* Pods_OBSLabs.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		E392995B53F7C4908E887EC9 /* decoder */ = {
+			isa = PBXGroup;
+			children = (
+				66A8008ED678FBDFEF9572BC /* wl_decoder.c */,
+				55C3684B103D24C197325581 /* wl_decoder.h */,
 			);
 			path = decoder;
 			sourceTree = "<group>";
@@ -122,15 +134,15 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		9C2BCF312FE679BE002EE829 /* OBSLabs */ = {
+		8E0FB377E10C5A67A8BE6C4E /* OBSLabs */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 9C2BCF442FE679BE002EE829 /* Build configuration list for PBXNativeTarget "OBSLabs" */;
+			buildConfigurationList = 251B92FF4B975CEF02E2DCD6 /* Build configuration list for PBXNativeTarget "OBSLabs" */;
 			buildPhases = (
-				5C6FA56C97E50BFDBA39CA37 /* [CP] Check Pods Manifest.lock */,
-				9C2BCF2E2FE679BE002EE829 /* Sources */,
-				9C2BCF2F2FE679BE002EE829 /* Frameworks */,
-				9C2BCF302FE679BE002EE829 /* Resources */,
-				F6A35E02F8A62E609967C90F /* [CP] Embed Pods Frameworks */,
+				5A4D16899601A9919BF2E3E3 /* [CP] Check Pods Manifest.lock */,
+				7E2672C7CBF7445D99AEA66F /* Sources */,
+				F7436D36F168A97B4A942AB3 /* Resources */,
+				DEB428663CFEDB36B78BF352 /* Frameworks */,
+				1ABB25CB1ED34D5D715EE58B /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -138,56 +150,70 @@
 			);
 			name = OBSLabs;
 			productName = OBSLabs;
-			productReference = 9C2BCF322FE679BE002EE829 /* OBSLabs.app */;
+			productReference = 13475E41D5B5DBFEE452C271 /* OBSLabs.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		9C2BCF2A2FE679BE002EE829 /* Project object */ = {
+		3B114A0EC6CAF48BDBB226B1 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				BuildIndependentTargetsInParallel = 1;
-				LastUpgradeCheck = 2640;
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
 				TargetAttributes = {
-					9C2BCF312FE679BE002EE829 = {
-						CreatedOnToolsVersion = 26.4.1;
-					};
 				};
 			};
-			buildConfigurationList = 9C2BCF2D2FE679BE002EE829 /* Build configuration list for PBXProject "OBSLabs" */;
+			buildConfigurationList = 9DE6892CD66EA1625906917F /* Build configuration list for PBXProject "OBSLabs" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
-				en,
 				Base,
+				en,
 			);
-			mainGroup = 9C2BCF292FE679BE002EE829;
+			mainGroup = 2118EEED580E06656EF17CC9;
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
-			productRefGroup = 9C2BCF332FE679BE002EE829 /* Products */;
+			productRefGroup = B2C19F66B368B8F27F6D3AC3 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				9C2BCF312FE679BE002EE829 /* OBSLabs */,
+				8E0FB377E10C5A67A8BE6C4E /* OBSLabs */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		9C2BCF302FE679BE002EE829 /* Resources */ = {
+		F7436D36F168A97B4A942AB3 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				9C2BCF6A2FE68147002EE829 /* Assets.xcassets in Resources */,
-				9C2BCF6B2FE68147002EE829 /* Main.storyboard in Resources */,
+				63198C269497E1A5A1BB10C6 /* Assets.xcassets in Resources */,
+				796DB15F0A16454983AE35D5 /* Main.storyboard in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		5C6FA56C97E50BFDBA39CA37 /* [CP] Check Pods Manifest.lock */ = {
+		1ABB25CB1ED34D5D715EE58B /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-OBSLabs/Pods-OBSLabs-frameworks-${CONFIGURATION}-input-files.xcfilelist",
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-OBSLabs/Pods-OBSLabs-frameworks-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-OBSLabs/Pods-OBSLabs-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		5A4D16899601A9919BF2E3E3 /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -209,48 +235,29 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-		F6A35E02F8A62E609967C90F /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-OBSLabs/Pods-OBSLabs-frameworks-${CONFIGURATION}-input-files.xcfilelist",
-			);
-			inputPaths = (
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-OBSLabs/Pods-OBSLabs-frameworks-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-OBSLabs/Pods-OBSLabs-frameworks.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		9C2BCF2E2FE679BE002EE829 /* Sources */ = {
+		7E2672C7CBF7445D99AEA66F /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				9C2BCF6C2FE68147002EE829 /* AppDelegate.m in Sources */,
-				9C2BCF752FE681EE002EE829 /* wl_decoder.c in Sources */,
-				9C2BCF6D2FE68147002EE829 /* main.m in Sources */,
-				9C2BCF6E2FE68147002EE829 /* ViewController.m in Sources */,
+				4AD253F5E00C5ABD1AB019B6 /* AppDelegate.m in Sources */,
+				E814837C50C3B67FC763DAE8 /* ViewController.m in Sources */,
+				BF3968E2B096E55ED66F8651 /* main.m in Sources */,
+				260215496D9C28AF5360A8C7 /* wl_decoder.c in Sources */,
+				88675F3AEAE3B20A7B7E9D11 /* wl_node.c in Sources */,
+				27101E6475B80D4284FEE10A /* wl_queue.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXVariantGroup section */
-		9C2BCF662FE68147002EE829 /* Main.storyboard */ = {
+		E50A6BBCF7F77C758F750B34 /* Main.storyboard */ = {
 			isa = PBXVariantGroup;
 			children = (
-				9C2BCF652FE68147002EE829 /* Base */,
+				2044733C283F31524D4E796A /* Base */,
 			);
 			name = Main.storyboard;
 			sourceTree = "<group>";
@@ -258,14 +265,40 @@
 /* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
-		9C2BCF422FE679BE002EE829 /* Debug */ = {
+		41AFDFA5A560A96C4F7EB287 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 51E19821CFDA8FB36E7EAB32 /* Pods-OBSLabs.debug.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/libwl/src/**";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSMainStoryboardFile = Main;
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.OBSLabs;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		4C1F63378239CCC4378E0B20 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
 				CLANG_ENABLE_OBJC_WEAK = YES;
@@ -292,19 +325,72 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.2;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		D858416A3B8E2CCB24EC35D4 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = UG4W2B7XPD;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = (
-					"DEBUG=1",
 					"$(inherited)",
+					"DEBUG=1",
 				);
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
@@ -312,181 +398,66 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MACOSX_DEPLOYMENT_TARGET = 26.4;
+				MACOSX_DEPLOYMENT_TARGET = 15.2;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
 		};
-		9C2BCF432FE679BE002EE829 /* Release */ = {
+		D8E4C088FF76395CF0EFFBAF /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = E2122D4E294BAA3EF822177E /* Pods-OBSLabs.release.xcconfig */;
 			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
-				CLANG_ANALYZER_NONNULL = YES;
-				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
-				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
-				CLANG_ENABLE_OBJC_WEAK = YES;
-				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
-				CLANG_WARN_BOOL_CONVERSION = YES;
-				CLANG_WARN_COMMA = YES;
-				CLANG_WARN_CONSTANT_CONVERSION = YES;
-				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
-				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
-				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
-				CLANG_WARN_EMPTY_BODY = YES;
-				CLANG_WARN_ENUM_CONVERSION = YES;
-				CLANG_WARN_INFINITE_RECURSION = YES;
-				CLANG_WARN_INT_CONVERSION = YES;
-				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
-				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
-				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
-				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
-				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
-				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
-				CLANG_WARN_STRICT_PROTOTYPES = YES;
-				CLANG_WARN_SUSPICIOUS_MOVE = YES;
-				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
-				CLANG_WARN_UNREACHABLE_CODE = YES;
-				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				COPY_PHASE_STRIP = NO;
-				DEAD_CODE_STRIPPING = YES;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = UG4W2B7XPD;
-				ENABLE_NS_ASSERTIONS = NO;
-				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
-				GCC_NO_COMMON_BLOCKS = YES;
-				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
-				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
-				GCC_WARN_UNDECLARED_SELECTOR = YES;
-				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
-				GCC_WARN_UNUSED_FUNCTION = YES;
-				GCC_WARN_UNUSED_VARIABLE = YES;
-				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MACOSX_DEPLOYMENT_TARGET = 26.4;
-				MTL_ENABLE_DEBUG_INFO = NO;
-				MTL_FAST_MATH = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/libwl/src/**";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSMainStoryboardFile = Main;
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.OBSLabs;
 				SDKROOT = macosx;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-			};
-			name = Release;
-		};
-		9C2BCF452FE679BE002EE829 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReference = 307840F0B33A27FA72FC4685 /* Pods-OBSLabs.debug.xcconfig */;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
-				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = UG4W2B7XPD;
-				ENABLE_APP_SANDBOX = YES;
-				ENABLE_FILE_ACCESS_DOWNLOADS_FOLDER = readwrite;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_INCOMING_NETWORK_CONNECTIONS = NO;
-				ENABLE_OUTGOING_NETWORK_CONNECTIONS = NO;
-				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
-				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
-				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
-				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
-				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
-				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
-				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
-				ENABLE_RESOURCE_ACCESS_USB = NO;
-				ENABLE_USER_SCRIPT_SANDBOXING = NO;
-				ENABLE_USER_SELECTED_FILES = readonly;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INFOPLIST_KEY_NSMainStoryboardFile = Main;
-				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.OBSLabs;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				REGISTER_APP_GROUPS = YES;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-			};
-			name = Debug;
-		};
-		9C2BCF462FE679BE002EE829 /* Release */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReference = 49F65ED8BDC79250705A9C43 /* Pods-OBSLabs.release.xcconfig */;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
-				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = UG4W2B7XPD;
-				ENABLE_APP_SANDBOX = YES;
-				ENABLE_FILE_ACCESS_DOWNLOADS_FOLDER = readwrite;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_INCOMING_NETWORK_CONNECTIONS = NO;
-				ENABLE_OUTGOING_NETWORK_CONNECTIONS = NO;
-				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
-				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
-				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
-				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
-				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
-				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
-				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
-				ENABLE_RESOURCE_ACCESS_USB = NO;
-				ENABLE_USER_SCRIPT_SANDBOXING = NO;
-				ENABLE_USER_SELECTED_FILES = readonly;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INFOPLIST_KEY_NSMainStoryboardFile = Main;
-				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.OBSLabs;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				REGISTER_APP_GROUPS = YES;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
 			};
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		9C2BCF2D2FE679BE002EE829 /* Build configuration list for PBXProject "OBSLabs" */ = {
+		251B92FF4B975CEF02E2DCD6 /* Build configuration list for PBXNativeTarget "OBSLabs" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				9C2BCF422FE679BE002EE829 /* Debug */,
-				9C2BCF432FE679BE002EE829 /* Release */,
+				41AFDFA5A560A96C4F7EB287 /* Debug */,
+				D8E4C088FF76395CF0EFFBAF /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
+			defaultConfigurationName = Debug;
 		};
-		9C2BCF442FE679BE002EE829 /* Build configuration list for PBXNativeTarget "OBSLabs" */ = {
+		9DE6892CD66EA1625906917F /* Build configuration list for PBXProject "OBSLabs" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				9C2BCF452FE679BE002EE829 /* Debug */,
-				9C2BCF462FE679BE002EE829 /* Release */,
+				D858416A3B8E2CCB24EC35D4 /* Debug */,
+				4C1F63378239CCC4378E0B20 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
+			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
 	};
-	rootObject = 9C2BCF2A2FE679BE002EE829 /* Project object */;
+	rootObject = 3B114A0EC6CAF48BDBB226B1 /* Project object */;
 }

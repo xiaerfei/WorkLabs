@@ -208,7 +208,7 @@ static int wl_decoder_cfgd_audio(wl_decoder_t *decoder) {
 
 #pragma mark - Public Methods
 wl_decoder_t *wl_decoder_create(const char *path, const char *hw_type) {
-    wl_decoder_t *decoder = malloc(sizeof(wl_decoder_t));
+    wl_decoder_t *decoder = calloc(1, sizeof(wl_decoder_t));
     decoder->path = path;
     decoder->hw_type = hw_type;
     int ret = wl_decoder_ffmpeg_init(decoder);

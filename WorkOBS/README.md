@@ -1,16 +1,19 @@
 # WorkOBS — 音视频边学边写
 
-用 **C 写内核（libwl）+ OC 写 UI**，从零独立实现简化版 OBS（macOS）。
-与根目录的 WorkLabs 工程**隔离**——WorkLabs 只当「参考答案 / 自测基准」，**不抄**。
+**C 写内核（libwl）+ OC 写 UI**，复刻 OBS / MPV / WebRTC 中经过生产验证的成熟设计，在实现中深入掌握音视频底层原理与架构。
+与根目录的 WorkLabs 工程**隔离**——WorkLabs 只当对照基准。
 
 > 完整学习计划（里程碑 M0–M6 / 方法论 / 协作协议 / 验收基准 / 自测题）见：
 > [`../Doc/规划/音视频学习路线_边写边学.md`](../Doc/规划/音视频学习路线_边写边学.md) 文首「🎯 执行计划与进度」。
+>
+> 调研资料（OBS · MPV · IINA · TVUExternalSource）见：[`../Doc/调研/`](../Doc/调研/)
 
 ## 协作方式
 
-- **设计先行**：每个里程碑开工前，先讨论并确认详细设计文档（架构、数据流、关键决策、接口定义）
-- **代码协作**：Claude 编写代码，用户逐行 review，确保每一行都基于理解
-- **理解为本**：不盲信 AI 生成的结果，理解是底线；卡住先查资料，实在不行再翻 WorkLabs 对照，看懂后合上、自己默写
+- **你负责设计**：接口定义、模块边界、关键数据结构、设计决策——每个里程碑开工前先讨论确认
+- **Claude 写实现**：C 内核（libwl）+ OC 胶水/UI，代码来源于 OBS/MPV 等成熟设计的复刻
+- **你做深度 review**：逐行过，每一行都要能说出「为什么这么写」；通过才勾 ✅
+- **目标是判断力**：不是练手速，而是建立架构直觉——能看出好设计和坏设计的区别
 
 ## 目录
 
@@ -20,14 +23,14 @@
 - `OBSLabs/` — macOS App 工程（OC + Metal + CocoaPods），承载 UI 和播放器壳。
 - `Doc/` — 学习笔记和里程碑详细步骤。
 
-## 当前：M0 · 解码一帧存 BMP ✅
+## 进度
 
-```bash
-brew install ffmpeg            # 装 FFmpeg（命令行 + 开发库）
-cd Learning/01_decode_one_frame
-make                           # 编译
-./decode_one_frame input.mp4 out.bmp
-open out.bmp                   # 对照 ffmpeg -i input.mp4 -frames:v 1 ref.png 肉眼一致即过
-```
-
-核心逻辑（解码 / YUV→RGB / BMP）自己写；`decode_one_frame.c` 里已给分步 TODO 路标。
+| 里程碑 | 状态 |
+|--------|------|
+| M0 · 解码一帧存 BMP | ✅ |
+| M1 · 本地播放器（解码 + Metal + AudioQueue + A/V 同步） | 🚧 👉 |
+| M2 · 录制器 | ⬜ |
+| M3 · 合成 | ⬜ |
+| M4 · 节拍 + 混音 | ⬜ |
+| M5 · 推流 | ⬜ |
+| M6 · 收尾 | ⬜ |
