@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 760 500" xmlns="http://www.w3.org/2000/svg"
+     font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif">
+
+  <defs>
+    <marker id="ab" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#3B82F6"/>
+    </marker>
+    <marker id="ap" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#8B5CF6"/>
+    </marker>
+    <marker id="ag" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#10B981"/>
+    </marker>
+    <marker id="alb" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#93C5FD"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="760" height="500" fill="#FFFFFF" rx="0"/>
+
+  <!-- ═══════════════════════════════════════════════
+       TITLE
+  ═══════════════════════════════════════════════ -->
+  <text x="380" y="26" text-anchor="middle" font-size="16" font-weight="700" fill="#111827">OBS 线程模型 — 媒体源播放</text>
+  <text x="380" y="42" text-anchor="middle" font-size="9.5" fill="#9CA3AF">shared/media-playback · libobs/obs-source.c · libobs/obs-video.c · libobs/media-io/audio-io.c</text>
+
+  <!-- ═══════════════════════════════════════════════
+       PER-SOURCE BADGE
+  ═══════════════════════════════════════════════ -->
+  <rect x="12" y="52" width="158" height="17" rx="8.5" fill="#DBEAFE"/>
+  <text x="91" y="64" text-anchor="middle" font-size="9" font-weight="600" fill="#1D4ED8">每个媒体源  PER-SOURCE</text>
+
+  <!-- ═══════════════════════════════════════════════
+       mp_media_thread BOX
+  ═══════════════════════════════════════════════ -->
+  <rect x="12" y="74" width="736" height="172" rx="8" fill="#EFF6FF" stroke="#3B82F6" stroke-width="1.5"/>
+
+  <text x="380" y="95" text-anchor="middle" font-size="14" font-weight="700" fill="#1D4ED8">mp_media_thread</text>
+  <text x="380" y="111" text-anchor="middle" font-size="9" fill="#60A5FA">每个媒体源独占一条线程 · shared/media-playback/media.c : 835</text>
+
+  <!-- Serial badge inside -->
+  <rect x="255" y="119" width="250" height="15" rx="7.5" fill="#BFDBFE"/>
+  <text x="380" y="130" text-anchor="middle" font-size="8.5" fill="#1E3A8A">① ② ③ 串行执行在同一线程，semaphore 控制节拍</text>
+
+  <!-- Step 1: av_read_frame -->
+  <rect x="26" y="141" width="223" height="44" rx="5" fill="#FFFFFF" stroke="#93C5FD" stroke-width="1"/>
+  <text x="137" y="159" text-anchor="middle" font-size="10.5" font-weight="600" fill="#1E40AF">① av_read_frame()</text>
+  <text x="137" y="173" text-anchor="middle" font-size="8.5" fill="#6B7280">从容器读一个 AVPacket</text>
+  <text x="137" y="183" text-anchor="middle" font-size="8.5" fill="#6B7280">视频包 or 音频包，交替出现</text>
+
+  <!-- Arrow 1→2 -->
+  <line x1="249" y1="163" x2="268" y2="163" stroke="#93C5FD" stroke-width="1.5" marker-end="url(#alb)"/>
+
+  <!-- Step 2: 视频解码 -->
+  <rect x="268" y="141" width="223" height="44" rx="5" fill="#FFFFFF" stroke="#93C5FD" stroke-width="1"/>
+  <text x="380" y="159" text-anchor="middle" font-size="10.5" font-weight="600" fill="#1E40AF">② 视频解码</text>
+  <text x="380" y="173" text-anchor="middle" font-size="8.5" fill="#6B7280">avcodec_send/receive_frame</text>
+  <text x="380" y="183" text-anchor="middle" font-size="8.5" fill="#6B7280">VideoToolbox 硬解（decode.c:45）</text>
+
+  <!-- Arrow 2→3 -->
+  <line x1="491" y1="163" x2="510" y2="163" stroke="#93C5FD" stroke-width="1.5" marker-end="url(#alb)"/>
+
+  <!-- Step 3: 音频解码 -->
+  <rect x="510" y="141" width="223" height="44" rx="5" fill="#FFFFFF" stroke="#93C5FD" stroke-width="1"/>
+  <text x="622" y="159" text-anchor="middle" font-size="10.5" font-weight="600" fill="#1E40AF">③ 音频解码</text>
+  <text x="622" y="173" text-anchor="middle" font-size="8.5" fill="#6B7280">avcodec_send/receive_frame</text>
+  <text x="622" y="183" text-anchor="middle" font-size="8.5" fill="#6B7280">AAC/FLAC 等软解</text>
+
+  <!-- Output arrows inside box (dashed) -->
+  <line x1="137" y1="185" x2="137" y2="210" stroke="#3B82F6" stroke-width="1" stroke-dasharray="3,2"/>
+  <text x="137" y="224" text-anchor="middle" font-size="8.5" fill="#3B82F6">obs_source_output_video()</text>
+  <text x="137" y="236" text-anchor="middle" font-size="8" fill="#9CA3AF">push → async_frames</text>
+
+  <line x1="622" y1="185" x2="622" y2="210" stroke="#8B5CF6" stroke-width="1" stroke-dasharray="3,2"/>
+  <text x="622" y="224" text-anchor="middle" font-size="8.5" fill="#8B5CF6">audio callback  a_cb()</text>
+  <text x="622" y="236" text-anchor="middle" font-size="8" fill="#9CA3AF">push → audio_output</text>
+
+  <!-- ═══════════════════════════════════════════════
+       ARROWS: thread → buffers
+  ═══════════════════════════════════════════════ -->
+  <line x1="137" y1="246" x2="137" y2="272" stroke="#3B82F6" stroke-width="1.5" marker-end="url(#ab)"/>
+  <line x1="622" y1="246" x2="622" y2="272" stroke="#8B5CF6" stroke-width="1.5" marker-end="url(#ap)"/>
+
+  <!-- ═══════════════════════════════════════════════
+       BUFFER ROW
+  ═══════════════════════════════════════════════ -->
+
+  <!-- async_frames -->
+  <rect x="12" y="274" width="368" height="60" rx="7" fill="#DBEAFE" stroke="#93C5FD" stroke-width="1.5"/>
+  <text x="196" y="296" text-anchor="middle" font-size="12" font-weight="700" fill="#1E40AF">async_frames [ ]</text>
+  <text x="196" y="311" text-anchor="middle" font-size="8.5" fill="#1D4ED8">per-source 帧缓冲 · MAX = 30 帧 · obs-source.c:3503</text>
+  <text x="196" y="325" text-anchor="middle" font-size="8.5" fill="#6B7280">async_mutex 保护 · 1080p 最坏 ≈ 90 MB（GPU IOSurface）</text>
+
+  <!-- audio callbacks -->
+  <rect x="392" y="274" width="356" height="60" rx="7" fill="#EDE9FE" stroke="#A78BFA" stroke-width="1.5"/>
+  <text x="570" y="296" text-anchor="middle" font-size="12" font-weight="700" fill="#5B21B6">audio output callbacks</text>
+  <text x="570" y="311" text-anchor="middle" font-size="8.5" fill="#6D28D9">源注册回调到全局 audio_output · audio-io.c</text>
+  <text x="570" y="325" text-anchor="middle" font-size="8.5" fill="#6B7280">每 tick 由 audio_thread 调用，推送 PCM 帧</text>
+
+  <!-- ═══════════════════════════════════════════════
+       GLOBAL BADGE
+  ═══════════════════════════════════════════════ -->
+  <rect x="12" y="352" width="110" height="17" rx="8.5" fill="#D1FAE5"/>
+  <text x="67" y="364" text-anchor="middle" font-size="9" font-weight="600" fill="#065F46">全局  GLOBAL</text>
+
+  <!-- ═══════════════════════════════════════════════
+       ARROWS: buffers → global threads
+  ═══════════════════════════════════════════════ -->
+  <line x1="196" y1="334" x2="196" y2="374" stroke="#3B82F6" stroke-width="1.5" marker-end="url(#ab)"/>
+  <text x="240" y="357" font-size="8" fill="#3B82F6">get_closest_frame()</text>
+
+  <line x1="570" y1="334" x2="570" y2="374" stroke="#8B5CF6" stroke-width="1.5" marker-end="url(#ap)"/>
+  <text x="584" y="357" font-size="8" fill="#8B5CF6">mix &amp; output</text>
+
+  <!-- ═══════════════════════════════════════════════
+       GLOBAL THREADS ROW
+  ═══════════════════════════════════════════════ -->
+
+  <!-- obs_graphics_thread -->
+  <rect x="12" y="374" width="368" height="88" rx="7" fill="#ECFDF5" stroke="#10B981" stroke-width="1.5"/>
+  <text x="196" y="395" text-anchor="middle" font-size="13" font-weight="700" fill="#065F46">obs_graphics_thread</text>
+  <text x="196" y="410" text-anchor="middle" font-size="8.5" fill="#34D399">全局唯一一条 · libobs/obs-video.c:1161</text>
+  <text x="196" y="425" text-anchor="middle" font-size="8.5" fill="#374151">tick_sources() → async_tick() → get_closest_frame()</text>
+  <text x="196" y="440" text-anchor="middle" font-size="8.5" fill="#374151">虚拟时钟：last_frame_ts += sys_offset，丢过期帧</text>
+  <text x="196" y="454" text-anchor="middle" font-size="8.5" fill="#6B7280">video_sleep() 维持固定 fps · obs-source.c:4087</text>
+
+  <!-- audio_thread -->
+  <rect x="392" y="374" width="356" height="88" rx="7" fill="#ECFDF5" stroke="#10B981" stroke-width="1.5"/>
+  <text x="570" y="395" text-anchor="middle" font-size="13" font-weight="700" fill="#065F46">audio_thread</text>
+  <text x="570" y="410" text-anchor="middle" font-size="8.5" fill="#34D399">全局唯一一条 · libobs/media-io/audio-io.c:205</text>
+  <text x="570" y="425" text-anchor="middle" font-size="8.5" fill="#374151">每 tick 拉 1024 samples，遍历所有源回调</text>
+  <text x="570" y="440" text-anchor="middle" font-size="8.5" fill="#374151">求和混音 → 推编码器 / 扬声器输出</text>
+  <text x="570" y="454" text-anchor="middle" font-size="8.5" fill="#6B7280">os_sleepto_ns_fast() 对齐音频时钟</text>
+
+  <!-- ═══════════════════════════════════════════════
+       LEGEND
+  ═══════════════════════════════════════════════ -->
+  <rect x="12" y="474" width="736" height="20" rx="4" fill="#F9FAFB" stroke="#E5E7EB" stroke-width="1"/>
+  <circle cx="32" cy="484" r="4" fill="#3B82F6"/>
+  <text x="42" y="488" font-size="8.5" fill="#374151">视频路径</text>
+  <circle cx="110" cy="484" r="4" fill="#8B5CF6"/>
+  <text x="120" y="488" font-size="8.5" fill="#374151">音频路径</text>
+  <circle cx="190" cy="484" r="4" fill="#10B981"/>
+  <text x="200" y="488" font-size="8.5" fill="#374151">全局消费者</text>
+  <text x="360" y="488" font-size="8.5" fill="#9CA3AF">旧 WLMediaSource = 5 条线程（parse+视解+音解+视渲+音渲）｜OBS 方案 = 1条 decode 线程 + 2条全局共享线程</text>
+
+</svg>

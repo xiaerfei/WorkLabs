@@ -10,6 +10,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include "wl_queue.h"
 #define MAX_HW_ACCELS 16
 
 // 专门对接 UI 层的硬件加速列表结构体
@@ -36,6 +37,22 @@ void wl_decoder_free(wl_decoder_t *decoder);
  */
 HWAccelList wl_decoder_get_supported_hwaccels(void);
 
+// ---- decode 单步 ----
 
+typedef enum {
+    WL_DECODE_OK = 0,  // 至少解出一帧，已推入队列
+    WL_DECODE_AGAIN,   // pkt 已送入但本次没帧出来（B 帧延迟 / 字幕包等）
+    WL_DECODE_EOF,     // 文件读完
+    WL_DECODE_ABORTED, // 队列被 abort（外部停止信号）
+    WL_DECODE_ERROR,   // 致命错误
+} wl_decode_result_t;
+
+/**
+ * 读一个 AVPacket，送入对应解码器，把产出的所有 AVFrame 推入队列。
+ * 由 decode_thread 在循环中调用；队列满时阻塞（背压），abort 时返回 WL_DECODE_ABORTED。
+ */
+wl_decode_result_t wl_decoder_next_frames(wl_decoder_t *decoder,
+                                           wl_queue_t   *video_q,
+                                           wl_queue_t   *audio_q);
 
 #endif /* wl_decoder_h */
