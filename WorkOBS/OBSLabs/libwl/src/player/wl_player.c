@@ -30,20 +30,53 @@ struct wl_player {
 
 // ---------- decode thread ----------
 
+// 辅助：把一个解码帧包装成 wl_node 并推入队列
+static void push_frame_to_queue(wl_queue_t *q, wl_node_type_t type,
+                                 AVFrame *frame, int64_t pts_ns,
+                                 bool *aborted) {
+    wl_node_t *node = wl_node_create(type, frame, pts_ns);
+    if (!node) { av_frame_free(&frame); return; }
+    if (wl_queue_push(q, node) == WL_QUEUE_ABORTED) {
+        wl_node_free(node);
+        *aborted = true;
+    }
+}
+
 static void *decode_thread_func(void *arg) {
     wl_player_t *p = arg;
+    bool eof = false;
 
     while (!atomic_load(&p->should_stop)) {
-        wl_decode_result_t r = wl_decoder_next_frames(p->decoder, p->video_q, p->audio_q);
-        if (r == WL_DECODE_EOF || r == WL_DECODE_ABORTED) break;
-        if (r == WL_DECODE_ERROR) {
-            fprintf(stderr, "[wl_player] decode error, stopping\n");
+        // 先尝试收视频帧
+        {
+            AVFrame *f = NULL; int64_t pts = 0;
+            if (wl_decoder_receive_video(p->decoder, &f, &pts) == WL_FRAME_OK) {
+                bool aborted = false;
+                push_frame_to_queue(p->video_q, WL_NODE_VIDEO_FRAME, f, pts, &aborted);
+                if (aborted) break;
+                continue;
+            }
+        }
+        // 再尝试收音频帧
+        {
+            AVFrame *f = NULL; int64_t pts = 0;
+            if (wl_decoder_receive_audio(p->decoder, &f, &pts) == WL_FRAME_OK) {
+                bool aborted = false;
+                push_frame_to_queue(p->audio_q, WL_NODE_AUDIO_FRAME, f, pts, &aborted);
+                if (aborted) break;
+                continue;
+            }
+        }
+        // codec 都空了，读下一个 packet
+        if (eof) break;
+        wl_read_result_t r = wl_decoder_read(p->decoder);
+        if (r == WL_READ_EOF) { eof = true; continue; }
+        if (r == WL_READ_ERROR) {
+            fprintf(stderr, "[wl_player] read error, stopping\n");
             break;
         }
-        // WL_DECODE_OK / WL_DECODE_AGAIN: 继续循环
     }
 
-    // 通知 render 线程不再有数据
     wl_queue_abort(p->video_q);
     wl_queue_abort(p->audio_q);
     return NULL;

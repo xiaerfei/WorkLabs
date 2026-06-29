@@ -6,8 +6,7 @@
 //
 
 #include "wl_decoder.h"
-#include "wl_queue.h"
-#include "wl_node.h"
+#include <stdbool.h>
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
 #include <libavutil/hwcontext.h>
@@ -24,6 +23,10 @@ typedef struct wl_decoder_t {
     AVCodecContext *video_codec_ctx; ///< Video 解码器
     AVCodecContext *audio_codec_ctx; ///< Audio 解码器
     AVBufferRef *hw_device_ctx; ///< 硬解码
+
+    bool eof_reached;   ///< av_read_frame 已返回 EOF
+    bool video_drained; ///< video codec 已 flush 且无更多输出
+    bool audio_drained; ///< audio codec 已 flush 且无更多输出
 } wl_decoder_t;
 
 #pragma mark - Private Methods
@@ -279,81 +282,125 @@ HWAccelList wl_decoder_get_supported_hwaccels(void) {
     return list;
 }
 
-wl_decode_result_t wl_decoder_next_frames(wl_decoder_t *decoder,
-                                           wl_queue_t   *video_q,
-                                           wl_queue_t   *audio_q) {
+// ---- wl_media_thread 用的细粒度 API ----
+
+wl_read_result_t wl_decoder_read(wl_decoder_t *decoder) {
+    if (decoder->eof_reached) return WL_READ_EOF;
+
     AVPacket *pkt = av_packet_alloc();
-    if (!pkt) return WL_DECODE_ERROR;
+    if (!pkt) return WL_READ_ERROR;
 
     int ret = av_read_frame(decoder->fmt_ctx, pkt);
     if (ret == AVERROR_EOF) {
+        // 文件读完，flush 两个解码器（send NULL 触发 drain）
         av_packet_free(&pkt);
-        return WL_DECODE_EOF;
+        decoder->eof_reached = true;
+        if (decoder->video_codec_ctx && decoder->video_index >= 0)
+            avcodec_send_packet(decoder->video_codec_ctx, NULL);
+        if (decoder->audio_codec_ctx && decoder->audio_index >= 0)
+            avcodec_send_packet(decoder->audio_codec_ctx, NULL);
+        return WL_READ_EOF;
     }
     if (ret < 0) {
         av_packet_free(&pkt);
-        return WL_DECODE_ERROR;
+        return WL_READ_ERROR;
     }
 
-    AVCodecContext *codec_ctx;
-    wl_queue_t     *queue;
-    wl_node_type_t  node_type;
-    AVRational      time_base;
-
-    if (pkt->stream_index == decoder->video_index) {
-        codec_ctx = decoder->video_codec_ctx;
-        queue     = video_q;
-        node_type = WL_NODE_VIDEO_FRAME;
-        time_base = decoder->fmt_ctx->streams[decoder->video_index]->time_base;
-    } else if (pkt->stream_index == decoder->audio_index) {
-        codec_ctx = decoder->audio_codec_ctx;
-        queue     = audio_q;
-        node_type = WL_NODE_AUDIO_FRAME;
-        time_base = decoder->fmt_ctx->streams[decoder->audio_index]->time_base;
+    wl_read_result_t result;
+    if (pkt->stream_index == decoder->video_index && decoder->video_codec_ctx) {
+        avcodec_send_packet(decoder->video_codec_ctx, pkt);
+        result = WL_READ_VIDEO;
+    } else if (pkt->stream_index == decoder->audio_index && decoder->audio_codec_ctx) {
+        avcodec_send_packet(decoder->audio_codec_ctx, pkt);
+        result = WL_READ_AUDIO;
     } else {
-        // 字幕 / 数据流等，跳过
-        av_packet_free(&pkt);
-        return WL_DECODE_AGAIN;
+        result = WL_READ_SKIP;
     }
 
-    // EAGAIN 说明解码器还有帧没取完，此次 send 可能被拒——忽略，继续 receive
-    avcodec_send_packet(codec_ctx, pkt);
     av_packet_free(&pkt);
-
-    wl_decode_result_t result = WL_DECODE_AGAIN;
-    AVFrame *frame = av_frame_alloc();
-    if (!frame) return WL_DECODE_ERROR;
-
-    while ((ret = avcodec_receive_frame(codec_ctx, frame)) == 0) {
-        int64_t pts_ns = av_rescale_q(frame->pts, time_base,
-                                       (AVRational){1, 1000000000});
-
-        // 取一个引用交给 node，frame 本身在下一次 receive 前必须归还给解码器
-        AVFrame *frame_ref = av_frame_alloc();
-        if (!frame_ref) {
-            av_frame_unref(frame);
-            continue;
-        }
-        av_frame_ref(frame_ref, frame);
-        av_frame_unref(frame);  // 归还给解码器
-
-        wl_node_t *node = wl_node_create(node_type, frame_ref, pts_ns);
-        if (!node) {
-            av_frame_free(&frame_ref);
-            continue;
-        }
-
-        wl_queue_status_t status = wl_queue_push(queue, node);
-        if (status == WL_QUEUE_ABORTED) {
-            wl_node_free(node);  // node 未入队，由我们释放
-            av_frame_free(&frame);
-            return WL_DECODE_ABORTED;
-        }
-
-        result = WL_DECODE_OK;
-    }
-
-    av_frame_free(&frame);
     return result;
 }
 
+static wl_frame_result_t receive_frame(AVCodecContext *ctx,
+                                        AVFrame *frame,
+                                        AVRational time_base,
+                                        AVFrame **out_frame,
+                                        int64_t  *out_pts_ns) {
+    int ret = avcodec_receive_frame(ctx, frame);
+    if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
+        return WL_FRAME_NO_DATA;
+    if (ret < 0)
+        return WL_FRAME_ERROR;
+
+    // 复制一份给调用方（frame 本身留给下一次 receive 复用）
+    AVFrame *ref = av_frame_alloc();
+    if (!ref) {
+        av_frame_unref(frame);
+        return WL_FRAME_ERROR;
+    }
+    av_frame_move_ref(ref, frame);
+
+    *out_frame = ref;
+    *out_pts_ns = av_rescale_q(ref->pts, time_base,
+                                (AVRational){1, 1000000000});
+    return WL_FRAME_OK;
+}
+
+wl_frame_result_t wl_decoder_receive_video(wl_decoder_t *decoder,
+                                            AVFrame **out_frame,
+                                            int64_t  *out_pts_ns) {
+    if (!decoder->video_codec_ctx) {
+        decoder->video_drained = true;
+        return WL_FRAME_NO_DATA;
+    }
+    AVFrame *frame = av_frame_alloc();
+    if (!frame) return WL_FRAME_ERROR;
+
+    AVRational tb = (decoder->video_index >= 0)
+        ? decoder->fmt_ctx->streams[decoder->video_index]->time_base
+        : (AVRational){1, 1};
+
+    wl_frame_result_t r = receive_frame(decoder->video_codec_ctx,
+                                         frame, tb, out_frame, out_pts_ns);
+    if (r == WL_FRAME_NO_DATA)
+        decoder->video_drained = true;
+
+    av_frame_free(&frame);
+    return r;
+}
+
+wl_frame_result_t wl_decoder_receive_audio(wl_decoder_t *decoder,
+                                            AVFrame **out_frame,
+                                            int64_t  *out_pts_ns) {
+    if (!decoder->audio_codec_ctx) {
+        decoder->audio_drained = true;
+        return WL_FRAME_NO_DATA;
+    }
+    AVFrame *frame = av_frame_alloc();
+    if (!frame) return WL_FRAME_ERROR;
+
+    AVRational tb = (decoder->audio_index >= 0)
+        ? decoder->fmt_ctx->streams[decoder->audio_index]->time_base
+        : (AVRational){1, 1};
+
+    wl_frame_result_t r = receive_frame(decoder->audio_codec_ctx,
+                                         frame, tb, out_frame, out_pts_ns);
+    if (r == WL_FRAME_NO_DATA)
+        decoder->audio_drained = true;
+
+    av_frame_free(&frame);
+    return r;
+}
+
+bool wl_decoder_drained(wl_decoder_t *decoder) {
+    return decoder->video_drained && decoder->audio_drained;
+}
+
+void wl_decoder_flush(wl_decoder_t *decoder) {
+    if (decoder->video_codec_ctx)
+        avcodec_send_packet(decoder->video_codec_ctx, NULL);
+    if (decoder->audio_codec_ctx)
+        avcodec_send_packet(decoder->audio_codec_ctx, NULL);
+    decoder->video_drained = false;
+    decoder->audio_drained = false;
+}

@@ -10,7 +10,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include "wl_queue.h"
+#include <stdbool.h>
+#include <libavcodec/avcodec.h>
 #define MAX_HW_ACCELS 16
 
 // 专门对接 UI 层的硬件加速列表结构体
@@ -37,22 +38,53 @@ void wl_decoder_free(wl_decoder_t *decoder);
  */
 HWAccelList wl_decoder_get_supported_hwaccels(void);
 
-// ---- decode 单步 ----
+// ---- wl_media_thread 用的细粒度 API ----
 
 typedef enum {
-    WL_DECODE_OK = 0,  // 至少解出一帧，已推入队列
-    WL_DECODE_AGAIN,   // pkt 已送入但本次没帧出来（B 帧延迟 / 字幕包等）
-    WL_DECODE_EOF,     // 文件读完
-    WL_DECODE_ABORTED, // 队列被 abort（外部停止信号）
-    WL_DECODE_ERROR,   // 致命错误
-} wl_decode_result_t;
+    WL_READ_VIDEO = 0, ///< 读到视频包，已送入 video_codec_ctx
+    WL_READ_AUDIO,     ///< 读到音频包，已送入 audio_codec_ctx
+    WL_READ_SKIP,      ///< 字幕 / 数据流等，已跳过
+    WL_READ_EOF,       ///< 文件读完（已 flush 两个解码器）
+    WL_READ_ERROR,     ///< 致命错误
+} wl_read_result_t;
+
+typedef enum {
+    WL_FRAME_OK = 0,   ///< 成功解出一帧
+    WL_FRAME_NO_DATA,  ///< 解码器无更多输出（需要新 packet 或已 flush 完毕）
+    WL_FRAME_ERROR,    ///< 致命错误
+} wl_frame_result_t;
 
 /**
- * 读一个 AVPacket，送入对应解码器，把产出的所有 AVFrame 推入队列。
- * 由 decode_thread 在循环中调用；队列满时阻塞（背压），abort 时返回 WL_DECODE_ABORTED。
+ * 从文件读一个 AVPacket，按 stream_index 送入对应解码器。
+ * EOF 时自动 flush 两个解码器（send NULL）。
  */
-wl_decode_result_t wl_decoder_next_frames(wl_decoder_t *decoder,
-                                           wl_queue_t   *video_q,
-                                           wl_queue_t   *audio_q);
+wl_read_result_t wl_decoder_read(wl_decoder_t *decoder);
+
+/**
+ * 尝试从 video_codec_ctx 接收一帧（非阻塞）。
+ * *out_frame 成功时由调用方 av_frame_free。
+ */
+wl_frame_result_t wl_decoder_receive_video(wl_decoder_t *decoder,
+                                            AVFrame **out_frame,
+                                            int64_t  *out_pts_ns);
+
+/**
+ * 尝试从 audio_codec_ctx 接收一帧（非阻塞）。
+ * *out_frame 成功时由调用方 av_frame_free。
+ */
+wl_frame_result_t wl_decoder_receive_audio(wl_decoder_t *decoder,
+                                            AVFrame **out_frame,
+                                            int64_t  *out_pts_ns);
+
+/**
+ * 查询解码器是否已经 flush 完毕（两个 codec 都返回 NO_DATA）。
+ * 用于主循环判断是否可以结束。
+ */
+bool wl_decoder_drained(wl_decoder_t *decoder);
+
+/**
+ * 向解码器发送 flush 信号（send NULL），用于 seek。
+ */
+void wl_decoder_flush(wl_decoder_t *decoder);
 
 #endif /* wl_decoder_h */
