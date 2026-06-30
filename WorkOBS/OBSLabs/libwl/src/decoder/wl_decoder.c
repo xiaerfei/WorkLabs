@@ -327,8 +327,13 @@ static wl_frame_result_t receive_frame(AVCodecContext *ctx,
                                         AVFrame **out_frame,
                                         int64_t  *out_pts_ns) {
     int ret = avcodec_receive_frame(ctx, frame);
-    if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
-        return WL_FRAME_NO_DATA;
+    // 严格区分两种"没帧"：
+    //   EAGAIN → 只是还需要喂 packet，codec 没结束（不能据此判定 drained）
+    //   EOF    → codec 已排空，不会再有输出（真正结束）
+    if (ret == AVERROR(EAGAIN))
+        return WL_FRAME_AGAIN;
+    if (ret == AVERROR_EOF)
+        return WL_FRAME_EOF;
     if (ret < 0)
         return WL_FRAME_ERROR;
 
@@ -350,8 +355,8 @@ wl_frame_result_t wl_decoder_receive_video(wl_decoder_t *decoder,
                                             AVFrame **out_frame,
                                             int64_t  *out_pts_ns) {
     if (!decoder->video_codec_ctx) {
-        decoder->video_drained = true;
-        return WL_FRAME_NO_DATA;
+        decoder->video_drained = true;   // 无视频流 → 视为永久排空
+        return WL_FRAME_EOF;
     }
     AVFrame *frame = av_frame_alloc();
     if (!frame) return WL_FRAME_ERROR;
@@ -362,7 +367,7 @@ wl_frame_result_t wl_decoder_receive_video(wl_decoder_t *decoder,
 
     wl_frame_result_t r = receive_frame(decoder->video_codec_ctx,
                                          frame, tb, out_frame, out_pts_ns);
-    if (r == WL_FRAME_NO_DATA)
+    if (r == WL_FRAME_EOF)   // 仅真 EOF 才算排空；EAGAIN 不是
         decoder->video_drained = true;
 
     av_frame_free(&frame);
@@ -373,8 +378,8 @@ wl_frame_result_t wl_decoder_receive_audio(wl_decoder_t *decoder,
                                             AVFrame **out_frame,
                                             int64_t  *out_pts_ns) {
     if (!decoder->audio_codec_ctx) {
-        decoder->audio_drained = true;
-        return WL_FRAME_NO_DATA;
+        decoder->audio_drained = true;   // 无音频流 → 视为永久排空
+        return WL_FRAME_EOF;
     }
     AVFrame *frame = av_frame_alloc();
     if (!frame) return WL_FRAME_ERROR;
@@ -385,7 +390,7 @@ wl_frame_result_t wl_decoder_receive_audio(wl_decoder_t *decoder,
 
     wl_frame_result_t r = receive_frame(decoder->audio_codec_ctx,
                                          frame, tb, out_frame, out_pts_ns);
-    if (r == WL_FRAME_NO_DATA)
+    if (r == WL_FRAME_EOF)   // 仅真 EOF 才算排空；EAGAIN 不是
         decoder->audio_drained = true;
 
     av_frame_free(&frame);
@@ -397,10 +402,20 @@ bool wl_decoder_drained(wl_decoder_t *decoder) {
 }
 
 void wl_decoder_flush(wl_decoder_t *decoder) {
+    // ⚠️ 坑：seek 必须用 avcodec_flush_buffers()，绝不能用 avcodec_send_packet(NULL)！
+    //   send(NULL) 是 EOF 排空信号 —— 之后 codec 进入 draining 模式、拒收新 packet
+    //   （send 真实包返回 AVERROR_EOF），必须再 flush_buffers 才能复用。
+    //   而 seek 之后还要继续喂包，所以这里用 flush_buffers：丢弃内部缓存帧 + 重置
+    //   解码器状态，使其重新接收新 packet。
+    //   （EOF drain 的 send(NULL) 在 wl_decoder_read 的 AVERROR_EOF 分支里单独处理，
+    //    两者语义相反，切勿混用。）
     if (decoder->video_codec_ctx)
-        avcodec_send_packet(decoder->video_codec_ctx, NULL);
+        avcodec_flush_buffers(decoder->video_codec_ctx);
     if (decoder->audio_codec_ctx)
-        avcodec_send_packet(decoder->audio_codec_ctx, NULL);
+        avcodec_flush_buffers(decoder->audio_codec_ctx);
+
+    // seek 可能从 EOF 之后往回跳，重置文件级 + 解码器级的结束标志
+    decoder->eof_reached   = false;
     decoder->video_drained = false;
     decoder->audio_drained = false;
 }

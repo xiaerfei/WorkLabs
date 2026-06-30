@@ -20,6 +20,7 @@
 #include "wl_media_thread.h"
 #include "wl_decoder.h"
 #include <pthread.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -28,11 +29,12 @@
 struct wl_media_thread {
     wl_decoder_t   *decoder;
     pthread_t       thread;
+    bool            thread_running; // start 成功后置 true：守卫 free 里的 join
 
     // 控制标志
-    bool            should_stop;   // 终止信号
-    bool            paused;        // 暂停状态
-    bool            eof;           // decoder 已读完且 drain 完毕
+    atomic_bool     should_stop;   // 终止信号（跨线程，原子读写）
+    bool            paused;        // 暂停状态（ctrl_mutex 保护）
+    bool            eof;           // decoder 已读完且 drain 完毕（仅本线程访问）
 
     // pause 条件变量（替代 OBS 的 semaphore）
     pthread_mutex_t ctrl_mutex;
@@ -78,16 +80,16 @@ static void output_audio_frame(AVFrame *frame, int64_t pts_ns) {
 static void *media_thread_func(void *arg) {
     wl_media_thread_t *mt = arg;
 
-    while (!mt->should_stop) {
+    while (!atomic_load(&mt->should_stop)) {
         // ── 1. 控制检查 ──
 
         // pause：在条件变量上挂起，直到 resume 或 stop
         pthread_mutex_lock(&mt->ctrl_mutex);
-        while (mt->paused && !mt->should_stop) {
+        while (mt->paused && !atomic_load(&mt->should_stop)) {
             pthread_cond_wait(&mt->ctrl_cond, &mt->ctrl_mutex);
         }
         pthread_mutex_unlock(&mt->ctrl_mutex);
-        if (mt->should_stop) break;
+        if (atomic_load(&mt->should_stop)) break;
 
         // TODO: 检查 seek 标志
         // if (mt->seek_requested) {
@@ -110,7 +112,7 @@ static void *media_thread_func(void *arg) {
                 // 有帧产出，继续循环（可能还有更多帧在 codec 里）
                 continue;
             }
-            // WL_FRAME_NO_DATA: codec 空了，需要新 packet
+            // WL_FRAME_AGAIN/EOF: codec 暂时/永久没帧了，继续往下尝试音频 / 读包
             // WL_FRAME_ERROR: 忽略，尝试音频
         }
 
@@ -149,7 +151,7 @@ static void *media_thread_func(void *arg) {
 
             case WL_READ_ERROR:
                 fprintf(stderr, "[wl_media_thread] read error, stopping\n");
-                mt->should_stop = true;
+                atomic_store(&mt->should_stop, true);
                 break;
         }
     }
@@ -169,6 +171,7 @@ wl_media_thread_t *wl_media_thread_create(const char *path, const char *hw_type)
         return NULL;
     }
 
+    atomic_init(&mt->should_stop, false);
     pthread_mutex_init(&mt->ctrl_mutex, NULL);
     pthread_cond_init(&mt->ctrl_cond, NULL);
 
@@ -178,29 +181,29 @@ wl_media_thread_t *wl_media_thread_create(const char *path, const char *hw_type)
 int wl_media_thread_start(wl_media_thread_t *mt) {
     if (pthread_create(&mt->thread, NULL, media_thread_func, mt) != 0)
         return -1;
+    mt->thread_running = true;   // 守卫：只有 start 成功，free 才会 join
     return 0;
-}
-
-void wl_media_thread_stop(wl_media_thread_t *mt) {
-    if (!mt) return;
-
-    // 设置停止标志并唤醒可能在 pause 上挂起的线程
-    pthread_mutex_lock(&mt->ctrl_mutex);
-    mt->should_stop = true;
-    pthread_cond_signal(&mt->ctrl_cond);
-    pthread_mutex_unlock(&mt->ctrl_mutex);
-
-    pthread_join(mt->thread, NULL);
 }
 
 void wl_media_thread_free(wl_media_thread_t *mt) {
     if (!mt) return;
 
-    wl_media_thread_stop(mt);
+    // 通知线程退出并等它真正结束。
+    // thread_running 守卫：只有 start 过才 join，避免 join 一个没创建的线程
+    // （create 完没 start 就 free）。对已自行退出（EOF/error）的线程再 join 也
+    // 安全，会立即返回——双重 join 才是 UB，而这里全程只 join 一次。
+    if (mt->thread_running) {
+        pthread_mutex_lock(&mt->ctrl_mutex);
+        atomic_store(&mt->should_stop, true); // 在锁内设 + signal，防 lost wakeup
+        pthread_cond_signal(&mt->ctrl_cond);  // 唤醒可能在 pause 上挂起的线程
+        pthread_mutex_unlock(&mt->ctrl_mutex);
+        pthread_join(mt->thread, NULL);
+        mt->thread_running = false;
+    }
 
-    if (mt->decoder)
-        wl_decoder_free(mt->decoder);
-
+    // 线程已停，独占 mt，顺序释放（必须在 join 之后——线程还在用这些资源）
+    if (mt->decoder) wl_decoder_free(mt->decoder);
+    
     pthread_mutex_destroy(&mt->ctrl_mutex);
     pthread_cond_destroy(&mt->ctrl_cond);
 
@@ -210,8 +213,9 @@ void wl_media_thread_free(wl_media_thread_t *mt) {
 void wl_media_thread_pause(wl_media_thread_t *mt, bool pause) {
     pthread_mutex_lock(&mt->ctrl_mutex);
     mt->paused = pause;
-    if (!pause)
-        pthread_cond_signal(&mt->ctrl_cond); // 唤醒主循环
+    
+    if (!pause) pthread_cond_signal(&mt->ctrl_cond); // 唤醒主循环
+    
     pthread_mutex_unlock(&mt->ctrl_mutex);
 }
 

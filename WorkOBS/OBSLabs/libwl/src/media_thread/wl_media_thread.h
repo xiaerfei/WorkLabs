@@ -10,6 +10,7 @@
 #define wl_media_thread_h
 
 #include <stdbool.h>
+#include <stdint.h>   // int64_t（seek 时间戳）
 
 typedef struct wl_media_thread wl_media_thread_t;
 
@@ -28,12 +29,8 @@ wl_media_thread_t *wl_media_thread_create(const char *path, const char *hw_type)
 int  wl_media_thread_start(wl_media_thread_t *mt);
 
 /**
- * 停止主循环并等待线程退出。幂等，可重复调用。
- */
-void wl_media_thread_stop(wl_media_thread_t *mt);
-
-/**
- * 释放所有资源（内部会先 stop）。调用后指针不可再用。
+ * 释放所有资源：通知线程退出 → join 等它真正结束 → 释放。
+ * 调用后指针不可再用，不要在 free 之后再访问 mt。
  */
 void wl_media_thread_free(wl_media_thread_t *mt);
 

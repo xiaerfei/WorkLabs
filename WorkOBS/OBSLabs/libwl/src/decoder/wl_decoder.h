@@ -50,7 +50,8 @@ typedef enum {
 
 typedef enum {
     WL_FRAME_OK = 0,   ///< 成功解出一帧
-    WL_FRAME_NO_DATA,  ///< 解码器无更多输出（需要新 packet 或已 flush 完毕）
+    WL_FRAME_AGAIN,    ///< 暂无输出，需要继续喂 packet（EAGAIN）—— codec 未结束
+    WL_FRAME_EOF,      ///< codec 已排空，不会再有输出（AVERROR_EOF）—— 真正结束
     WL_FRAME_ERROR,    ///< 致命错误
 } wl_frame_result_t;
 
@@ -83,7 +84,9 @@ wl_frame_result_t wl_decoder_receive_audio(wl_decoder_t *decoder,
 bool wl_decoder_drained(wl_decoder_t *decoder);
 
 /**
- * 向解码器发送 flush 信号（send NULL），用于 seek。
+ * Seek 前调用：重置解码器内部缓存（avcodec_flush_buffers），丢弃旧帧并使其
+ * 重新接收新 packet。同时清掉 eof / drained 标志（seek 可能从 EOF 往回跳）。
+ * ⚠️ 这不是 EOF drain —— 绝不能用 send(NULL)，原因见 .c 实现里的坑注释。
  */
 void wl_decoder_flush(wl_decoder_t *decoder);
 
