@@ -52,8 +52,13 @@
 - [ ]  渲染输出（Metal / OpenGL 画面渲染）
 - [ ]  音频输出（AudioQueue / AudioUnit 播放）
 
-### P4 — 网络源（暂不支持）
+### P4 — 暂不支持 / 稍后支持
 
+- [ ]  `wl_decoder` 支持单流文件（纯视频 / 纯音频）
+  - 现状：`wl_decoder_create` 要求视频+音频流**都存在**，任一缺失即返回 NULL
+    （`find_video_stream` / `find_audio_stream` 任一失败就 fail）
+  - 改：缺某一路时不 fail，把对应 index/codec 置空即可；`read` / `receive_*`
+    已有 `codec_ctx` 判空保护，下游按"该路永久排空"处理
 - [ ]  网络源关闭/seek 的阻塞中断：AVIOInterruptCB
   - 问题：网络流断连时 `av_read_frame` 会干等到超时（可能几秒），导致
     `wl_media_thread_free` / seek 阻塞在 join 上迟迟不返回

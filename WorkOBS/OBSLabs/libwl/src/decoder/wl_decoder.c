@@ -24,6 +24,8 @@ typedef struct wl_decoder_t {
     AVCodecContext *audio_codec_ctx; ///< Audio 解码器
     AVBufferRef *hw_device_ctx; ///< 硬解码
 
+    AVPacket *pkt;      ///< 复用的读包缓冲（避免每次 av_packet_alloc/free）
+
     bool eof_reached;   ///< av_read_frame 已返回 EOF
     bool video_drained; ///< video codec 已 flush 且无更多输出
     bool audio_drained; ///< audio codec 已 flush 且无更多输出
@@ -232,6 +234,10 @@ wl_decoder_t *wl_decoder_create(const char *path, const char *hw_type) {
     if (ret != 0) { wl_decoder_free(decoder); return NULL; }
     ret = wl_decoder_cfgd_audio(decoder);
     if (ret != 0) { wl_decoder_free(decoder); return NULL; }
+
+    decoder->pkt = av_packet_alloc();
+    if (!decoder->pkt) { wl_decoder_free(decoder); return NULL; }
+
     return decoder;
 }
 
@@ -249,6 +255,9 @@ void wl_decoder_free(wl_decoder_t *decoder) {
         avformat_close_input(&decoder->fmt_ctx);
         decoder->fmt_ctx = NULL;
     }
+
+    // 4. 释放复用的读包缓冲（av_packet_free 对 NULL 安全）
+    av_packet_free(&decoder->pkt);
 
     free(decoder);
 }
@@ -287,37 +296,50 @@ HWAccelList wl_decoder_get_supported_hwaccels(void) {
 wl_read_result_t wl_decoder_read(wl_decoder_t *decoder) {
     if (decoder->eof_reached) return WL_READ_EOF;
 
-    AVPacket *pkt = av_packet_alloc();
-    if (!pkt) return WL_READ_ERROR;
+    AVPacket *pkt = decoder->pkt;   // 复用同一个 packet，避免每次堆分配
 
     int ret = av_read_frame(decoder->fmt_ctx, pkt);
     if (ret == AVERROR_EOF) {
-        // 文件读完，flush 两个解码器（send NULL 触发 drain）
-        av_packet_free(&pkt);
+        // 文件读完，给两个 codec 送 NULL 触发 drain（EOF 排空，非 seek flush）。
+        // 出错/EOF 时 av_read_frame 已把 pkt 置空，无需 unref。
+        // drain send 返回值：EOF / EAGAIN 都是预期的软状态（重复 flush / 尚有
+        // 输出待取）→ 忽略；只有硬错误才记日志，且不改流程——后续 receive
+        // 会自然走到 EOF 结束。
         decoder->eof_reached = true;
-        if (decoder->video_codec_ctx && decoder->video_index >= 0)
-            avcodec_send_packet(decoder->video_codec_ctx, NULL);
-        if (decoder->audio_codec_ctx && decoder->audio_index >= 0)
-            avcodec_send_packet(decoder->audio_codec_ctx, NULL);
+        int vret = decoder->video_codec_ctx
+                       ? avcodec_send_packet(decoder->video_codec_ctx, NULL) : 0;
+        int aret = decoder->audio_codec_ctx
+                       ? avcodec_send_packet(decoder->audio_codec_ctx, NULL) : 0;
+        if (vret < 0 && vret != AVERROR_EOF && vret != AVERROR(EAGAIN))
+            print_av_error("avcodec_send_packet(video drain)", vret);
+        if (aret < 0 && aret != AVERROR_EOF && aret != AVERROR(EAGAIN))
+            print_av_error("avcodec_send_packet(audio drain)", aret);
         return WL_READ_EOF;
     }
     if (ret < 0) {
-        av_packet_free(&pkt);
+        print_av_error("av_read_frame", ret);
         return WL_READ_ERROR;
     }
 
+    int send_ret = 0;
     wl_read_result_t result;
     if (pkt->stream_index == decoder->video_index && decoder->video_codec_ctx) {
-        avcodec_send_packet(decoder->video_codec_ctx, pkt);
+        send_ret = avcodec_send_packet(decoder->video_codec_ctx, pkt);
         result = WL_READ_VIDEO;
     } else if (pkt->stream_index == decoder->audio_index && decoder->audio_codec_ctx) {
-        avcodec_send_packet(decoder->audio_codec_ctx, pkt);
+        send_ret = avcodec_send_packet(decoder->audio_codec_ctx, pkt);
         result = WL_READ_AUDIO;
     } else {
-        result = WL_READ_SKIP;
+        result = WL_READ_SKIP;   // 字幕 / 数据流，跳过
     }
 
-    av_packet_free(&pkt);
+    av_packet_unref(pkt);   // 释放本次引用，packet 结构留给下次复用
+
+    // 串行 drain-first 设计下 send 不该返回 EAGAIN；真错误（codec 异常等）上报。
+    if (send_ret < 0) {
+        print_av_error("avcodec_send_packet", send_ret);
+        return WL_READ_ERROR;
+    }
     return result;
 }
 
