@@ -43,6 +43,9 @@
   - 进度条交互沿用老经验：跟随选中源、松手才 seek、抑制回显 0.5s
 - [ ]  循环播放（loop）：EOF 后 seek 回起点 + 重置 `eof` 标志
 
+### P2 — Preview 渲染
+- [ ] Preview 渲染设计
+
 ### P3 — 低优先级
 
 - [ ]  Audio 解码器支持外部指定 codec（如强制使用 `aac_at` 硬件解码，当前由 codec_id 自动选择）
