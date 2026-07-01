@@ -24,11 +24,20 @@ typedef struct wl_decoder_t {
     AVCodecContext *audio_codec_ctx; ///< Audio 解码器
     AVBufferRef *hw_device_ctx; ///< 硬解码
 
-    AVPacket *pkt;      ///< 复用的读包缓冲（避免每次 av_packet_alloc/free）
+    AVPacket *pkt;         ///< 复用的读包缓冲（避免每次 av_packet_alloc/free）
+    AVFrame  *video_frame; ///< 复用的 receive 帧缓冲（video）
+    AVFrame  *audio_frame; ///< 复用的 receive 帧缓冲（audio）
 
     bool eof_reached;   ///< av_read_frame 已返回 EOF
     bool video_drained; ///< video codec 已 flush 且无更多输出
     bool audio_drained; ///< audio codec 已 flush 且无更多输出
+
+    // PTS 外推状态（对标 OBS mp_decode_next：best_effort_timestamp 仍是
+    // AV_NOPTS_VALUE 时，用上一帧位置 + 估算时长顶上，不把 NOPTS 传给下游）。
+    int64_t video_next_pts_ns;      ///< 下一帧的预测位置
+    int64_t video_last_pts_ns;      ///< 上一帧实际采用的 pts（AV_NOPTS_VALUE=尚无）
+    int64_t video_last_duration_ns; ///< 上次估算出的时长（duration 缺失时的二级兜底，0=尚无）
+    int64_t audio_next_pts_ns;      ///< 下一帧的预测位置（音频时长由 nb_samples 直接算，无需二级兜底）
 } wl_decoder_t;
 
 #pragma mark - Private Methods
@@ -219,6 +228,12 @@ wl_decoder_t *wl_decoder_create(const char *path, const char *hw_type) {
     wl_decoder_t *decoder = calloc(1, sizeof(wl_decoder_t));
     decoder->path = path;
     decoder->hw_type = hw_type;
+
+    // calloc 默认清零，但 0 是合法的真实 pts（比如第一帧）；用 AV_NOPTS_VALUE
+    // 作初值才能明确区分"真的还没有上一帧"和"上一帧 pts 恰好是 0"。
+    decoder->video_next_pts_ns = AV_NOPTS_VALUE;
+    decoder->video_last_pts_ns = AV_NOPTS_VALUE;
+    decoder->audio_next_pts_ns = AV_NOPTS_VALUE;
     int ret = wl_decoder_ffmpeg_init(decoder);
     if (ret != 0) {
         wl_decoder_free(decoder);
@@ -236,7 +251,12 @@ wl_decoder_t *wl_decoder_create(const char *path, const char *hw_type) {
     if (ret != 0) { wl_decoder_free(decoder); return NULL; }
 
     decoder->pkt = av_packet_alloc();
-    if (!decoder->pkt) { wl_decoder_free(decoder); return NULL; }
+    decoder->video_frame = av_frame_alloc();
+    decoder->audio_frame = av_frame_alloc();
+    if (!decoder->pkt || !decoder->video_frame || !decoder->audio_frame) {
+        wl_decoder_free(decoder);
+        return NULL;
+    }
 
     return decoder;
 }
@@ -256,8 +276,10 @@ void wl_decoder_free(wl_decoder_t *decoder) {
         decoder->fmt_ctx = NULL;
     }
 
-    // 4. 释放复用的读包缓冲（av_packet_free 对 NULL 安全）
+    // 4. 释放复用的读包/帧缓冲（对 NULL 安全，兼容 create 半途失败）
     av_packet_free(&decoder->pkt);
+    av_frame_free(&decoder->video_frame);
+    av_frame_free(&decoder->audio_frame);
 
     free(decoder);
 }
@@ -368,8 +390,12 @@ static wl_frame_result_t receive_frame(AVCodecContext *ctx,
     av_frame_move_ref(ref, frame);
 
     *out_frame = ref;
-    *out_pts_ns = av_rescale_q(ref->pts, time_base,
-                                (AVRational){1, 1000000000});
+    // best_effort_timestamp：libavcodec 内部已做 pts/dts 兜底 + 启发式估算，
+    // 优先于裸 pts 读取。AV_ROUND_PASS_MINMAX 让 AV_NOPTS_VALUE(INT64_MIN)
+    // 原样透传，不会被当成普通数字换算出一个看似正常却毫无意义的时间戳。
+    *out_pts_ns = av_rescale_q_rnd(ref->best_effort_timestamp, time_base,
+                                   (AVRational){1, 1000000000},
+                                   AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX);
     return WL_FRAME_OK;
 }
 
@@ -380,20 +406,52 @@ wl_frame_result_t wl_decoder_receive_video(wl_decoder_t *decoder,
         decoder->video_drained = true;   // 无视频流 → 视为永久排空
         return WL_FRAME_EOF;
     }
-    AVFrame *frame = av_frame_alloc();
-    if (!frame) return WL_FRAME_ERROR;
 
     AVRational tb = (decoder->video_index >= 0)
         ? decoder->fmt_ctx->streams[decoder->video_index]->time_base
         : (AVRational){1, 1};
 
+    // decoder->video_frame 复用：avcodec_receive_frame 内部会先对它做
+    // av_frame_unref，成功时内容被 move 进新分配的 out_frame（见
+    // receive_frame），frame 结构体本身留给下次调用复用。
     wl_frame_result_t r = receive_frame(decoder->video_codec_ctx,
-                                         frame, tb, out_frame, out_pts_ns);
-    if (r == WL_FRAME_EOF)   // 仅真 EOF 才算排空；EAGAIN 不是
+                                         decoder->video_frame, tb,
+                                         out_frame, out_pts_ns);
+    if (r == WL_FRAME_EOF) {   // 仅真 EOF 才算排空；EAGAIN 不是
         decoder->video_drained = true;
+        return r;
+    }
+    if (r != WL_FRAME_OK)
+        return r;
 
-    av_frame_free(&frame);
-    return r;
+    // ── PTS 外推（对标 OBS mp_decode_next + get_estimated_duration）──
+    // best_effort_timestamp 仍是 AV_NOPTS_VALUE 时（libavcodec 也没辙），
+    // 用上一帧的推算位置顶上，不把 NOPTS 传给下游。
+    int64_t last_pts_ns = decoder->video_last_pts_ns;
+    int64_t pts_ns = *out_pts_ns;
+    if (pts_ns == AV_NOPTS_VALUE)
+        pts_ns = decoder->video_next_pts_ns;
+
+    // 帧时长三级兜底：① codec 给的 pkt_duration ② 上一帧位置差值
+    // ③ 上次估算出的时长 ④ 该流 time_base 的一个 tick（最后一道防线）
+    int64_t duration_ns;
+    if ((*out_frame)->pkt_duration > 0) {
+        duration_ns = av_rescale_q((*out_frame)->pkt_duration, tb,
+                                    (AVRational){1, 1000000000});
+    } else if (last_pts_ns != AV_NOPTS_VALUE) {
+        duration_ns = pts_ns - last_pts_ns;
+    } else if (decoder->video_last_duration_ns > 0) {
+        duration_ns = decoder->video_last_duration_ns;
+    } else {
+        duration_ns = av_rescale_q(1, tb, (AVRational){1, 1000000000});
+    }
+
+    decoder->video_last_duration_ns = duration_ns;
+    decoder->video_last_pts_ns = pts_ns;
+    decoder->video_next_pts_ns = pts_ns + duration_ns;
+    *out_pts_ns = pts_ns;
+
+    return WL_FRAME_OK;
 }
 
 wl_frame_result_t wl_decoder_receive_audio(wl_decoder_t *decoder,
@@ -403,20 +461,37 @@ wl_frame_result_t wl_decoder_receive_audio(wl_decoder_t *decoder,
         decoder->audio_drained = true;   // 无音频流 → 视为永久排空
         return WL_FRAME_EOF;
     }
-    AVFrame *frame = av_frame_alloc();
-    if (!frame) return WL_FRAME_ERROR;
 
     AVRational tb = (decoder->audio_index >= 0)
         ? decoder->fmt_ctx->streams[decoder->audio_index]->time_base
         : (AVRational){1, 1};
 
+    // decoder->audio_frame 复用，语义同 wl_decoder_receive_video。
     wl_frame_result_t r = receive_frame(decoder->audio_codec_ctx,
-                                         frame, tb, out_frame, out_pts_ns);
-    if (r == WL_FRAME_EOF)   // 仅真 EOF 才算排空；EAGAIN 不是
+                                         decoder->audio_frame, tb,
+                                         out_frame, out_pts_ns);
+    if (r == WL_FRAME_EOF) {   // 仅真 EOF 才算排空；EAGAIN 不是
         decoder->audio_drained = true;
+        return r;
+    }
+    if (r != WL_FRAME_OK)
+        return r;
 
-    av_frame_free(&frame);
-    return r;
+    // ── PTS 外推 ──
+    // 音频时长可以直接由 nb_samples/sample_rate 精确算出，不需要像视频那样
+    // 三级兜底；best_effort_timestamp 仍是 NOPTS 时用上一帧推算位置顶上。
+    int64_t pts_ns = *out_pts_ns;
+    if (pts_ns == AV_NOPTS_VALUE)
+        pts_ns = decoder->audio_next_pts_ns;
+
+    int64_t duration_ns = av_rescale_q((*out_frame)->nb_samples,
+                                        (AVRational){1, (*out_frame)->sample_rate},
+                                        (AVRational){1, 1000000000});
+
+    decoder->audio_next_pts_ns = pts_ns + duration_ns;
+    *out_pts_ns = pts_ns;
+
+    return WL_FRAME_OK;
 }
 
 bool wl_decoder_drained(wl_decoder_t *decoder) {
