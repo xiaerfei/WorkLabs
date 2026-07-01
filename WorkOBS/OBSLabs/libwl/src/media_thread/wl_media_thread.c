@@ -23,6 +23,8 @@
 #include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>              // clock_gettime / nanosleep / struct timespec（pacing）
+#include <libavutil/avutil.h> // AV_NOPTS_VALUE（pacing 未锚定哨兵）
 
 // ---------- 状态结构体 ----------
 
@@ -35,6 +37,10 @@ struct wl_media_thread {
     atomic_bool     should_stop;   // 终止信号（跨线程，原子读写）
     bool            paused;        // 暂停状态（ctrl_mutex 保护）
     bool            eof;           // decoder 已读完且 drain 完毕（仅本线程访问）
+
+    // 视频 pacing（pts-based，仿 OBS mp_media_sleep）—— 仅本线程访问，无需加锁
+    int64_t         base_wall_ns;  // 墙钟零点：第一帧那刻的 CLOCK_MONOTONIC 读数
+    int64_t         first_pts_ns;  // 媒体零点：第一帧 pts；AV_NOPTS_VALUE = 尚未锚定
 
     // pause 条件变量（替代 OBS 的 semaphore）
     pthread_mutex_t ctrl_mutex;
@@ -75,6 +81,61 @@ static void output_audio_frame(AVFrame *frame, int64_t pts_ns) {
     (void)pts_ns;
 }
 
+// ---------- 视频 pacing ----------
+
+/**
+ * 单调时钟当前值（纳秒）。
+ *
+ * 必须用 CLOCK_MONOTONIC：它只增不减、不受系统对时 / NTP 回拨影响，做时间差才安全。
+ * 绝不能用 gettimeofday / CLOCK_REALTIME（会被往回拨，offset 可能突然变负甚至倒退）。
+ * base_wall_ns 也取自同一时钟，两者相减才有意义（同一把"墙钟尺"）。
+ */
+static int64_t now_ns(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (int64_t)ts.tv_sec * 1000000000LL + ts.tv_nsec;
+}
+
+/**
+ * 按视频帧 pts 把主循环节流到接近实时（对标 OBS mp_media_sleep）。
+ *
+ * 绝对基准法：
+ *   - 第一帧：记下墙钟零点 base_wall_ns 与媒体零点 first_pts_ns，立即放行（不等）。
+ *   - 之后每帧："发车墙钟时刻" target = base_wall_ns + (pts_ns - first_pts_ns)，
+ *     即墙钟零点往后推"这帧相对片头已流逝的时长"；未到 target 就睡到点。
+ *
+ * 为什么每帧都从固定的 base_wall_ns 重新推算（而非累加帧间隔）：
+ *   绝对基准不累积误差，长片也不会越跑越偏；累加式每帧的舍入误差会滚雪球。
+ *
+ * 依赖：wl_decoder 保证吐出的 pts_ns 不是 AV_NOPTS_VALUE（NOPTS 已在解码器侧外推兜底），
+ *   否则首帧哨兵判断会误判。
+ *
+ * @param pts_ns  这帧的纳秒时间戳（wl_decoder 已从 stream time_base 换算好）
+ */
+static void pace_video(wl_media_thread_t *mt, int64_t pts_ns) {
+    // 第一帧：同时锚定墙钟侧与媒体侧两个零点，立即放行
+    if (mt->first_pts_ns == AV_NOPTS_VALUE) {
+        mt->base_wall_ns = now_ns();
+        mt->first_pts_ns = pts_ns;
+        return;
+    }
+
+    int64_t target = mt->base_wall_ns + (pts_ns - mt->first_pts_ns); // 这帧应放出的墙钟时刻
+    int64_t offset = target - now_ns();                              // 离发车还差多久
+
+    // offset <= 0：已到点或落后 → 立即放行，不睡
+    if (offset > 0) {
+        // TODO(第二步): nanosleep 不可被 stop/pause 打断，最坏要等约一帧间隔（~33ms）
+        //   才响应停止；且异常大的 offset（seek / 时间戳跳变）会傻睡很久。后续改为
+        //   pthread_cond_timedwait 复用 ctrl_cond（signal 即醒）+ offset 上限 clamp。
+        struct timespec req = {
+            .tv_sec  = (time_t)(offset / 1000000000LL),
+            .tv_nsec = (long)  (offset % 1000000000LL),
+        };
+        nanosleep(&req, NULL);
+    }
+}
+
 // ---------- 主循环 ----------
 
 static void *media_thread_func(void *arg) {
@@ -107,6 +168,7 @@ static void *media_thread_func(void *arg) {
             wl_frame_result_t vr = wl_decoder_receive_video(mt->decoder,
                                                              &vframe, &vpts);
             if (vr == WL_FRAME_OK) {
+                pace_video(mt, vpts);            // 按 pts 节流到 ~实时，再放帧
                 output_video_frame(vframe, vpts);
                 av_frame_free(&vframe);
                 // 有帧产出，继续循环（可能还有更多帧在 codec 里）
@@ -172,6 +234,7 @@ wl_media_thread_t *wl_media_thread_create(const char *path, const char *hw_type)
     }
 
     atomic_init(&mt->should_stop, false);
+    mt->first_pts_ns = AV_NOPTS_VALUE;  // pacing 未锚定（calloc 给 0，而 0 是合法 pts，须显式置哨兵）
     pthread_mutex_init(&mt->ctrl_mutex, NULL);
     pthread_cond_init(&mt->ctrl_cond, NULL);
 
