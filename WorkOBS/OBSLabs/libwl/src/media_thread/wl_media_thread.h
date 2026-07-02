@@ -10,9 +10,16 @@
 #define wl_media_thread_h
 
 #include <stdbool.h>
-#include <stdint.h>   // int64_t（seek 时间戳）
+#include <stdint.h>            // int64_t（seek 时间戳）
+#include <libavutil/frame.h>  // AVFrame（output 回调签名）
 
 typedef struct wl_media_thread wl_media_thread_t;
+
+// output 回调：解码线程解出一帧后调用，把帧交给上层（wl_source）。
+// 视频：硬解 frame->data[3] = CVPixelBufferRef；软解 frame->data[0..] = YUV。
+// 音频：frame->data[0] = PCM。pts_ns 已换算为纳秒。
+typedef void (*wl_media_video_cb)(AVFrame *frame, int64_t pts_ns, void *opaque);
+typedef void (*wl_media_audio_cb)(AVFrame *frame, int64_t pts_ns, void *opaque);
 
 // ---- 生命周期 ----
 
@@ -24,9 +31,22 @@ typedef struct wl_media_thread wl_media_thread_t;
 wl_media_thread_t *wl_media_thread_create(const char *path, const char *hw_type);
 
 /**
+ * 设置输出回调（在 start 之前调用；start 后主循环即可能触发回调）。
+ */
+void wl_media_thread_set_callbacks(wl_media_thread_t *mt,
+                                   wl_media_video_cb video_cb,
+                                   wl_media_audio_cb audio_cb,
+                                   void *opaque);
+
+/**
  * 启动主循环线程。返回 0 成功，-1 失败。
  */
 int  wl_media_thread_start(wl_media_thread_t *mt);
+
+/**
+ * 停止主循环并 join 等线程退出（幂等）。free 内部会先调它。
+ */
+void wl_media_thread_stop(wl_media_thread_t *mt);
 
 /**
  * 释放所有资源：通知线程退出 → join 等它真正结束 → 释放。

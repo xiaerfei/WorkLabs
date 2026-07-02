@@ -6,26 +6,26 @@
 //
 
 #import "ViewController.h"
-#import "WLMediaThread.h"
+#import "wl_source.h"
+#import "wl_media_source.h"
 
-@interface ViewController ()
-@property (nonatomic, strong) WLMediaThread *media;
-@property (nonatomic, assign) BOOL didPrompt;
-@end
-
-@implementation ViewController
+@implementation ViewController {
+    wl_source_t *_source;   // 当前测试源（C 层，手动管理生命周期）
+    BOOL         _didPrompt;
+}
 
 - (void)viewDidAppear {
     [super viewDidAppear];
-    // 只弹一次：view 每次出现都会触发 viewDidAppear
-    if (self.didPrompt) return;
-    self.didPrompt = YES;
+    if (_didPrompt) return;         // view 每次出现都触发，只弹一次
+    _didPrompt = YES;
+
+    wl_media_source_register();     // 注册 "media_file" 源类型（幂等）
     [self chooseAndPlay];
 }
 
 - (void)chooseAndPlay {
     NSOpenPanel *panel = [NSOpenPanel openPanel];
-    panel.title = @"选择要播放的媒体文件（测试 pacing）";
+    panel.title = @"选择媒体文件（测试 source 注册 + pacing）";
     panel.allowsMultipleSelection = NO;
     panel.canChooseDirectories = NO;
     panel.canChooseFiles = YES;
@@ -36,20 +36,27 @@
         NSString *path = panel.URLs.firstObject.path;
         if (path.length == 0) return;
 
-        self.media = [[WLMediaThread alloc] initWithPath:path hwType:@"videotoolbox"];
-        if (![self.media start]) {
-            NSLog(@"[ViewController] media thread 启动失败: %@", path);
-            self.media = nil;
+        self->_source = wl_source_create("media_file", path.fileSystemRepresentation);
+        if (!self->_source) {
+            NSLog(@"[ViewController] wl_source_create 失败: %@", path);
             return;
         }
-        NSLog(@"[ViewController] 开始播放（看控制台 [V]/[A] pacing 日志）: %@", path);
+        if (wl_source_start(self->_source) != 0) {
+            NSLog(@"[ViewController] wl_source_start 失败");
+            wl_source_destroy(self->_source);
+            self->_source = NULL;
+            return;
+        }
+        NSLog(@"[ViewController] 开始播放（看控制台 [src V]/[src A] 日志）: %@", path);
     }];
 }
 
 - (void)viewWillDisappear {
     [super viewWillDisappear];
-    [self.media close];
-    self.media = nil;
+    if (_source) {
+        wl_source_destroy(_source);   // 内部先 stop（join 线程）再 destroy
+        _source = NULL;
+    }
 }
 
 @end
