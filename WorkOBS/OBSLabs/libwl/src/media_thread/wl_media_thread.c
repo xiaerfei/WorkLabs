@@ -47,6 +47,8 @@ struct wl_media_thread {
     pthread_cond_t  ctrl_cond;     // pause→resume 或 stop 时 signal
 };
 
+static int64_t now_ns(void);  // 定义在下方 pacing 区；output stub 的临时验证日志要用
+
 // ---------- output stubs（M3/M4 接入全局缓冲时实现）----------
 
 /**
@@ -61,8 +63,29 @@ struct wl_media_thread {
 static void output_video_frame(AVFrame *frame, int64_t pts_ns) {
     // TODO: 接入 async_frames 缓冲（max=30，满则丢旧帧）
     // TODO: 回调 wl_source 的 video_output 回调
+
+    // ── 临时 pacing 验证日志（验证完删除）：Δwall ≈ Δpts 即证明节流生效 ──
+    static int64_t s_first_wall = AV_NOPTS_VALUE;
+    static int64_t s_last_wall  = 0;
+    static int64_t s_last_pts   = 0;
+    static int     s_count      = 0;
+    int64_t wall = now_ns();
+    if (s_first_wall == AV_NOPTS_VALUE) {
+        s_first_wall = wall;
+        s_last_wall  = wall;
+        s_last_pts   = pts_ns;
+    }
+    fprintf(stderr, "[V] #%-4d pts=%6lldms  wall=%6lldms  Δwall=%4lldms  Δpts=%4lldms\n",
+            s_count++,
+            pts_ns / 1000000,
+            (wall - s_first_wall) / 1000000,
+            (wall - s_last_wall)  / 1000000,
+            (pts_ns - s_last_pts) / 1000000);
+    s_last_wall = wall;
+    s_last_pts  = pts_ns;
+    // ── 临时日志结束 ──
+
     (void)frame;
-    (void)pts_ns;
 }
 
 /**
@@ -77,8 +100,13 @@ static void output_video_frame(AVFrame *frame, int64_t pts_ns) {
 static void output_audio_frame(AVFrame *frame, int64_t pts_ns) {
     // TODO: 接入 audio buffer（per-channel deque，补静音而非丢帧）
     // TODO: 回调 wl_source 的 audio_output 回调
+
+    // ── 临时验证日志（验证完删除）：观察音频推进 —— 音频未 pace，靠单线程串行搭便车间接节流 ──
+    static int s_acount = 0;
+    fprintf(stderr, "[A] #%-4d pts=%6lldms\n", s_acount++, pts_ns / 1000000);
+    // ── 临时日志结束 ──
+
     (void)frame;
-    (void)pts_ns;
 }
 
 // ---------- 视频 pacing ----------
