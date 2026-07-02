@@ -8,9 +8,21 @@
 #import "ViewController.h"
 #import "wl_source.h"
 #import "wl_media_source.h"
+#import <time.h>
+
+// 消费端时钟：与生产端 pace 同一把单调尺（CLOCK_MONOTONIC）
+static int64_t vc_now_ns(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (int64_t)ts.tv_sec * 1000000000LL + ts.tv_nsec;
+}
+
+@interface ViewController ()
+@property (nonatomic, strong) NSTimer *tickTimer;   // 临时消费 tick（M3 由 wl_graphics 替代）
+@end
 
 @implementation ViewController {
-    wl_source_t *_source;   // 当前测试源（C 层，手动管理生命周期）
+    wl_source_t *_source;
     BOOL         _didPrompt;
 }
 
@@ -25,7 +37,7 @@
 
 - (void)chooseAndPlay {
     NSOpenPanel *panel = [NSOpenPanel openPanel];
-    panel.title = @"选择媒体文件（测试 source 注册 + pacing）";
+    panel.title = @"选择媒体文件（测试 async_frames 追赶挑帧）";
     panel.allowsMultipleSelection = NO;
     panel.canChooseDirectories = NO;
     panel.canChooseFiles = YES;
@@ -47,14 +59,31 @@
             self->_source = NULL;
             return;
         }
-        NSLog(@"[ViewController] 开始播放（看控制台 [src V]/[src A] 日志）: %@", path);
+        NSLog(@"[ViewController] 开始播放（看控制台 [src V] 生产 / [get] 消费挑帧）: %@", path);
+        [self startTick];
+    }];
+}
+
+// 临时 30fps 消费 tick：模拟 wl_graphics，按系统时钟从 source 挑帧
+- (void)startTick {
+    __weak typeof(self) weakSelf = self;
+    self.tickTimer = [NSTimer scheduledTimerWithTimeInterval:1.0 / 30.0
+                                                     repeats:YES
+                                                       block:^(NSTimer *timer) {
+        typeof(self) self_ = weakSelf;
+        if (!self_ || !self_->_source) return;
+        int64_t pts = 0;
+        // borrow 一帧（不 release）；这里只验证挑帧节奏，不渲染
+        wl_source_get_frame(self_->_source, vc_now_ns(), &pts);
     }];
 }
 
 - (void)viewWillDisappear {
     [super viewWillDisappear];
+    [self.tickTimer invalidate];
+    self.tickTimer = nil;
     if (_source) {
-        wl_source_destroy(_source);   // 内部先 stop（join 线程）再 destroy
+        wl_source_destroy(_source);   // 内部先 stop（join 解码线程）再释放缓冲
         _source = NULL;
     }
 }
