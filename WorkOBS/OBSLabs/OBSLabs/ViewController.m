@@ -6,23 +6,10 @@
 //
 
 #import "ViewController.h"
-#import "wl_source.h"
-#import "wl_media_source.h"
-#import <time.h>
-
-// 消费端时钟：与生产端 pace 同一把单调尺（CLOCK_MONOTONIC）
-static int64_t vc_now_ns(void) {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (int64_t)ts.tv_sec * 1000000000LL + ts.tv_nsec;
-}
-
-@interface ViewController ()
-@property (nonatomic, strong) NSTimer *tickTimer;   // 临时消费 tick（M3 由 wl_graphics 替代）
-@end
+#import "wl_core.h"
 
 @implementation ViewController {
-    wl_source_t *_source;
+    wl_source_t *_source;   // 由 wl_core 拥有；remove/shutdown 后不可再用
     BOOL         _didPrompt;
 }
 
@@ -31,13 +18,17 @@ static int64_t vc_now_ns(void) {
     if (_didPrompt) return;         // view 每次出现都触发，只弹一次
     _didPrompt = YES;
 
-    wl_media_source_register();     // 注册 "media_file" 源类型（幂等）
+    // 全局核心：注册内置源类型 + 启动 30fps 合成节拍（graphics 空转等源）
+    if (wl_core_startup(30) != 0) {
+        NSLog(@"[ViewController] wl_core_startup 失败");
+        return;
+    }
     [self chooseAndPlay];
 }
 
 - (void)chooseAndPlay {
     NSOpenPanel *panel = [NSOpenPanel openPanel];
-    panel.title = @"选择媒体文件（测试 async_frames 追赶挑帧）";
+    panel.title = @"选择媒体文件（测试 wl_core + graphics 节拍）";
     panel.allowsMultipleSelection = NO;
     panel.canChooseDirectories = NO;
     panel.canChooseFiles = YES;
@@ -48,44 +39,25 @@ static int64_t vc_now_ns(void) {
         NSString *path = panel.URLs.firstObject.path;
         if (path.length == 0) return;
 
-        self->_source = wl_source_create("media_file", path.fileSystemRepresentation);
+        self->_source = wl_core_add_source("media_file", path.fileSystemRepresentation);
         if (!self->_source) {
-            NSLog(@"[ViewController] wl_source_create 失败: %@", path);
+            NSLog(@"[ViewController] add_source 失败: %@", path);
             return;
         }
         if (wl_source_start(self->_source) != 0) {
-            NSLog(@"[ViewController] wl_source_start 失败");
-            wl_source_destroy(self->_source);
+            NSLog(@"[ViewController] source start 失败");
+            wl_core_remove_source(self->_source);
             self->_source = NULL;
             return;
         }
-        NSLog(@"[ViewController] 开始播放（看控制台 [src V] 生产 / [get] 消费挑帧）: %@", path);
-        [self startTick];
-    }];
-}
-
-// 临时 30fps 消费 tick：模拟 wl_graphics，按系统时钟从 source 挑帧
-- (void)startTick {
-    __weak typeof(self) weakSelf = self;
-    self.tickTimer = [NSTimer scheduledTimerWithTimeInterval:1.0 / 30.0
-                                                     repeats:YES
-                                                       block:^(NSTimer *timer) {
-        typeof(self) self_ = weakSelf;
-        if (!self_ || !self_->_source) return;
-        int64_t pts = 0;
-        // borrow 一帧（不 release）；这里只验证挑帧节奏，不渲染
-        wl_source_get_frame(self_->_source, vc_now_ns(), &pts);
+        NSLog(@"[ViewController] 开始播放（graphics tick 驱动，看 [get]/[gfx] 日志）: %@", path);
     }];
 }
 
 - (void)viewWillDisappear {
     [super viewWillDisappear];
-    [self.tickTimer invalidate];
-    self.tickTimer = nil;
-    if (_source) {
-        wl_source_destroy(_source);   // 内部先 stop（join 解码线程）再释放缓冲
-        _source = NULL;
-    }
+    wl_core_shutdown();   // 停 graphics → 销毁所有源（含 _source）
+    _source = NULL;
 }
 
 @end

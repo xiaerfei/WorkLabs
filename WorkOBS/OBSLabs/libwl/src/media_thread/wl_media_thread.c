@@ -18,11 +18,12 @@
 
 #include "wl_media_thread.h"
 #include "wl_decoder.h"
+#include "wl_time.h"           // wl_now_ns（pacing 用，与全库同一把单调钟）
 #include <pthread.h>
 #include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>              // clock_gettime / nanosleep / struct timespec（pacing）
+#include <time.h>              // nanosleep / struct timespec（pacing）
 #include <libavutil/avutil.h> // AV_NOPTS_VALUE（pacing 未锚定哨兵）
 
 // ---------- 状态结构体 ----------
@@ -54,18 +55,6 @@ struct wl_media_thread {
 // ---------- 视频 pacing ----------
 
 /**
- * 单调时钟当前值（纳秒）。
- *
- * 必须用 CLOCK_MONOTONIC：它只增不减、不受系统对时 / NTP 回拨影响，做时间差才安全。
- * base_wall_ns 也取自同一时钟，两者相减才有意义（同一把"墙钟尺"）。
- */
-static int64_t now_ns(void) {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (int64_t)ts.tv_sec * 1000000000LL + ts.tv_nsec;
-}
-
-/**
  * 按视频帧 pts 把主循环节流到接近实时（对标 OBS mp_media_sleep）。
  *
  * 绝对基准法：
@@ -77,25 +66,18 @@ static int64_t now_ns(void) {
  */
 static void pace_video(wl_media_thread_t *mt, int64_t pts_ns) {
     if (mt->first_pts_ns == AV_NOPTS_VALUE) {
-        mt->base_wall_ns = now_ns();
+        mt->base_wall_ns = wl_now_ns();
         mt->first_pts_ns = pts_ns;
         return;
     }
 
     int64_t target = mt->base_wall_ns + (pts_ns - mt->first_pts_ns); // 这帧应放出的墙钟时刻
-    int64_t offset = target - now_ns();                              // 离发车还差多久
 
-    // offset <= 0：已到点或落后 → 立即放行，不睡
-    if (offset > 0) {
-        // TODO(第二步): nanosleep 不可被 stop/pause 打断，最坏要等约一帧间隔（~33ms）
-        //   才响应停止；且异常大的 offset（seek / 时间戳跳变）会傻睡。后续改为
-        //   pthread_cond_timedwait 复用 ctrl_cond（signal 即醒）+ offset 上限 clamp。
-        struct timespec req = {
-            .tv_sec  = (time_t)(offset / 1000000000LL),
-            .tv_nsec = (long)  (offset % 1000000000LL),
-        };
-        nanosleep(&req, NULL);
-    }
+    // 已到点/落后则立即放行（wl_sleep_to_ns 对过去的 target 直接返回 false）
+    // TODO(后续): sleep 不可被 stop/pause 打断，最坏要等约一帧间隔（~33ms）
+    //   才响应停止；且异常大的 target（seek / 时间戳跳变）会傻睡。后续改为
+    //   pthread_cond_timedwait 复用 ctrl_cond（signal 即醒）+ 上限 clamp。
+    wl_sleep_to_ns(target);
 }
 
 // ---------- 主循环 ----------
