@@ -16,6 +16,7 @@
 		796DB15F0A16454983AE35D5 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = E50A6BBCF7F77C758F750B34 /* Main.storyboard */; };
 		88675F3AEAE3B20A7B7E9D11 /* wl_node.c in Sources */ = {isa = PBXBuildFile; fileRef = E3CB57DB49451863D6A2BE5F /* wl_node.c */; };
 		971D81871C3D9F821DD9A504 /* wl_graphics.c in Sources */ = {isa = PBXBuildFile; fileRef = 47E0E363F263DAED303D12A3 /* wl_graphics.c */; };
+		9C5310F42FFDB84200DF1747 /* WLMediaSource.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9C5310F32FFDB84200DF1747 /* WLMediaSource.cpp */; };
 		BC653B9F5645C8DC2F9AACC1 /* wl_source_registry.c in Sources */ = {isa = PBXBuildFile; fileRef = 6B7628D1CCAC230C1A835FBB /* wl_source_registry.c */; };
 		BE360C7E73EB1A21CDC33197 /* wl_media_thread.c in Sources */ = {isa = PBXBuildFile; fileRef = 3728A4D69D29C78179B2D111 /* wl_media_thread.c */; };
 		BF3968E2B096E55ED66F8651 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 56441A426792D5C02105697B /* main.m */; };
@@ -47,6 +48,8 @@
 		6B7628D1CCAC230C1A835FBB /* wl_source_registry.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = wl_source_registry.c; sourceTree = "<group>"; };
 		6BACD6D279C198302E069F12 /* ViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ViewController.m; sourceTree = "<group>"; };
 		7CD78E83D93F79ED7BEDF8B5 /* wl_media_source.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = wl_media_source.h; sourceTree = "<group>"; };
+		9C5310F22FFDB84200DF1747 /* WLMediaSource.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = WLMediaSource.hpp; sourceTree = "<group>"; };
+		9C5310F32FFDB84200DF1747 /* WLMediaSource.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = WLMediaSource.cpp; sourceTree = "<group>"; };
 		A0D59581AA2A37BCE3CAFE21 /* wl_source.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = wl_source.c; sourceTree = "<group>"; };
 		AE6027FC8023A37F44BFE768 /* wl_media_thread.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = wl_media_thread.h; sourceTree = "<group>"; };
 		C6C23BA2278BB02612B1F080 /* wl_player.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = wl_player.c; sourceTree = "<group>"; };
@@ -145,7 +148,6 @@
 				E4C1A2D01C804AE45D88C0CC /* Pods-OBSLabs.debug.xcconfig */,
 				5CEB1AA6B548A60C13CFDCA6 /* Pods-OBSLabs.release.xcconfig */,
 			);
-			name = Pods;
 			path = Pods;
 			sourceTree = "<group>";
 		};
@@ -205,6 +207,8 @@
 			children = (
 				3728A4D69D29C78179B2D111 /* wl_media_thread.c */,
 				AE6027FC8023A37F44BFE768 /* wl_media_thread.h */,
+				9C5310F22FFDB84200DF1747 /* WLMediaSource.hpp */,
+				9C5310F32FFDB84200DF1747 /* WLMediaSource.cpp */,
 			);
 			path = media_thread;
 			sourceTree = "<group>";
@@ -248,8 +252,6 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
-				TargetAttributes = {
-				};
 			};
 			buildConfigurationList = 9DE6892CD66EA1625906917F /* Build configuration list for PBXProject "OBSLabs" */;
 			developmentRegion = en;
@@ -291,9 +293,13 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-OBSLabs/Pods-OBSLabs-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
+			inputPaths = (
+			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-OBSLabs/Pods-OBSLabs-frameworks-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -339,6 +345,7 @@
 				BE360C7E73EB1A21CDC33197 /* wl_media_thread.c in Sources */,
 				88675F3AEAE3B20A7B7E9D11 /* wl_node.c in Sources */,
 				FF7D9E8C7F32C9CE576144E6 /* wl_player.c in Sources */,
+				9C5310F42FFDB84200DF1747 /* WLMediaSource.cpp in Sources */,
 				27101E6475B80D4284FEE10A /* wl_queue.c in Sources */,
 				3EA3AD51CAC2A2F27B4F333B /* wl_source.c in Sources */,
 				BC653B9F5645C8DC2F9AACC1 /* wl_source_registry.c in Sources */,
