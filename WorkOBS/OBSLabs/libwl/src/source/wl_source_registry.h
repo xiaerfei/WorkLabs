@@ -11,6 +11,10 @@
 
 #include "wl_source_info.h"
 
+#ifdef __cplusplus
+extern "C" {                       // C++ 消费者（WLMediaSource.cpp）需要 C 链接名
+#endif
+
 // 注册一种源类型（通常在应用启动时调用）。重复 id → 覆盖并打 warning。
 void wl_source_register(const wl_source_info_t *info);
 
@@ -19,5 +23,9 @@ void wl_source_unregister(const char *id);
 
 // 按 id 查找；未找到返回 NULL。
 const wl_source_info_t *wl_source_find(const char *id);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* wl_source_registry_h */

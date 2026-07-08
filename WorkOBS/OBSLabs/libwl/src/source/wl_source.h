@@ -16,6 +16,10 @@
 
 #include "wl_source_info.h"        // wl_source_t / wl_source_info_t
 
+#ifdef __cplusplus
+extern "C" {                       // C++ 消费者（WLMediaSource.cpp）需要 C 链接名
+#endif
+
 // ---- 创建 / 销毁 ----
 
 // 按 type_id 在注册表查找并创建实例。失败返回 NULL。
@@ -47,5 +51,9 @@ void wl_source_output_video(wl_source_t *src, CVPixelBufferRef pixbuf, int64_t p
 // 缓冲空时重复上一帧。返回 borrow（source 持有，调用者勿 release），无帧返回 NULL。
 // out_pts_ns 可为 NULL。当前假定单消费者（一个 tick）调用。
 CVPixelBufferRef wl_source_get_frame(wl_source_t *src, int64_t sys_time_ns, int64_t *out_pts_ns);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* wl_source_h */
