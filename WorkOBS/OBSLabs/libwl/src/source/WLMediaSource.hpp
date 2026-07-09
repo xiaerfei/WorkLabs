@@ -2,13 +2,13 @@
 //  WLMediaSource.hpp
 //  OBSLabs
 //
-//  "media_file" 源（Orthodox C++：只用 class + 成员函数组织代码，
-//  数据成员、内存管理、并发原语全部保持 C 写法，不用 STL）。
+//  "media_file" 源：本地媒体文件解码（WLSource 的第一个子类）。
+//  主体是解码主循环 + 视频 pacing（对标 OBS mp_media / ffmpeg_source）。
 //
-//  合并 C 版两个模块的职责：
-//    - wl_media_thread：解码主循环 + 视频 pacing（本类主体，对标 OBS mp_media）
-//    - wl_media_source：vtable 桥接（在 WLMediaSource.cpp 底部，extern "C" 注册）
-//  C 侧（wl_source / registry / wl_core）完全不动，vtable 的 data 就是 WLMediaSource*。
+//  继承取代了 C 版的三层胶水：
+//    - vtable 函数指针表 → 直接重写基类虚函数
+//    - media_source_data（thread/source/path）→ 本类成员，this 就是 source
+//    - output 回调 + opaque → 解码线程直接调基类 protected output_video()
 //
 
 #ifndef WLMediaSource_hpp
@@ -20,18 +20,12 @@
 
 extern "C" {                   // FFmpeg 头没有 extern "C" 守卫，C++ 侧必须自己包
 #include <libavutil/avutil.h>  // AV_NOPTS_VALUE（pacing 未锚定哨兵）
-#include <libavutil/frame.h>   // AVFrame（output 回调签名）
 }
 
-#include "WLDecoder.hpp"       // 解封装 + 解码（wl_read/frame_result_t 类型经它可见）
+#include "WLSource.hpp"        // 基类：async_frames 缓冲 + 挑帧 + 虚控制接口
+#include "WLDecoder.hpp"       // 解封装 + 解码
 
-// output 回调：解码线程解出一帧后调用，把帧交给上层（wl_source）。
-// 视频：硬解 frame->data[3] = CVPixelBufferRef；软解 frame->data[0..] = YUV。
-// 音频：frame->data[0] = PCM。pts_ns 已换算为纳秒。
-typedef void (*wl_media_video_cb)(AVFrame *frame, int64_t pts_ns, void *opaque);
-typedef void (*wl_media_audio_cb)(AVFrame *frame, int64_t pts_ns, void *opaque);
-
-class WLMediaSource {
+class WLMediaSource : public WLSource {
     // 所有成员在构造函数里逐个初始化：new 不像 calloc 会清零，漏一个就是垃圾值
     char *path;                // strdup 拥有拷贝（调用方的 C 串可能是临时缓冲）
 
@@ -48,12 +42,6 @@ class WLMediaSource {
     int64_t base_wall_ns;      // 墙钟零点：第一帧那刻的 CLOCK_MONOTONIC 读数
     int64_t first_pts_ns;      // 媒体零点：第一帧 pts；AV_NOPTS_VALUE = 尚未锚定
 
-    // output 回调（把解码帧交给上层 wl_source）—— set_callbacks 在 start 之前调好，
-    // 线程跑起来后只读，不加锁
-    wl_media_video_cb video_cb;
-    wl_media_audio_cb audio_cb;
-    void             *cb_opaque;
-
     // pause 条件变量（替代 OBS 的 semaphore）
     pthread_mutex_t ctrl_mutex;
     pthread_cond_t  ctrl_cond;  // pause→resume 或 stop 时 signal
@@ -64,19 +52,20 @@ class WLMediaSource {
 
 public:
     WLMediaSource(const char *path, const char *hw_type);  // hw_type 只在构造时用，不保存
-    ~WLMediaSource();   // 幂等 stop → free decoder → 销毁锁
+    // 子类 dtor 必须自己先 stop（join 解码线程）：等基类 dtor 再停就晚了
+    //（析构期间虚表已退化，且基类清缓冲时生产线程必须已死）。
+    virtual ~WLMediaSource();
 
     bool valid() const { return decoder != NULL; }  // ctor 里 decoder 是否创建成功
 
-    // 必须在 start 之前调用（约定见成员注释）
-    void set_callbacks(wl_media_video_cb video_cb,
-                       wl_media_audio_cb audio_cb,
-                       void *opaque);
+    // ---- WLSource 虚接口实现 ----
+    virtual int  start();      // 一次性：stop 后不支持再 start（与 C 版语义一致）
+    virtual void stop();       // 幂等；join 解码线程
+    virtual void pause(bool paused);
+    virtual void seek(int64_t seek_ts_us);
 
-    int  start();       // 一次性：stop 后不支持再 start（与 C 版语义一致）
-    int  stop();        // 幂等；join 解码线程
-    void pause(bool paused);
-    void seek(int64_t seek_ts_us);
+    // 注册 "media_file" 类型到全局表（WLCore::startup 调用一次）
+    static void register_type();
 };
 
 #endif /* WLMediaSource_hpp */

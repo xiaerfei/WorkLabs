@@ -1,9 +1,12 @@
 //
-//  wl_source_registry.c
+//  WLSourceRegistry.cpp
 //  OBSLabs
 //
+//  原 wl_source_registry.c 的类化：查找/覆盖/补位逻辑逐行保持不变，
+//  数据仍是文件内 static（对标 C 版 g_registry，不进头文件）。
+//
 
-#include "wl_source_registry.h"
+#include "WLSourceRegistry.hpp"
 #include <pthread.h>
 #include <stdio.h>
 #include <string.h>
@@ -11,15 +14,16 @@
 #define MAX_SOURCE_TYPES 64
 
 static struct {
-    const wl_source_info_t *entries[MAX_SOURCE_TYPES];
-    int                     count;
-    pthread_mutex_t         mutex;
+    const wl_source_type_info *entries[MAX_SOURCE_TYPES];
+    int                        count;
+    pthread_mutex_t            mutex;
 } g_registry = {
-    .count = 0,
-    .mutex = PTHREAD_MUTEX_INITIALIZER,
+    {0},
+    0,
+    PTHREAD_MUTEX_INITIALIZER,
 };
 
-void wl_source_register(const wl_source_info_t *info) {
+void WLSourceRegistry::register_type(const wl_source_type_info *info) {
     if (!info || !info->id) return;
 
     pthread_mutex_lock(&g_registry.mutex);
@@ -44,7 +48,7 @@ void wl_source_register(const wl_source_info_t *info) {
     pthread_mutex_unlock(&g_registry.mutex);
 }
 
-void wl_source_unregister(const char *id) {
+void WLSourceRegistry::unregister_type(const char *id) {
     if (!id) return;
 
     pthread_mutex_lock(&g_registry.mutex);
@@ -58,11 +62,11 @@ void wl_source_unregister(const char *id) {
     pthread_mutex_unlock(&g_registry.mutex);
 }
 
-const wl_source_info_t *wl_source_find(const char *id) {
+const wl_source_type_info *WLSourceRegistry::find(const char *id) {
     if (!id) return NULL;
 
     pthread_mutex_lock(&g_registry.mutex);
-    const wl_source_info_t *found = NULL;
+    const wl_source_type_info *found = NULL;
     for (int i = 0; i < g_registry.count; i++) {
         if (strcmp(g_registry.entries[i]->id, id) == 0) {
             found = g_registry.entries[i];

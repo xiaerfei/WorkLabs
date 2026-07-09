@@ -1,16 +1,19 @@
 //
-//  ViewController.m
+//  ViewController.mm
 //  OBSLabs
 //
 //  Created by erfeixia on 20/06/2026.
 //
+//  .mm（Objective-C++）：OC 方法体里直接调 C++ 类（WLCore / WLSource）。
+//
 
 #import "ViewController.h"
-#import "wl_core.h"
+#import "WLCore.hpp"
+#import "WLSource.hpp"
 
 @implementation ViewController {
-    wl_source_t *_source;   // 由 wl_core 拥有；remove/shutdown 后不可再用
-    BOOL         _didPrompt;
+    WLSource *_source;   // 由 WLCore 拥有；remove/shutdown 后不可再用
+    BOOL      _didPrompt;
 }
 
 - (void)viewDidAppear {
@@ -19,8 +22,8 @@
     _didPrompt = YES;
 
     // 全局核心：注册内置源类型 + 启动 30fps 合成节拍（graphics 空转等源）
-    if (wl_core_startup(30) != 0) {
-        NSLog(@"[ViewController] wl_core_startup 失败");
+    if (WLCore::startup(30) != 0) {
+        NSLog(@"[ViewController] WLCore::startup 失败");
         return;
     }
     [self chooseAndPlay];
@@ -28,7 +31,7 @@
 
 - (void)chooseAndPlay {
     NSOpenPanel *panel = [NSOpenPanel openPanel];
-    panel.title = @"选择媒体文件（测试 wl_core + graphics 节拍）";
+    panel.title = @"选择媒体文件（测试 WLCore + graphics 节拍）";
     panel.allowsMultipleSelection = NO;
     panel.canChooseDirectories = NO;
     panel.canChooseFiles = YES;
@@ -39,14 +42,14 @@
         NSString *path = panel.URLs.firstObject.path;
         if (path.length == 0) return;
 
-        self->_source = wl_core_add_source("media_file", path.fileSystemRepresentation);
+        self->_source = WLCore::add_source("media_file", path.fileSystemRepresentation);
         if (!self->_source) {
             NSLog(@"[ViewController] add_source 失败: %@", path);
             return;
         }
-        if (wl_source_start(self->_source) != 0) {
+        if (self->_source->start() != 0) {
             NSLog(@"[ViewController] source start 失败");
-            wl_core_remove_source(self->_source);
+            WLCore::remove_source(self->_source);
             self->_source = NULL;
             return;
         }
@@ -56,7 +59,7 @@
 
 - (void)viewWillDisappear {
     [super viewWillDisappear];
-    wl_core_shutdown();   // 停 graphics → 销毁所有源（含 _source）
+    WLCore::shutdown();   // 停 graphics → 销毁所有源（含 _source）
     _source = NULL;
 }
 
