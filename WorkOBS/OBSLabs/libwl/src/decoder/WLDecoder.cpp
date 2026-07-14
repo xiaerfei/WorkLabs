@@ -409,12 +409,12 @@ wl_frame_result_t WLDecoder::receive_video(AVFrame **out_frame, int64_t *out_pts
     // 帧时长三级兜底：① codec 给的 pkt_duration ② 上一帧位置差值
     // ③ 上次估算出的时长 ④ 该流 time_base 的一个 tick（最后一道防线）
     int64_t duration_ns;
-    if ((*out_frame)->pkt_duration > 0) {
+    if ((*out_frame)->duration > 0) {
         /// 第一道防线：用官方原生的帧时长
         /// 如果视频容器（如 MP4、MKV）或者解码器本身在帧里明确记录了 pkt_duration（
         /// 当前帧持续了多少个刻度），那就最完美。直接把它从流的时间基准 tb 转换成纳秒（
         /// 1000000000），作为这一帧的真实时长。
-        duration_ns = av_rescale_q((*out_frame)->pkt_duration, tb,
+        duration_ns = av_rescale_q((*out_frame)->duration, tb,
                                    (AVRational){1, 1000000000});
     } else if (last_pts_ns != AV_NOPTS_VALUE) {
         /// 第二道防线：用前后帧的 PTS 差值
