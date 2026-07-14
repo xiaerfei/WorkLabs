@@ -95,9 +95,7 @@ int WLDecoder::cfgd_video() {
             video_codec_ctx->thread_count = 0;
             goto open_codec;
         }
-        int hw_err = av_hwdevice_ctx_create(&hw_device_ctx,
-                                            device_type,
-                                            NULL, NULL, 0);
+        int hw_err = av_hwdevice_ctx_create(&hw_device_ctx, device_type, NULL, NULL, 0);
         if (hw_err >= 0) {
             // 创建成功，将其引用绑定到解码器上下文中
             AVBufferRef *ref = av_buffer_ref(hw_device_ctx);
@@ -399,6 +397,7 @@ wl_frame_result_t WLDecoder::receive_video(AVFrame **out_frame, int64_t *out_pts
     if (r != WL_FRAME_OK)
         return r;
 
+    // 帧时长的“四级防御机制”
     // ── PTS 外推（对标 OBS mp_decode_next + get_estimated_duration）──
     // best_effort_timestamp 仍是 AV_NOPTS_VALUE 时（libavcodec 也没辙），
     // 用上一帧的推算位置顶上，不把 NOPTS 传给下游。
@@ -411,13 +410,28 @@ wl_frame_result_t WLDecoder::receive_video(AVFrame **out_frame, int64_t *out_pts
     // ③ 上次估算出的时长 ④ 该流 time_base 的一个 tick（最后一道防线）
     int64_t duration_ns;
     if ((*out_frame)->pkt_duration > 0) {
+        /// 第一道防线：用官方原生的帧时长
+        /// 如果视频容器（如 MP4、MKV）或者解码器本身在帧里明确记录了 pkt_duration（
+        /// 当前帧持续了多少个刻度），那就最完美。直接把它从流的时间基准 tb 转换成纳秒（
+        /// 1000000000），作为这一帧的真实时长。
         duration_ns = av_rescale_q((*out_frame)->pkt_duration, tb,
                                    (AVRational){1, 1000000000});
     } else if (last_pts_ns != AV_NOPTS_VALUE) {
+        /// 第二道防线：用前后帧的 PTS 差值
+        /// 如果 pkt_duration 没给（很常见，很多封装格式这里是 0），但上一帧的 PTS 是已知的，那就用当前帧的 PTS 减去上一帧的 PTS。
+        /// 场景：比如上一帧在第 40 毫秒显示，当前帧在第 80 毫秒显示，那上一帧显然持续了 $80 - 40 = 40$ 毫秒。
         duration_ns = pts_ns - last_pts_ns;
     } else if (video_last_duration_ns > 0) {
+        /// 第三道防线：用前一帧的“历史经验”
+        /// 如果这是前几帧，连 last_pts_ns 都还没有呢？那就看看更早之前成功估算出的历史时长
+        /// video_last_duration_ns。既然上一次是这么久，在没有新数据的情况下，假设视频是
+        /// 恒定帧率（CFR），继续沿用这个经验值。
         duration_ns = video_last_duration_ns;
     } else {
+        /// 第四道防线：终极无脑兜底（最后一道防线）
+        /// 也就是我们上一轮讨论的那行代码。如果上面三个条件全部抓瞎（比如刚开播、既没时长、又没上一帧
+        ///  PTS、也没历史经验），那就只能认为这一帧只持续了时间基准的 1 个最小刻度。虽然可能不准，但
+        ///  保证了 duration_ns 大于 0，程序能继续跑下去。
         duration_ns = av_rescale_q(1, tb, (AVRational){1, 1000000000});
     }
 
