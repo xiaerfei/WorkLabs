@@ -32,6 +32,46 @@ typedef struct wl_async_frame {
     int64_t          pts_ns;
 } wl_async_frame;
 
+class WLSource;
+
+// ============================================================================
+// 源类型元信息（对齐 OBS obs_source_info，obs-source.h:222）
+//
+// OBS 的 obs_source_info 是"元数据 + 手写 vtable"合一的结构；C++ 化后
+// vtable 那半边变成了 WLSource 虚函数，剩下的元数据半边就是这个结构
+// （外加 create 工厂——它是"类型级"操作，没有实例可挂，留在这里）。
+// ============================================================================
+
+// 源的大类（对齐 enum obs_source_type，obs-source.h:33）。
+// OBS 有 INPUT/FILTER/TRANSITION/SCENE 四类——"一切皆源"：滤镜、转场也走
+// 同一套注册/生命周期。现在只有 INPUT，其余等真出现时再加枚举值。
+enum wl_source_type {
+    WL_SOURCE_TYPE_INPUT,
+};
+
+// output_flags：声明"这类源产出什么、视频走哪条路"（对齐 obs-source.h:88-121）。
+// ASYNC 位是合成分流的唯一依据（obs-source.c:1367 同款判断）。注意 OBS 在
+// render 侧还能靠"info->video_render 回调是否 NULL"分流（:2933 vs :2942）；
+// C++ 虚函数没有"未被 override"这个可查状态（默认实现兜底、永远可调），
+// 所以这个 bit 在我们这儿比在 OBS 里更加必不可少。
+#define WL_SOURCE_VIDEO        (1 << 0)   // 产视频
+#define WL_SOURCE_AUDIO        (1 << 1)   // 产音频
+#define WL_SOURCE_ASYNC        (1 << 2)   // 视频异步：output_video 入缓冲、tick 挑帧
+#define WL_SOURCE_ASYNC_VIDEO  (WL_SOURCE_ASYNC | WL_SOURCE_VIDEO)
+// 同步源 = 有 VIDEO 无 ASYNC：不产帧，render 阶段 video_render() 现画
+// （M3 图片源/屏幕采集启用；见《OBS_采集源技术方案》§1）。
+
+typedef struct wl_source_type_info {
+    const char *id;             // 类型唯一标识，如 "media_file"
+    enum wl_source_type type;   // 大类；目前恒 INPUT
+    uint32_t output_flags;      // WL_SOURCE_* 位或
+    const char *type_name;      // 显示名。OBS 的 get_name() 是函数指针，为的是
+                                // 本地化（运行时查语言包）；我们静态串够用
+    // 工厂：创建该类型的源实例（new 子类），失败返回 NULL。
+    // 失败检查（如 decoder 打不开）在工厂内做完，调用方拿到即可用。
+    WLSource *(*create)(const char *settings);
+} wl_source_type_info;
+
 class WLSource {
     // async_frames：堆分配环形缓冲（容量运行期固定），生产者(解码线程)/消费者(tick) 共享
     wl_async_frame  *frames;
@@ -56,6 +96,12 @@ protected:
     void output_video(CVPixelBufferRef pixbuf, int64_t pts_ns);
 
 public:
+    // 类型元信息：实例持有一份按值拷贝（对齐 OBS source->info = *info，
+    // obs-source.c:450），WLCore::add_source 创建后填。按值而非存指针，
+    // 是为了与注册表解耦——类型被 unregister 后实例照常活（OBS 的动机是
+    // 插件卸载）。工厂直接 new 出来、未经 add_source 的裸实例此字段为空。
+    wl_source_type_info info;
+
     // 必须 virtual：WLCore 存的是 WLSource*，delete 基类指针时非虚析构
     // 不会调子类 dtor —— 解码线程不 join、decoder 泄漏。
     // 注意基类 dtor 里不能调虚函数 stop()（析构期间虚表已退化到本类层级），
@@ -69,9 +115,24 @@ public:
     virtual void pause(bool paused);            // 默认空实现 = 不支持暂停
     virtual void seek(int64_t seek_ts_us);      // 默认空实现 = 不支持 seek
 
+    // settings 变更（对应 OBS .update；默认空 = 不支持运行时改参）。
+    // 语义是"不重建实例、就地换参数"（如摄像头切设备/分辨率）。媒体文件源
+    // 改路径 = 换内容，走删旧建新更合理，所以不 override。
+    virtual void update(const char *settings);
+
     // ---- 信息查询（默认实现 = 不支持）----
+    // get_width/height 对应 OBS 同名回调，其注释原话："Required if this is
+    // an input source and has non-async video"——异步源尺寸随帧走、连宽高都
+    // 不用报，所以默认回 0；同步源（M3）必须 override。
     virtual int64_t get_duration();             // 微秒；无意义返回 -1
-    virtual void    get_video_size(int *w, int *h);   // 默认回 0
+    virtual int     get_width();
+    virtual int     get_height();
+
+    // ---- 同步源绘制（对应 OBS .video_render；默认空 = 异步源不用管）----
+    // 同步源（无 ASYNC 位）没有帧队列，每 tick 由 render 阶段调用现画。
+    // M3 Metal 合成接入后才有真正的调用方（签名届时补渲染上下文参数），
+    // 先立形状占位。
+    virtual void video_render();
 
     // ---- 消费端（渲染 tick 调用）----
     // 按系统时钟（纳秒，CLOCK_MONOTONIC）挑"当前该显示的帧"：追赶式跳过并

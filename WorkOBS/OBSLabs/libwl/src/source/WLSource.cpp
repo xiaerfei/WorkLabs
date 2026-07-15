@@ -18,6 +18,12 @@
 
 WLSource::WLSource() {
     // new 不像 calloc 会清零：所有成员逐个初始化
+    info.id           = NULL;   // 真值由 WLCore::add_source 按注册表条目填
+    info.type         = WL_SOURCE_TYPE_INPUT;
+    info.output_flags = 0;
+    info.type_name    = NULL;
+    info.create       = NULL;
+
     frames   = (wl_async_frame *)calloc(WL_DEFAULT_ASYNC_CAPACITY, sizeof(wl_async_frame));
     capacity = frames ? WL_DEFAULT_ASYNC_CAPACITY : 0;   // 0 = 缓冲不可用（output/get 都会短路）
     if (!frames) fprintf(stderr, "[source] async_frames alloc failed\n");
@@ -49,13 +55,13 @@ WLSource::~WLSource() {
 
 void WLSource::pause(bool paused) { (void)paused; }        // 默认不支持暂停
 void WLSource::seek(int64_t seek_ts_us) { (void)seek_ts_us; } // 默认不支持 seek
+void WLSource::update(const char *settings) { (void)settings; } // 默认不支持运行时改参
 
 int64_t WLSource::get_duration() { return -1; }
+int     WLSource::get_width()    { return 0; }   // 异步源尺寸随帧走，不必报
+int     WLSource::get_height()   { return 0; }
 
-void WLSource::get_video_size(int *w, int *h) {
-    if (w) *w = 0;
-    if (h) *h = 0;
-}
+void WLSource::video_render() {}   // 异步源不用管；同步源（M3）override
 
 // ---- 生产端 ----
 

@@ -7,6 +7,7 @@
 //
 
 #include "WLSourceRegistry.hpp"
+#include "WLSource.hpp"       // wl_source_type_info 完整定义（要解引用读 id）
 #include <pthread.h>
 #include <stdio.h>
 #include <string.h>

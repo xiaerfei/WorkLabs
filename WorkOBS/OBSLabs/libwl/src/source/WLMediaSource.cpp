@@ -222,10 +222,17 @@ static WLSource *create_media_source(const char *settings) {
     return ms;
 }
 
+// 类型声明（对齐 OBS ffmpeg_source 的 obs_source_info，obs-ffmpeg-source.c:787：
+// 它声明 ASYNC_VIDEO | AUDIO | DO_NOT_DUPLICATE|…，后者是场景复制语义，不搬）。
+// output_flags 描述的是这类源的能力，不是当前接线状态：AUDIO 位如实报——
+// 音频输出通道 M4 才接，届时消费者按位取用，类型声明不用改。
+// （C++20 支持 C99 的 designated initializer，但要求按字段声明顺序写。）
 static const wl_source_type_info g_media_source_info = {
-    "media_file",          // id
-    "Media File",          // type_name
-    create_media_source,   // 工厂
+    .id           = "media_file",
+    .type         = WL_SOURCE_TYPE_INPUT,
+    .output_flags = WL_SOURCE_ASYNC_VIDEO | WL_SOURCE_AUDIO,
+    .type_name    = "Media File",
+    .create       = create_media_source,
 };
 
 void WLMediaSource::register_type() {

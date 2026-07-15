@@ -84,6 +84,10 @@ void WLGraphics::video_sleep() {
 
 // tick 单个源：把本 tick 的 video_time 当"现在几点"传给挑帧
 static void tick_one_source(WLSource *src, void *ctx) {
+    // 分流唯一依据 = ASYNC 位（对齐 obs_source_video_tick，obs-source.c:1367）：
+    // 异步源本 tick 挑帧；同步源没有帧队列，render 阶段直接 video_render() 现画（M3）
+    if ((src->info.output_flags & WL_SOURCE_ASYNC) == 0) return;
+
     int64_t video_time = *(int64_t *)ctx;
     int64_t pts = 0;
     // 返回 borrow；阶段一不渲染，挑帧行为由 get_frame 内的 [get] 临时日志观测

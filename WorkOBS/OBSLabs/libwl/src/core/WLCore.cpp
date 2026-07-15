@@ -97,6 +97,7 @@ WLSource *WLCore::add_source(const char *type_id, const char *settings) {
         fprintf(stderr, "[core] create failed for type '%s'\n", info->id);
         return NULL;
     }
+    src->info = *info;   // 实例持有类型信息拷贝（对齐 obs_source_create，obs-source.c:450）
 
     pthread_mutex_lock(&g_core.mutex);
     if (g_core.count == WL_CORE_MAX_SOURCES) {
