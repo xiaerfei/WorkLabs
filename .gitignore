@@ -48,3 +48,5 @@ fastlane/test_output
 # Added by code-review-graph
 .code-review-graph/
 .mcp.json
+
+WorkOBS/testdata
