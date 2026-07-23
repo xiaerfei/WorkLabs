@@ -142,3 +142,9 @@ void WLCore::foreach_source(void (*fn)(WLSource *src, void *ctx), void *ctx) {
     }
     pthread_mutex_unlock(&g_core.mutex);
 }
+
+// ---- 输出 ----
+
+void WLCore::set_frame_output(wl_frame_output_cb cb, void *ctx) {
+    if (g_core.graphics) g_core.graphics->set_output(cb, ctx);
+}

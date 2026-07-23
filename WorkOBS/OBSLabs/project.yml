@@ -26,3 +26,7 @@ targets:
         CLANG_CXX_LANGUAGE_STANDARD: "gnu++20"
         CLANG_ENABLE_OBJC_ARC: YES
         HEADER_SEARCH_PATHS: "$(SRCROOT)/libwl/src/**"
+    dependencies:
+      - sdk: AVFoundation.framework   # AVSampleBufferDisplayLayer（预览）
+      - sdk: CoreMedia.framework      # CMSampleBuffer / CMVideoFormatDescription
+      - sdk: CoreVideo.framework      # CVPixelBuffer（合成帧）
