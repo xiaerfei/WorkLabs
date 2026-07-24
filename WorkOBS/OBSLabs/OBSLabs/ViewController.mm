@@ -45,6 +45,7 @@ static const CGFloat kMinPreviewH = 90;
 
 @interface WLPreviewView : NSView
 @property (nonatomic, readonly) AVSampleBufferDisplayLayer *videoLayer;
+@property (nonatomic) BOOL userInteracted;   // 用户拖/缩放过一次后不再自动居中
 @end
 
 @implementation WLPreviewView {
@@ -139,6 +140,7 @@ static const CGFloat kMinPreviewH = 90;
 
 - (void)mouseDragged:(NSEvent *)event {
     if (_active == WLPreviewHandleNone) return;
+    self.userInteracted = YES;   // 用户接管摆放，viewDidLayout 不再自动居中
     NSPoint cur = [self.superview convertPoint:event.locationInWindow fromView:nil];
     CGFloat dx = cur.x - _startMouse.x, dy = cur.y - _startMouse.y;
 
@@ -227,6 +229,36 @@ static void onCompositedFrame(CVPixelBufferRef frame, int64_t pts_ns, void *ctx)
     // viewWillDisappear 先注销再 shutdown，回调期间 self 必活。
     WLCore::set_frame_output(onCompositedFrame, (__bridge void *)self);
     self.view.window.title = @"OBSLabs — 源管理 + 预览";
+}
+
+// 预览是浮动层：只要用户没手动拖过，就随实际 bounds 自动居中到上部（保证可见 + 大小合适）。
+// 关键——不能在 viewDidLoad 用写死 frame：那时 view 还是 storyboard 的 480×270，
+// preferredContentSize 未生效，写死值会越界 + 被 autoresizing 推出屏。
+- (void)viewDidLayout {
+    [super viewDidLayout];
+    if (self.previewView.userInteracted) return;
+    NSRect target = [self defaultPreviewFrame];
+    if (NSIsEmptyRect(target)) return;
+    if (NSEqualRects(target, self.previewView.frame)) return;   // 已就位，别再改（防递归）
+    // 不能在 layout pass 内同步改 frame：setFrameSize 会冒泡 setNeedsUpdateConstraints，
+    // 在本轮布局里又请求新一轮 → 每帧递归、pass 次数超上限直接崩（上个版本的崩因）。
+    // async 到 pass 之后再改；改完下一轮 target==frame，NSEqualRects 命中、自然收敛。
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (!self.previewView.userInteracted && !NSEqualRects(target, self.previewView.frame))
+            self.previewView.frame = target;
+    });
+}
+
+- (NSRect)defaultPreviewFrame {
+    NSRect b = self.view.bounds;
+    if (b.size.width < 100 || b.size.height < 100) return NSZeroRect;   // 尺寸还没定
+    CGFloat w = b.size.width - 24;             // 左右各留 12
+    CGFloat h = w * 9.0 / 16.0;
+    CGFloat maxH = b.size.height * 0.62;       // 上部约 62%，给下方列表留空间
+    if (h > maxH) { h = maxH; w = h * 16.0 / 9.0; }
+    CGFloat x = (b.size.width - w) / 2.0;
+    CGFloat y = b.size.height - h - 12;        // 贴顶部留 12
+    return NSMakeRect(x, y, w, h);
 }
 
 - (void)viewWillDisappear {
