@@ -133,12 +133,13 @@ static void onCompositedFrame(CVPixelBufferRef frame, int64_t pts_ns, void *ctx)
     });
 }
 
-@implementation ViewController
+@implementation ViewController {
+    BOOL _didSetInitialSize;   // 首次显示才设初始窗口尺寸（别每次显隐重置用户的 resize）
+}
 
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.rows = [NSMutableArray array];
-    self.preferredContentSize = NSMakeSize(1200, 760);   // OBS 布局需要宽窗口
     [self buildUI];
 }
 
@@ -149,7 +150,28 @@ static void onCompositedFrame(CVPixelBufferRef frame, int64_t pts_ns, void *ctx)
         return;
     }
     WLCore::set_frame_output(onCompositedFrame, (__bridge void *)self);
-    self.view.window.title = @"OBSLabs";
+    NSWindow *win = self.view.window;
+    win.title = @"OBSLabs";
+    // 允许缩小：缩小时预览区被压 → 画布 aspect-fit 跟着变小但保持 16:9，
+    // dock 栏固定高 200 不变（对齐 OBS：画布可很小、下方面板固定）。
+    // 诊断：非 0 的 aspectRatio 就是"按比例"锁定的源头
+    NSLog(@"[win] aspectRatio=%@ contentAspectRatio=%@ resizeIncrements=%@ styleMask=%lu",
+          NSStringFromSize(win.aspectRatio), NSStringFromSize(win.contentAspectRatio),
+          NSStringFromSize(win.resizeIncrements), (unsigned long)win.styleMask);
+
+    win.contentMinSize = NSMakeSize(680, 420);
+    win.contentMaxSize = NSMakeSize(CGFLOAT_MAX, CGFLOAT_MAX);   // 无上限
+    win.styleMask |= NSWindowStyleMaskResizable;                 // 确保可 resize
+    win.aspectRatio = NSZeroSize;               // 清窗口比例锁定
+    win.contentAspectRatio = NSZeroSize;        // 清内容比例锁定
+    win.resizeIncrements = NSMakeSize(1, 1);    // 与 aspectRatio 互斥，设它即彻底解除比例锁 → 自由拉伸
+
+    // 初始尺寸用 setContentSize，不用 preferredContentSize（后者会钉死窗口）。
+    if (!_didSetInitialSize) {
+        _didSetInitialSize = YES;
+        [win setContentSize:NSMakeSize(960, 600)];
+        [win center];
+    }
 }
 
 - (void)viewWillDisappear {

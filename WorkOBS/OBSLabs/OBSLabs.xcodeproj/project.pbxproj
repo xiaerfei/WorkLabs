@@ -8,11 +8,11 @@
 
 /* Begin PBXBuildFile section */
 		00DF1DAE6359677591365060 /* CoreMedia.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 053BDA41819D17335D8F61F0 /* CoreMedia.framework */; };
-		0559EC7B3A9C6BD32D33687B /* Pods_OBSLabs.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 82219213D7F21956516C9280 /* Pods_OBSLabs.framework */; };
 		27101E6475B80D4284FEE10A /* wl_queue.c in Sources */ = {isa = PBXBuildFile; fileRef = 17C6366A425003B3DCC5F3DE /* wl_queue.c */; };
 		347269D373AEABAE0622C5BC /* WLSourceRegistry.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F514F71DC77AF37A8CCFC111 /* WLSourceRegistry.cpp */; };
 		4AD253F5E00C5ABD1AB019B6 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = C78377A235C2D7BC747F0613 /* AppDelegate.m */; };
 		4D352041A57812555EF557EC /* WLCore.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 95A711BD980FDD38B676ACAB /* WLCore.cpp */; };
+		584B28C88C21E92303B527ED /* Pods_OBSLabs.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 635708CD16F8AD1120337596 /* Pods_OBSLabs.framework */; };
 		63198C269497E1A5A1BB10C6 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 161AB26AA735EE3349382FFD /* Assets.xcassets */; };
 		649E96A13A54E64D85D5790F /* ViewController.mm in Sources */ = {isa = PBXBuildFile; fileRef = B2B4809CB5C4008488920C29 /* ViewController.mm */; };
 		76A676C9A5DAB03B9D6C0883 /* WLDecoder.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 48EB46722580FB909C5E7EDC /* WLDecoder.cpp */; };
@@ -27,6 +27,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		020F6D1EE639DBAD7A86F92E /* Pods-OBSLabs.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-OBSLabs.release.xcconfig"; path = "Target Support Files/Pods-OBSLabs/Pods-OBSLabs.release.xcconfig"; sourceTree = "<group>"; };
 		053BDA41819D17335D8F61F0 /* CoreMedia.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMedia.framework; path = System/Library/Frameworks/CoreMedia.framework; sourceTree = SDKROOT; };
 		09F31CCC7C632F757B0A2C9F /* wl_queue.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = wl_queue.h; sourceTree = "<group>"; };
 		13475E41D5B5DBFEE452C271 /* OBSLabs.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OBSLabs.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -35,19 +36,18 @@
 		17C6366A425003B3DCC5F3DE /* wl_queue.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = wl_queue.c; sourceTree = "<group>"; };
 		2044733C283F31524D4E796A /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		23FBF6311259AE40C469DAC5 /* WLSourceRegistry.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = WLSourceRegistry.hpp; sourceTree = "<group>"; };
-		2A7F7DE102560D63F635A404 /* Pods-OBSLabs.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-OBSLabs.release.xcconfig"; path = "Target Support Files/Pods-OBSLabs/Pods-OBSLabs.release.xcconfig"; sourceTree = "<group>"; };
 		2E940120CD72C5D7F4280F2E /* CoreVideo.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreVideo.framework; path = System/Library/Frameworks/CoreVideo.framework; sourceTree = SDKROOT; };
 		391489186C70EBAAD3B96E33 /* WLTime.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = WLTime.hpp; sourceTree = "<group>"; };
 		3BEADF4EE9C21C6DD1DFA8B4 /* WLGraphics.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = WLGraphics.hpp; sourceTree = "<group>"; };
-		40DBDC90156D6B20FA3A340D /* Pods-OBSLabs.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-OBSLabs.debug.xcconfig"; path = "Target Support Files/Pods-OBSLabs/Pods-OBSLabs.debug.xcconfig"; sourceTree = "<group>"; };
 		48EB46722580FB909C5E7EDC /* WLDecoder.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = WLDecoder.cpp; sourceTree = "<group>"; };
 		4FD5A230B30669D375019221 /* ViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ViewController.h; sourceTree = "<group>"; };
 		53A743768F4B18F25B033514 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
 		56441A426792D5C02105697B /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
+		635708CD16F8AD1120337596 /* Pods_OBSLabs.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_OBSLabs.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		646AA8221B5B0DC6DA1E54E3 /* Pods-OBSLabs.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-OBSLabs.debug.xcconfig"; path = "Target Support Files/Pods-OBSLabs/Pods-OBSLabs.debug.xcconfig"; sourceTree = "<group>"; };
 		65D76A43659046BDDC8861D2 /* WLMediaSource.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = WLMediaSource.cpp; sourceTree = "<group>"; };
 		6F316E75E30747384D8320B1 /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = System/Library/Frameworks/AVFoundation.framework; sourceTree = SDKROOT; };
 		7E383F1512639E1AB1C97F1B /* WLDecoder.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = WLDecoder.hpp; sourceTree = "<group>"; };
-		82219213D7F21956516C9280 /* Pods_OBSLabs.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_OBSLabs.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		869A65A0FBE60CA893359736 /* WLSource.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = WLSource.hpp; sourceTree = "<group>"; };
 		95A711BD980FDD38B676ACAB /* WLCore.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = WLCore.cpp; sourceTree = "<group>"; };
 		B2B4809CB5C4008488920C29 /* ViewController.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ViewController.mm; sourceTree = "<group>"; };
@@ -68,7 +68,7 @@
 				C2DC559227749160CAA68F68 /* AVFoundation.framework in Frameworks */,
 				00DF1DAE6359677591365060 /* CoreMedia.framework in Frameworks */,
 				BE2C9452F3C020F30C209C80 /* CoreVideo.framework in Frameworks */,
-				0559EC7B3A9C6BD32D33687B /* Pods_OBSLabs.framework in Frameworks */,
+				584B28C88C21E92303B527ED /* Pods_OBSLabs.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -81,7 +81,7 @@
 				6F316E75E30747384D8320B1 /* AVFoundation.framework */,
 				053BDA41819D17335D8F61F0 /* CoreMedia.framework */,
 				2E940120CD72C5D7F4280F2E /* CoreVideo.framework */,
-				82219213D7F21956516C9280 /* Pods_OBSLabs.framework */,
+				635708CD16F8AD1120337596 /* Pods_OBSLabs.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -93,8 +93,18 @@
 				5961F480CE4C72A9B438F3E5 /* src */,
 				1CF4E72401E28BDE62DCE61F /* Frameworks */,
 				B2C19F66B368B8F27F6D3AC3 /* Products */,
-				9C5FE7F3BE6A822C89D7DAE1 /* Pods */,
+				3EE95CF4E97A9FE07E574D55 /* Pods */,
 			);
+			sourceTree = "<group>";
+		};
+		3EE95CF4E97A9FE07E574D55 /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				646AA8221B5B0DC6DA1E54E3 /* Pods-OBSLabs.debug.xcconfig */,
+				020F6D1EE639DBAD7A86F92E /* Pods-OBSLabs.release.xcconfig */,
+			);
+			name = Pods;
+			path = Pods;
 			sourceTree = "<group>";
 		};
 		3FC677C496D45D3D25C64259 /* util */ = {
@@ -153,16 +163,6 @@
 			path = core;
 			sourceTree = "<group>";
 		};
-		9C5FE7F3BE6A822C89D7DAE1 /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				40DBDC90156D6B20FA3A340D /* Pods-OBSLabs.debug.xcconfig */,
-				2A7F7DE102560D63F635A404 /* Pods-OBSLabs.release.xcconfig */,
-			);
-			name = Pods;
-			path = Pods;
-			sourceTree = "<group>";
-		};
 		9E7BC89DFC633A854B04F19F /* graphics */ = {
 			isa = PBXGroup;
 			children = (
@@ -209,11 +209,11 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 251B92FF4B975CEF02E2DCD6 /* Build configuration list for PBXNativeTarget "OBSLabs" */;
 			buildPhases = (
-				AB426DE2D44BB5558205B849 /* [CP] Check Pods Manifest.lock */,
+				D45CD87042A1E6A1D6155988 /* [CP] Check Pods Manifest.lock */,
 				7E2672C7CBF7445D99AEA66F /* Sources */,
 				F7436D36F168A97B4A942AB3 /* Resources */,
 				B303DE4A93CE2FAC560D47F2 /* Frameworks */,
-				3EC3633A642E7492335CDD21 /* [CP] Embed Pods Frameworks */,
+				09ACB40D967516D77CBF3DAE /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -267,7 +267,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		3EC3633A642E7492335CDD21 /* [CP] Embed Pods Frameworks */ = {
+		09ACB40D967516D77CBF3DAE /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -284,7 +284,7 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-OBSLabs/Pods-OBSLabs-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
-		AB426DE2D44BB5558205B849 /* [CP] Check Pods Manifest.lock */ = {
+		D45CD87042A1E6A1D6155988 /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -343,7 +343,7 @@
 /* Begin XCBuildConfiguration section */
 		41AFDFA5A560A96C4F7EB287 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 40DBDC90156D6B20FA3A340D /* Pods-OBSLabs.debug.xcconfig */;
+			baseConfigurationReference = 646AA8221B5B0DC6DA1E54E3 /* Pods-OBSLabs.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -488,7 +488,7 @@
 		};
 		D8E4C088FF76395CF0EFFBAF /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 2A7F7DE102560D63F635A404 /* Pods-OBSLabs.release.xcconfig */;
+			baseConfigurationReference = 020F6D1EE639DBAD7A86F92E /* Pods-OBSLabs.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
