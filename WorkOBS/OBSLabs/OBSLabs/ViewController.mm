@@ -29,16 +29,149 @@
 #import <AVFoundation/AVFoundation.h>
 #import <CoreMedia/CoreMedia.h>
 
-// ── 预览 view：backing layer = AVSampleBufferDisplayLayer（系统帮 present，免写 Metal）──
+// ── 预览 view：可拖动 + 8-handle 缩放的浮动面板 ──
+// videoLayer(AVSampleBufferDisplayLayer) 显示画面；上叠 border + 8 手柄，表示可操作。
+// 注意：拖的是"预览框本身"在窗口里的位置/大小，与 libwl / 画布模型无关——
+// OBS 式"拖源"（源在画布上的 transform）要等 M3 画布模型 + Metal 合成（见 ToDo）。
+typedef NS_ENUM(NSInteger, WLPreviewHandle) {
+    WLPreviewHandleNone = 0, WLPreviewHandleBody,
+    WLPreviewHandleNW, WLPreviewHandleN, WLPreviewHandleNE, WLPreviewHandleE,
+    WLPreviewHandleSE, WLPreviewHandleS, WLPreviewHandleSW, WLPreviewHandleW,
+};
+
+static const CGFloat kHandleSize  = 10;   // 手柄方块边长（也是命中容差基准）
+static const CGFloat kMinPreviewW = 160;
+static const CGFloat kMinPreviewH = 90;
+
 @interface WLPreviewView : NSView
+@property (nonatomic, readonly) AVSampleBufferDisplayLayer *videoLayer;
 @end
-@implementation WLPreviewView
-- (CALayer *)makeBackingLayer {
-    AVSampleBufferDisplayLayer *layer = [AVSampleBufferDisplayLayer layer];
-    layer.videoGravity = AVLayerVideoGravityResizeAspect;   // 保宽高比，多余处 letterbox
-    layer.backgroundColor = NSColor.blackColor.CGColor;
-    return layer;
+
+@implementation WLPreviewView {
+    CALayer        *_border;
+    CAShapeLayer   *_handles;
+    WLPreviewHandle _active;      // 正在拖的手柄（Body = 整体移动）
+    NSRect          _startFrame;  // mouseDown 时的 frame
+    NSPoint         _startMouse;  // mouseDown 时鼠标（父坐标）
 }
+
+- (instancetype)initWithFrame:(NSRect)frameRect {
+    self = [super initWithFrame:frameRect];
+    if (self) {
+        self.wantsLayer = YES;
+        self.layer.backgroundColor = NSColor.blackColor.CGColor;
+
+        _videoLayer = [AVSampleBufferDisplayLayer layer];
+        _videoLayer.videoGravity = AVLayerVideoGravityResizeAspect;  // 保宽高比，letterbox
+        _videoLayer.backgroundColor = NSColor.blackColor.CGColor;
+        [self.layer addSublayer:_videoLayer];
+
+        _border = [CALayer layer];
+        _border.borderWidth = 1.5;
+        _border.borderColor = NSColor.controlAccentColor.CGColor;
+        [self.layer addSublayer:_border];
+
+        _handles = [CAShapeLayer layer];
+        _handles.fillColor   = NSColor.whiteColor.CGColor;
+        _handles.strokeColor = NSColor.controlAccentColor.CGColor;
+        _handles.lineWidth   = 1;
+        [self.layer addSublayer:_handles];
+
+        [self updateSublayerLayout];
+    }
+    return self;
+}
+
+- (BOOL)acceptsFirstMouse:(NSEvent *)event { return YES; }
+
+- (void)setFrameSize:(NSSize)newSize {
+    [super setFrameSize:newSize];
+    [self updateSublayerLayout];
+}
+
+// sublayer 跟随 bounds；禁隐式动画，避免拖动时视频/手柄层滞后跳动
+- (void)updateSublayerLayout {
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    _videoLayer.frame = self.bounds;
+    _border.frame     = self.bounds;
+    _handles.frame    = self.bounds;
+
+    CGMutablePathRef path = CGPathCreateMutable();
+    NSRect b = self.bounds;
+    CGFloat h = kHandleSize;
+    NSPoint c[8] = {
+        {NSMinX(b), NSMaxY(b)}, {NSMidX(b), NSMaxY(b)}, {NSMaxX(b), NSMaxY(b)},
+        {NSMaxX(b), NSMidY(b)}, {NSMaxX(b), NSMinY(b)}, {NSMidX(b), NSMinY(b)},
+        {NSMinX(b), NSMinY(b)}, {NSMinX(b), NSMidY(b)},
+    };
+    for (int i = 0; i < 8; i++)
+        CGPathAddRect(path, NULL, NSMakeRect(c[i].x - h/2, c[i].y - h/2, h, h));
+    _handles.path = path;
+    CGPathRelease(path);
+    [CATransaction commit];
+}
+
+// 命中测试（view 本地坐标）：落在哪个手柄，否则 Body / None
+- (WLPreviewHandle)handleAt:(NSPoint)pt {
+    NSRect b = self.bounds;
+    CGFloat h = kHandleSize;
+    struct { WLPreviewHandle type; NSPoint c; } hs[8] = {
+        {WLPreviewHandleNW, {NSMinX(b), NSMaxY(b)}}, {WLPreviewHandleN, {NSMidX(b), NSMaxY(b)}},
+        {WLPreviewHandleNE, {NSMaxX(b), NSMaxY(b)}}, {WLPreviewHandleE, {NSMaxX(b), NSMidY(b)}},
+        {WLPreviewHandleSE, {NSMaxX(b), NSMinY(b)}}, {WLPreviewHandleS, {NSMidX(b), NSMinY(b)}},
+        {WLPreviewHandleSW, {NSMinX(b), NSMinY(b)}}, {WLPreviewHandleW, {NSMinX(b), NSMidY(b)}},
+    };
+    for (int i = 0; i < 8; i++) {
+        NSRect r = NSMakeRect(hs[i].c.x - h/2, hs[i].c.y - h/2, h, h);
+        if (NSPointInRect(pt, NSInsetRect(r, -3, -3))) return hs[i].type;   // 命中区放大 3pt
+    }
+    return NSPointInRect(pt, b) ? WLPreviewHandleBody : WLPreviewHandleNone;
+}
+
+- (void)mouseDown:(NSEvent *)event {
+    NSPoint local = [self convertPoint:event.locationInWindow fromView:nil];
+    _active     = [self handleAt:local];
+    _startFrame = self.frame;
+    _startMouse = [self.superview convertPoint:event.locationInWindow fromView:nil];
+    [self.superview addSubview:self positioned:NSWindowAbove relativeTo:nil];  // 点击置顶
+}
+
+- (void)mouseDragged:(NSEvent *)event {
+    if (_active == WLPreviewHandleNone) return;
+    NSPoint cur = [self.superview convertPoint:event.locationInWindow fromView:nil];
+    CGFloat dx = cur.x - _startMouse.x, dy = cur.y - _startMouse.y;
+
+    BOOL left   = (_active==WLPreviewHandleW || _active==WLPreviewHandleNW || _active==WLPreviewHandleSW);
+    BOOL right  = (_active==WLPreviewHandleE || _active==WLPreviewHandleNE || _active==WLPreviewHandleSE);
+    BOOL bottom = (_active==WLPreviewHandleS || _active==WLPreviewHandleSW || _active==WLPreviewHandleSE);
+    BOOL top    = (_active==WLPreviewHandleN || _active==WLPreviewHandleNW || _active==WLPreviewHandleNE);
+
+    NSRect f = _startFrame;
+    if (_active == WLPreviewHandleBody) {
+        f.origin.x += dx; f.origin.y += dy;
+        NSRect pb = self.superview.bounds;   // 移动限制在父视图内
+        f.origin.x = MAX(0, MIN(f.origin.x, NSWidth(pb)  - NSWidth(f)));
+        f.origin.y = MAX(0, MIN(f.origin.y, NSHeight(pb) - NSHeight(f)));
+    } else {
+        if (left)   { f.origin.x += dx; f.size.width  -= dx; }
+        if (right)  { f.size.width  += dx; }
+        if (bottom) { f.origin.y += dy; f.size.height -= dy; }
+        if (top)    { f.size.height += dy; }
+        if (f.size.width < kMinPreviewW) {         // clamp 最小宽（保持对边固定）
+            if (left) f.origin.x = NSMaxX(_startFrame) - kMinPreviewW;
+            f.size.width = kMinPreviewW;
+        }
+        if (f.size.height < kMinPreviewH) {
+            if (bottom) f.origin.y = NSMaxY(_startFrame) - kMinPreviewH;
+            f.size.height = kMinPreviewH;
+        }
+    }
+    self.frame = f;   // 触发 setFrameSize → sublayer 跟随
+}
+
+- (void)mouseUp:(NSEvent *)event { _active = WLPreviewHandleNone; }
+
 @end
 
 // ── 列表一行的展示模型（纯 UI 记账，不进 libwl）──
@@ -105,16 +238,15 @@ static void onCompositedFrame(CVPixelBufferRef frame, int64_t pts_ns, void *ctx)
     [self.rows removeAllObjects];
     [self.tableView reloadData];
     self.removeButton.enabled = NO;
-    [(AVSampleBufferDisplayLayer *)self.previewView.layer flush];
+    [self.previewView.videoLayer flush];
 }
 
 // ═════════════════ UI 搭建（全代码，无 IB outlet）═════════════════
 
 - (void)buildUI {
-    // 预览画面
-    WLPreviewView *preview = [[WLPreviewView alloc] initWithFrame:NSZeroRect];
-    preview.translatesAutoresizingMaskIntoConstraints = NO;
-    preview.wantsLayer = YES;   // 触发 makeBackingLayer → AVSampleBufferDisplayLayer
+    // 预览画面（可拖动 + 缩放的浮动面板；frame-based，不进 Auto Layout）
+    WLPreviewView *preview = [[WLPreviewView alloc] initWithFrame:NSMakeRect(60, 190, 520, 300)];
+    preview.autoresizingMask = NSViewMinXMargin | NSViewMaxXMargin | NSViewMinYMargin | NSViewMaxYMargin;
     self.previewView = preview;
 
     // 源列表（NSScrollView 包 NSTableView）
@@ -162,20 +294,15 @@ static void onCompositedFrame(CVPixelBufferRef frame, int64_t pts_ns, void *ctx)
     removeButton.enabled = NO;   // 无选中 → 不可删
     self.removeButton = removeButton;
 
-    [self.view addSubview:preview];
     [self.view addSubview:scroll];
     [self.view addSubview:addButton];
     [self.view addSubview:removeButton];
+    [self.view addSubview:preview];   // 最后 add → 浮在最上层
 
     const CGFloat pad = 12, btn = 28, gap = 8;
     [NSLayoutConstraint activateConstraints:@[
-        // 预览：撑满上方，占约 55% 高
-        [preview.topAnchor      constraintEqualToAnchor:self.view.topAnchor      constant:pad],
-        [preview.leadingAnchor  constraintEqualToAnchor:self.view.leadingAnchor  constant:pad],
-        [preview.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-pad],
-        [preview.heightAnchor   constraintEqualToAnchor:self.view.heightAnchor   multiplier:0.55],
-        // 列表：预览下方，底部让位给工具条
-        [scroll.topAnchor      constraintEqualToAnchor:preview.bottomAnchor    constant:gap],
+        // 列表 + 工具条走 Auto Layout 占满窗口；预览是浮动层（frame-based）盖在其上
+        [scroll.topAnchor      constraintEqualToAnchor:self.view.topAnchor      constant:pad],
         [scroll.leadingAnchor  constraintEqualToAnchor:self.view.leadingAnchor  constant:pad],
         [scroll.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-pad],
         [scroll.bottomAnchor   constraintEqualToAnchor:addButton.topAnchor      constant:-gap],
@@ -198,7 +325,7 @@ static void onCompositedFrame(CVPixelBufferRef frame, int64_t pts_ns, void *ctx)
 // 加 DisplayImmediately attachment → 立即显示（节奏由 graphics 30fps push 控制，
 // layer 只负责显示最新帧，不自己按 PTS 调度 → 多源 PTS 跳变也不影响）。
 - (void)enqueuePreviewFrame:(CVPixelBufferRef)pixbuf pts:(int64_t)pts_ns {
-    AVSampleBufferDisplayLayer *layer = (AVSampleBufferDisplayLayer *)self.previewView.layer;
+    AVSampleBufferDisplayLayer *layer = self.previewView.videoLayer;
     if (!layer) return;
     if (layer.status == AVQueuedSampleBufferRenderingStatusFailed) {
         [layer flush];   // 解码错误/中断后要 flush 才能恢复
