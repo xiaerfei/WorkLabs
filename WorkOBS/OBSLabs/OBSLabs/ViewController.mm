@@ -8,139 +8,58 @@
 //
 //  OBS 经典布局外壳：
 //  ┌──────────────────────────────────────────────┐
-//  │              预览（16:9 画布 + 红框边界）          │  ← 固定，不再浮动
+//  │              画布（16:9 居中）                  │  ← WLCanvasView + per-source 浮层
 //  ├──────┬──────┬──────────┬──────────┬───────────┤
-//  │Scenes│Sources│Audio Mixer│Transitions│ Controls │  ← 底部一排 5 dock
+//  │Scenes│Sources│Audio Mixer│Transitions│ Controls │  ← WLDockManager 管理的 5 dock
 //  └──────┴──────┴──────────┴──────────┴───────────┘
 //
-//  当前只有 Sources（增删源）+ 预览是"活的"；其余 dock 是占位框，功能随
-//  里程碑填：场景≈M3 / 音频 M4 / 转场后续 / 录制·推流 M2·M5。
-//  OBS 的"预览里拖源"（WYSIWYG）要等 M3 画布模型 + Metal 合成，故这里预览固定。
-//
-//  预览数据流不变：WLGraphics tick → set_frame_output（graphics 线程）
-//    → onCompositedFrame（retain + hop 主线程）→ enqueue 到 AVSampleBufferDisplayLayer。
+//  每个源有独立的 WLSourcePreview 浮层（拖拽/缩放/选中/右键），
+//  帧通过轮询 WLSource::get_frame 分发到各浮层。
 //
 
 #import "ViewController.h"
+#import "WLDockManager.h"
+#import "WLCanvasView.h"
+#import "WLCanvasLayout.h"
+#import "WLSourcePreview.h"
 #import "WLCore.hpp"
 #import "WLSource.hpp"
+#import "WLTime.hpp"
 #import <AVFoundation/AVFoundation.h>
-#import <CoreMedia/CoreMedia.h>
 
-// ══════════════ 预览画布（固定，videoLayer + 红框边界）══════════════
-@interface WLPreviewView : NSView
-@property (nonatomic, readonly) AVSampleBufferDisplayLayer *videoLayer;
+// ── 源跟踪记录 ──
+@interface WLSourceEntry : NSObject
+@property (nonatomic, assign) WLSource *src;       // 借用；owner = WLCore
+@property (nonatomic, copy)   NSString *sourceID;  // src 指针的字符串形式，做字典 key
+@property (nonatomic, copy)   NSString *name;
+@property (nonatomic, strong) WLSourcePreview *preview;
 @end
-@implementation WLPreviewView
-- (instancetype)initWithFrame:(NSRect)frameRect {
-    self = [super initWithFrame:frameRect];
-    if (self) {
-        self.wantsLayer = YES;
-        self.layer.backgroundColor = NSColor.blackColor.CGColor;
-        self.layer.borderColor = NSColor.systemRedColor.CGColor;   // 画布边界（OBS 感）
-        self.layer.borderWidth = 2;
-
-        _videoLayer = [AVSampleBufferDisplayLayer layer];
-        _videoLayer.videoGravity = AVLayerVideoGravityResizeAspect; // 保宽高比，letterbox
-        _videoLayer.backgroundColor = NSColor.blackColor.CGColor;
-        [self.layer addSublayer:_videoLayer];
-    }
-    return self;
-}
-- (void)setFrameSize:(NSSize)newSize {
-    [super setFrameSize:newSize];
-    [CATransaction begin];
-    [CATransaction setDisableActions:YES];   // 禁隐式动画，缩放时视频层不滞后
-    _videoLayer.frame = self.bounds;
-    [CATransaction commit];
-}
+@implementation WLSourceEntry
 @end
 
-// ══════════════ Dock 容器（深色标题栏 + 内容区，仿 OBS dock）══════════════
-@interface WLDockView : NSView
-@property (nonatomic, readonly) NSView *contentView;
-- (instancetype)initWithTitle:(NSString *)title;
+@interface ViewController () <WLSourcePreviewDelegate>
+@property (nonatomic, strong) WLCanvasView    *canvasView;
+@property (nonatomic, strong) WLCanvasLayout  *canvasLayout;
+@property (nonatomic, strong) WLDockManager   *dockManager;
+@property (nonatomic, strong) NSMutableArray<WLSourceEntry *> *sources;
+@property (nonatomic, strong) NSTimer         *frameTimer;
+@property (nonatomic, assign) NSUInteger       subTagSourceAdded;
+@property (nonatomic, assign) NSUInteger       subTagSourceRemoved;
+@property (nonatomic, assign) NSUInteger       subTagSourceSelection;
 @end
-@implementation WLDockView
-- (instancetype)initWithTitle:(NSString *)title {
-    self = [super initWithFrame:NSZeroRect];
-    if (self) {
-        self.translatesAutoresizingMaskIntoConstraints = NO;
-        self.wantsLayer = YES;
-        self.layer.backgroundColor = [NSColor colorWithWhite:0.14 alpha:1].CGColor;
-        self.layer.borderColor = [NSColor colorWithWhite:0.25 alpha:1].CGColor;
-        self.layer.borderWidth = 1;
-
-        NSView *header = [NSView new];
-        header.translatesAutoresizingMaskIntoConstraints = NO;
-        header.wantsLayer = YES;
-        header.layer.backgroundColor = [NSColor colorWithWhite:0.18 alpha:1].CGColor;
-        [self addSubview:header];
-
-        NSTextField *label = [NSTextField labelWithString:title];
-        label.translatesAutoresizingMaskIntoConstraints = NO;
-        label.textColor = [NSColor colorWithWhite:0.85 alpha:1];
-        label.font = [NSFont boldSystemFontOfSize:11];
-        [header addSubview:label];
-
-        _contentView = [NSView new];
-        _contentView.translatesAutoresizingMaskIntoConstraints = NO;
-        [self addSubview:_contentView];
-
-        [NSLayoutConstraint activateConstraints:@[
-            [header.topAnchor      constraintEqualToAnchor:self.topAnchor],
-            [header.leadingAnchor  constraintEqualToAnchor:self.leadingAnchor],
-            [header.trailingAnchor constraintEqualToAnchor:self.trailingAnchor],
-            [header.heightAnchor   constraintEqualToConstant:24],
-            [label.leadingAnchor   constraintEqualToAnchor:header.leadingAnchor constant:8],
-            [label.centerYAnchor   constraintEqualToAnchor:header.centerYAnchor],
-            [_contentView.topAnchor      constraintEqualToAnchor:header.bottomAnchor],
-            [_contentView.leadingAnchor  constraintEqualToAnchor:self.leadingAnchor],
-            [_contentView.trailingAnchor constraintEqualToAnchor:self.trailingAnchor],
-            [_contentView.bottomAnchor   constraintEqualToAnchor:self.bottomAnchor],
-        ]];
-    }
-    return self;
-}
-@end
-
-// ── 源列表一行的展示模型（纯 UI 记账，不进 libwl）──
-@interface WLSourceRow : NSObject
-@property (nonatomic, copy)   NSString *name;   // 实例名（媒体源 = 文件名）
-@property (nonatomic, copy)   NSString *type;   // 类型显示名（info.type_name）
-@property (nonatomic, assign) WLSource *src;    // 借用；owner = WLCore，勿 delete
-@end
-@implementation WLSourceRow
-@end
-
-static NSString *const kColName = @"name";
-
-@interface ViewController () <NSTableViewDataSource, NSTableViewDelegate>
-@property (nonatomic, strong) NSMutableArray<WLSourceRow *> *rows;
-@property (nonatomic, strong) WLPreviewView *previewView;
-@property (nonatomic, strong) NSTableView    *tableView;
-@property (nonatomic, strong) NSButton       *removeButton;
-- (void)enqueuePreviewFrame:(CVPixelBufferRef)pixbuf pts:(int64_t)pts_ns;
-@end
-
-// ── 合成帧输出回调：graphics 线程被调 —— retain + 跳主线程 enqueue ──
-static void onCompositedFrame(CVPixelBufferRef frame, int64_t pts_ns, void *ctx) {
-    ViewController *vc = (__bridge ViewController *)ctx;
-    CVPixelBufferRetain(frame);
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [vc enqueuePreviewFrame:frame pts:pts_ns];
-        CVPixelBufferRelease(frame);
-    });
-}
 
 @implementation ViewController {
-    BOOL _didSetInitialSize;   // 首次显示才设初始窗口尺寸（别每次显隐重置用户的 resize）
+    BOOL _didSetInitialSize;
 }
+
+#pragma mark - 生命周期
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.rows = [NSMutableArray array];
+    self.sources = [NSMutableArray array];
+    self.canvasLayout = [[WLCanvasLayout alloc] init];
     [self buildUI];
+    [self subscribeEvents];
 }
 
 - (void)viewDidAppear {
@@ -149,324 +68,324 @@ static void onCompositedFrame(CVPixelBufferRef frame, int64_t pts_ns, void *ctx)
         NSLog(@"[ViewController] WLCore::startup 失败");
         return;
     }
-    WLCore::set_frame_output(onCompositedFrame, (__bridge void *)self);
     NSWindow *win = self.view.window;
     win.title = @"OBSLabs";
-    // 允许缩小：缩小时预览区被压 → 画布 aspect-fit 跟着变小但保持 16:9，
-    // dock 栏固定高 200 不变（对齐 OBS：画布可很小、下方面板固定）。
-    // 诊断：非 0 的 aspectRatio 就是"按比例"锁定的源头
-    NSLog(@"[win] aspectRatio=%@ contentAspectRatio=%@ resizeIncrements=%@ styleMask=%lu",
-          NSStringFromSize(win.aspectRatio), NSStringFromSize(win.contentAspectRatio),
-          NSStringFromSize(win.resizeIncrements), (unsigned long)win.styleMask);
-
-    win.contentMinSize = NSMakeSize(680, 420);
-    win.contentMaxSize = NSMakeSize(CGFLOAT_MAX, CGFLOAT_MAX);   // 无上限
-    win.styleMask |= NSWindowStyleMaskResizable;                 // 确保可 resize
-    win.aspectRatio = NSZeroSize;               // 清窗口比例锁定
-    win.contentAspectRatio = NSZeroSize;        // 清内容比例锁定
-    win.resizeIncrements = NSMakeSize(1, 1);    // 与 aspectRatio 互斥，设它即彻底解除比例锁 → 自由拉伸
-
-    // 初始尺寸用 setContentSize，不用 preferredContentSize（后者会钉死窗口）。
     if (!_didSetInitialSize) {
         _didSetInitialSize = YES;
         [win setContentSize:NSMakeSize(960, 600)];
         [win center];
     }
+    [self startFrameTimer];
 }
 
 - (void)viewWillDisappear {
     [super viewWillDisappear];
-    WLCore::set_frame_output(NULL, NULL);   // 先摘回调，再 shutdown（下一 tick 不再回调）
+    [self stopFrameTimer];
+    [self.dockManager viewWillDisappear];
     WLCore::shutdown();
-    [self.rows removeAllObjects];
-    [self.tableView reloadData];
-    self.removeButton.enabled = NO;
-    [self.previewView.videoLayer flush];
+    for (WLSourceEntry *e in self.sources) {
+        [e.preview flush];
+    }
 }
 
-// ══════════════ UI 搭建（全代码，深色 OBS 主题）══════════════
+- (void)dealloc {
+    [self.dockManager unsubscribeWithTag:self.subTagSourceAdded];
+    [self.dockManager unsubscribeWithTag:self.subTagSourceRemoved];
+    [self.dockManager unsubscribeWithTag:self.subTagSourceSelection];
+}
+
+#pragma mark - 事件订阅
+
+- (void)subscribeEvents {
+    __weak typeof(self) weakSelf = self;
+
+    self.subTagSourceAdded = [self.dockManager subscribeEvent:WLEventTypeSourceAdded
+                                                      handler:^(WLEventType event, id __nullable info) {
+        [weakSelf handleSourceAdded:info];
+    }];
+
+    self.subTagSourceRemoved = [self.dockManager subscribeEvent:WLEventTypeSourceRemoved
+                                                        handler:^(WLEventType event, id __nullable info) {
+        [weakSelf handleSourceRemoved:info];
+    }];
+
+    self.subTagSourceSelection = [self.dockManager subscribeEvent:WLEventTypeSourceSelectionChanged
+                                                          handler:^(WLEventType event, id __nullable info) {
+        [weakSelf handleSourceSelectionChanged:info];
+    }];
+}
+
+- (void)handleSourceAdded:(NSDictionary *)info {
+    NSValue *srcVal = info[@"sourcePtr"];
+    NSString *name  = info[@"name"];
+    if (!srcVal) return;
+    WLSource *src = (WLSource *)[srcVal pointerValue];
+    if (!src) return;
+
+    NSString *sid = [NSString stringWithFormat:@"%p", src];
+
+    // 去重
+    for (WLSourceEntry *e in self.sources) {
+        if (e.src == src) return;
+    }
+
+    // 创建浮层：画布中央 50%
+    CGSize cs = self.canvasLayout.canvasSize;
+    CGRect canvasRect = CGRectMake(cs.width * 0.25, cs.height * 0.25,
+                                   cs.width * 0.5,  cs.height * 0.5);
+    CGRect viewRect = [self viewRectFromCanvasRect:canvasRect];
+
+    WLSourcePreview *preview = [[WLSourcePreview alloc] initWithFrame:viewRect];
+    preview.delegate = self;
+    preview.translatesAutoresizingMaskIntoConstraints = YES;
+    [self.canvasView addSubview:preview];
+
+    WLSourceEntry *entry = [WLSourceEntry new];
+    entry.src = src;
+    entry.sourceID = sid;
+    entry.name = name ?: @"源";
+    entry.preview = preview;
+    [self.sources addObject:entry];
+
+    [self.canvasLayout setLayoutRect:canvasRect forSourceID:sid];
+    NSLog(@"[ViewController] 浮层已创建: %@ (%@)", entry.name, sid);
+}
+
+- (void)handleSourceRemoved:(NSDictionary *)info {
+    NSValue *srcVal = info[@"sourcePtr"];
+    if (!srcVal) return;
+    WLSource *src = (WLSource *)[srcVal pointerValue];
+
+    for (NSInteger i = 0; i < (NSInteger)self.sources.count; i++) {
+        WLSourceEntry *e = self.sources[i];
+        if (e.src == src) {
+            e.preview.selected = NO;
+            [e.preview flush];
+            [e.preview removeFromSuperview];
+            [self.canvasLayout removeLayoutForSourceID:e.sourceID];
+            [self.sources removeObjectAtIndex:i];
+            NSLog(@"[ViewController] 浮层已移除: %@", e.name);
+            return;
+        }
+    }
+}
+
+- (void)handleSourceSelectionChanged:(NSDictionary *)info {
+    id srcVal = info[@"sourcePtr"];
+    WLSource *selectedSrc = nil;
+    if ([srcVal isKindOfClass:[NSValue class]]) {
+        selectedSrc = (WLSource *)[srcVal pointerValue];
+    }
+
+    for (WLSourceEntry *e in self.sources) {
+        e.preview.selected = (e.src == selectedSrc);
+    }
+}
+
+#pragma mark - UI 搭建
 
 - (void)buildUI {
     self.view.wantsLayer = YES;
     self.view.layer.backgroundColor = [NSColor colorWithWhite:0.10 alpha:1].CGColor;
 
-    // ── 预览区（画布外围深色，画布 16:9 居中）──
+    // ── 预览区（画布外围深色）──
     NSView *previewArea = [NSView new];
     previewArea.translatesAutoresizingMaskIntoConstraints = NO;
     previewArea.wantsLayer = YES;
     previewArea.layer.backgroundColor = [NSColor colorWithWhite:0.06 alpha:1].CGColor;
     [self.view addSubview:previewArea];
 
-    WLPreviewView *preview = [[WLPreviewView alloc] initWithFrame:NSZeroRect];
-    preview.translatesAutoresizingMaskIntoConstraints = NO;
-    self.previewView = preview;
-    [previewArea addSubview:preview];
+    // ── 画布容器（16:9 居中）──
+    __weak typeof(self) weakSelf = self;
+    WLCanvasView *canvas = [[WLCanvasView alloc] initWithFrame:NSZeroRect];
+    canvas.translatesAutoresizingMaskIntoConstraints = NO;
+    canvas.wantsLayer = YES;
+    canvas.layer.backgroundColor = [NSColor colorWithWhite:0.10 alpha:1].CGColor;
+    canvas.onBackgroundClick = ^{ [weakSelf deselectAllPreviews]; };
+    self.canvasView = canvas;
+    [previewArea addSubview:canvas];
 
-    // 画布 aspect-fit：16:9、居中、尽量大但不超出（<= 优先级 + 期望宽高 750 优先级）
-    NSLayoutConstraint *wantW = [preview.widthAnchor constraintEqualToAnchor:previewArea.widthAnchor constant:-24];
-    wantW.priority = 750;
-    NSLayoutConstraint *wantH = [preview.heightAnchor constraintEqualToAnchor:previewArea.heightAnchor constant:-24];
-    wantH.priority = 750;
+    NSLayoutConstraint *wantW = [canvas.widthAnchor constraintEqualToAnchor:previewArea.widthAnchor constant:-24];
+    wantW.priority = 250;
+    NSLayoutConstraint *wantH = [canvas.heightAnchor constraintEqualToAnchor:previewArea.heightAnchor constant:-24];
+    wantH.priority = 250;
 
-    // ── 底部 dock 栏（一排 5 个）──
-    WLDockView *scenesDock   = [[WLDockView alloc] initWithTitle:@"场景 Scenes"];
-    WLDockView *sourcesDock  = [[WLDockView alloc] initWithTitle:@"源 Sources"];
-    WLDockView *audioDock    = [[WLDockView alloc] initWithTitle:@"混音器 Audio Mixer"];
-    WLDockView *transDock    = [[WLDockView alloc] initWithTitle:@"转场 Transitions"];
-    WLDockView *controlsDock = [[WLDockView alloc] initWithTitle:@"控制 Controls"];
+    // ── 底部 dock 栏 ──
+    self.dockManager = [WLDockManager new];
+    [self.dockManager setupDefaultDocks];
 
-    [self fillSourcesDock:sourcesDock];
-    [self fillControlsDock:controlsDock];
-    [self fillPlaceholderDock:scenesDock text:@"场景（≈M3）"];
-    [self fillPlaceholderDock:audioDock  text:@"音频混音（M4）"];
-    [self fillPlaceholderDock:transDock  text:@"转场（后续）"];
-
-    NSStackView *dockBar = [NSStackView stackViewWithViews:@[scenesDock, sourcesDock, audioDock, transDock, controlsDock]];
-    dockBar.translatesAutoresizingMaskIntoConstraints = NO;
-    dockBar.orientation = NSUserInterfaceLayoutOrientationHorizontal;
-    dockBar.distribution = NSStackViewDistributionFillEqually;
-    dockBar.spacing = 6;
+    NSStackView *dockBar = self.dockManager.dockBar;
     [self.view addSubview:dockBar];
 
     const CGFloat pad = 8;
     [NSLayoutConstraint activateConstraints:@[
-        // 预览区：上部，底部让位 dock 栏
         [previewArea.topAnchor      constraintEqualToAnchor:self.view.topAnchor      constant:pad],
         [previewArea.leadingAnchor  constraintEqualToAnchor:self.view.leadingAnchor  constant:pad],
         [previewArea.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-pad],
         [previewArea.bottomAnchor   constraintEqualToAnchor:dockBar.topAnchor        constant:-pad],
-        // 画布 aspect-fit 居中
-        [preview.centerXAnchor constraintEqualToAnchor:previewArea.centerXAnchor],
-        [preview.centerYAnchor constraintEqualToAnchor:previewArea.centerYAnchor],
-        [preview.widthAnchor   constraintEqualToAnchor:preview.heightAnchor multiplier:16.0/9.0],
-        [preview.widthAnchor   constraintLessThanOrEqualToAnchor:previewArea.widthAnchor  constant:-24],
-        [preview.heightAnchor  constraintLessThanOrEqualToAnchor:previewArea.heightAnchor constant:-24],
+        [canvas.centerXAnchor constraintEqualToAnchor:previewArea.centerXAnchor],
+        [canvas.centerYAnchor constraintEqualToAnchor:previewArea.centerYAnchor],
+        [canvas.widthAnchor   constraintEqualToAnchor:canvas.heightAnchor multiplier:16.0/9.0],
+        [canvas.widthAnchor   constraintLessThanOrEqualToAnchor:previewArea.widthAnchor  constant:-24],
+        [canvas.heightAnchor  constraintLessThanOrEqualToAnchor:previewArea.heightAnchor constant:-24],
+        [canvas.heightAnchor  constraintGreaterThanOrEqualToConstant:100],
         wantW, wantH,
-        // dock 栏：底部，固定高
         [dockBar.leadingAnchor  constraintEqualToAnchor:self.view.leadingAnchor  constant:pad],
         [dockBar.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-pad],
         [dockBar.bottomAnchor   constraintEqualToAnchor:self.view.bottomAnchor   constant:-pad],
         [dockBar.heightAnchor   constraintEqualToConstant:200],
+        [self.view.widthAnchor  constraintGreaterThanOrEqualToConstant:800],
     ]];
+
+    // 窗口 resize 时重算浮层位置
+    [[NSNotificationCenter defaultCenter]
+        addObserver:self
+           selector:@selector(canvasFrameDidChange:)
+               name:NSViewFrameDidChangeNotification
+               object:canvas];
 }
 
-// Sources dock：源列表（NSTableView 单列，无表头）+ 底部 +/− 工具条
-- (void)fillSourcesDock:(WLDockView *)dock {
-    NSView *c = dock.contentView;
-
-    NSScrollView *scroll = [[NSScrollView alloc] initWithFrame:NSZeroRect];
-    scroll.translatesAutoresizingMaskIntoConstraints = NO;
-    scroll.hasVerticalScroller = YES;
-    scroll.drawsBackground = NO;
-
-    NSTableView *table = [[NSTableView alloc] initWithFrame:NSZeroRect];
-    table.dataSource = self;
-    table.delegate = self;
-    table.headerView = nil;                 // OBS 源列表无表头
-    table.backgroundColor = [NSColor colorWithWhite:0.16 alpha:1];
-    table.rowHeight = 20;
-    NSTableColumn *col = [[NSTableColumn alloc] initWithIdentifier:kColName];
-    col.resizingMask = NSTableColumnAutoresizingMask;
-    [table addTableColumn:col];
-    scroll.documentView = table;
-    self.tableView = table;
-
-    NSButton *add = [NSButton buttonWithImage:[NSImage imageWithSystemSymbolName:@"plus" accessibilityDescription:@"添加源"]
-                                       target:self action:@selector(pickAddSourceType:)];
-    add.translatesAutoresizingMaskIntoConstraints = NO;
-    add.bezelStyle = NSBezelStyleSmallSquare;
-    add.toolTip = @"添加源";
-
-    NSButton *remove = [NSButton buttonWithImage:[NSImage imageWithSystemSymbolName:@"minus" accessibilityDescription:@"删除源"]
-                                          target:self action:@selector(removeSelectedSource:)];
-    remove.translatesAutoresizingMaskIntoConstraints = NO;
-    remove.bezelStyle = NSBezelStyleSmallSquare;
-    remove.enabled = NO;
-    remove.toolTip = @"删除选中的源";
-    self.removeButton = remove;
-
-    [c addSubview:scroll];
-    [c addSubview:add];
-    [c addSubview:remove];
-
-    const CGFloat btn = 24;
-    [NSLayoutConstraint activateConstraints:@[
-        [scroll.topAnchor      constraintEqualToAnchor:c.topAnchor      constant:2],
-        [scroll.leadingAnchor  constraintEqualToAnchor:c.leadingAnchor  constant:2],
-        [scroll.trailingAnchor constraintEqualToAnchor:c.trailingAnchor constant:-2],
-        [scroll.bottomAnchor   constraintEqualToAnchor:add.topAnchor    constant:-4],
-        [add.leadingAnchor constraintEqualToAnchor:c.leadingAnchor constant:4],
-        [add.bottomAnchor  constraintEqualToAnchor:c.bottomAnchor  constant:-4],
-        [add.widthAnchor   constraintEqualToConstant:btn],
-        [add.heightAnchor  constraintEqualToConstant:btn],
-        [remove.leadingAnchor constraintEqualToAnchor:add.trailingAnchor constant:4],
-        [remove.bottomAnchor  constraintEqualToAnchor:add.bottomAnchor],
-        [remove.widthAnchor   constraintEqualToConstant:btn],
-        [remove.heightAnchor  constraintEqualToConstant:btn],
-    ]];
+- (void)canvasFrameDidChange:(NSNotification *)note {
+    [self repositionAllPreviews];
 }
 
-// Controls dock：占位按钮（功能待 M2 录制 / M5 推流）
-- (void)fillControlsDock:(WLDockView *)dock {
-    NSArray<NSString *> *titles = @[@"开始推流", @"开始录制", @"虚拟摄像头", @"Studio Mode", @"设置"];
-    NSMutableArray<NSView *> *btns = [NSMutableArray array];
-    for (NSString *t in titles) {
-        NSButton *b = [NSButton buttonWithTitle:t target:nil action:nil];
-        b.bezelStyle = NSBezelStyleRounded;
-        b.enabled = NO;                    // 占位：录制/推流是 M2/M5
-        [btns addObject:b];
+#pragma mark - 坐标换算（canvasView 显示坐标 ↔ 画布像素坐标）
+
+- (CGRect)viewRectFromCanvasRect:(CGRect)cr {
+    CGSize cs = self.canvasLayout.canvasSize;
+    CGSize vs = self.canvasView.bounds.size;
+    if (cs.width <= 0 || cs.height <= 0 || vs.width <= 0 || vs.height <= 0) return cr;
+    CGFloat fx = vs.width / cs.width, fy = vs.height / cs.height;
+    return CGRectMake(cr.origin.x * fx, cr.origin.y * fy, cr.size.width * fx, cr.size.height * fy);
+}
+
+- (CGRect)canvasRectFromViewRect:(CGRect)vr {
+    CGSize cs = self.canvasLayout.canvasSize;
+    CGSize vs = self.canvasView.bounds.size;
+    if (cs.width <= 0 || cs.height <= 0 || vs.width <= 0 || vs.height <= 0) return vr;
+    CGFloat fx = cs.width / vs.width, fy = cs.height / vs.height;
+    return CGRectMake(vr.origin.x * fx, vr.origin.y * fy, vr.size.width * fx, vr.size.height * fy);
+}
+
+- (void)repositionAllPreviews {
+    for (WLSourceEntry *e in self.sources) {
+        CGRect layout = [self.canvasLayout layoutRectForSourceID:e.sourceID];
+        if (CGRectIsNull(layout)) continue;
+        e.preview.frame = [self viewRectFromCanvasRect:layout];
     }
-    NSStackView *sv = [NSStackView stackViewWithViews:btns];
-    sv.translatesAutoresizingMaskIntoConstraints = NO;
-    sv.orientation = NSUserInterfaceLayoutOrientationVertical;
-    sv.distribution = NSStackViewDistributionFillEqually;
-    sv.spacing = 4;
-    [dock.contentView addSubview:sv];
-    [NSLayoutConstraint activateConstraints:@[
-        [sv.topAnchor      constraintEqualToAnchor:dock.contentView.topAnchor      constant:8],
-        [sv.leadingAnchor  constraintEqualToAnchor:dock.contentView.leadingAnchor  constant:8],
-        [sv.trailingAnchor constraintEqualToAnchor:dock.contentView.trailingAnchor constant:-8],
-        [sv.bottomAnchor   constraintLessThanOrEqualToAnchor:dock.contentView.bottomAnchor constant:-8],
-    ]];
 }
 
-// 占位 dock：居中灰字提示
-- (void)fillPlaceholderDock:(WLDockView *)dock text:(NSString *)text {
-    NSTextField *l = [NSTextField labelWithString:text];
-    l.translatesAutoresizingMaskIntoConstraints = NO;
-    l.textColor = [NSColor colorWithWhite:0.5 alpha:1];
-    l.font = [NSFont systemFontOfSize:11];
-    [dock.contentView addSubview:l];
-    [NSLayoutConstraint activateConstraints:@[
-        [l.centerXAnchor constraintEqualToAnchor:dock.contentView.centerXAnchor],
-        [l.centerYAnchor constraintEqualToAnchor:dock.contentView.centerYAnchor],
-    ]];
-}
+#pragma mark - 选中管理
 
-// ══════════════ 预览：enqueue 合成帧 ══════════════
-
-- (void)enqueuePreviewFrame:(CVPixelBufferRef)pixbuf pts:(int64_t)pts_ns {
-    AVSampleBufferDisplayLayer *layer = self.previewView.videoLayer;
-    if (!layer) return;
-    if (layer.status == AVQueuedSampleBufferRenderingStatusFailed) [layer flush];
-
-    CMVideoFormatDescriptionRef fmt = NULL;
-    if (CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, pixbuf, &fmt) != noErr) return;
-    CMSampleTimingInfo timing;
-    timing.duration = kCMTimeInvalid;
-    timing.presentationTimeStamp = CMTimeMake(pts_ns, NSEC_PER_SEC);
-    timing.decodeTimeStamp = kCMTimeInvalid;
-
-    CMSampleBufferRef sb = NULL;
-    OSStatus st = CMSampleBufferCreateReadyWithImageBuffer(kCFAllocatorDefault, pixbuf, fmt, &timing, &sb);
-    CFRelease(fmt);
-    if (st != noErr || !sb) return;
-
-    CFArrayRef attachments = CMSampleBufferGetSampleAttachmentsArray(sb, YES);
-    if (attachments && CFArrayGetCount(attachments) > 0) {
-        CFMutableDictionaryRef dict = (CFMutableDictionaryRef)CFArrayGetValueAtIndex(attachments, 0);
-        CFDictionarySetValue(dict, kCMSampleAttachmentKey_DisplayImmediately, kCFBooleanTrue);
+- (void)deselectAllPreviews {
+    for (WLSourceEntry *e in self.sources) {
+        e.preview.selected = NO;
     }
-    [layer enqueueSampleBuffer:sb];
-    CFRelease(sb);
 }
 
-// ══════════════ 添加 / 删除源 ══════════════
-
-- (void)pickAddSourceType:(NSButton *)sender {
-    NSMenu *menu = [[NSMenu alloc] initWithTitle:@"添加源"];
-    NSMenuItem *item = [menu addItemWithTitle:@"媒体文件…"
-                                       action:@selector(addSourceFromMenu:) keyEquivalent:@""];
-    item.target = self;
-    item.representedObject = @"media_file";
-    [menu popUpMenuPositioningItem:nil atLocation:NSMakePoint(0, NSHeight(sender.bounds)) inView:sender];
+- (WLSourceEntry *)entryForPreview:(WLSourcePreview *)preview {
+    for (WLSourceEntry *e in self.sources) {
+        if (e.preview == preview) return e;
+    }
+    return nil;
 }
 
-- (void)addSourceFromMenu:(NSMenuItem *)item {
-    if ([item.representedObject isEqualToString:@"media_file"]) [self addMediaFileSource];
+#pragma mark - WLSourcePreviewDelegate
+
+- (void)sourcePreview:(WLSourcePreview *)preview didUpdateFrame:(CGRect)frame {
+    WLSourceEntry *e = [self entryForPreview:preview];
+    if (!e) return;
+    CGRect canvasRect = [self canvasRectFromViewRect:frame];
+    [self.canvasLayout setLayoutRect:canvasRect forSourceID:e.sourceID];
 }
 
-- (void)addMediaFileSource {
-    NSOpenPanel *panel = [NSOpenPanel openPanel];
-    panel.title = @"选择媒体文件";
-    panel.allowsMultipleSelection = NO;
-    panel.canChooseDirectories = NO;
-    panel.canChooseFiles = YES;
-    [panel beginSheetModalForWindow:self.view.window completionHandler:^(NSModalResponse result) {
-        if (result != NSModalResponseOK) return;
-        NSString *path = panel.URLs.firstObject.path;
-        if (path.length == 0) return;
-
-        WLSource *src = WLCore::add_source("media_file", path.fileSystemRepresentation);
-        if (!src) { [self warn:[NSString stringWithFormat:@"添加失败：%@", path.lastPathComponent]]; return; }
-        if (src->start() != 0) {
-            WLCore::remove_source(src);
-            [self warn:[NSString stringWithFormat:@"启动失败：%@", path.lastPathComponent]];
-            return;
-        }
-        WLSourceRow *row = [WLSourceRow new];
-        row.src  = src;
-        row.name = path.lastPathComponent;
-        row.type = src->info.type_name ? @(src->info.type_name) : @"—";
-        [self.rows addObject:row];
-        [self.tableView reloadData];
-        NSInteger i = (NSInteger)self.rows.count - 1;
-        [self.tableView selectRowIndexes:[NSIndexSet indexSetWithIndex:i] byExtendingSelection:NO];
-        NSLog(@"[ViewController] 已添加源: %@", path);
+- (void)sourcePreviewDidRequestSelect:(WLSourcePreview *)preview {
+    for (WLSourceEntry *e in self.sources) {
+        e.preview.selected = (e.preview == preview);
+    }
+    // 广播选中 → Sources dock 表格联动
+    WLSourceEntry *sel = [self entryForPreview:preview];
+    [self.dockManager sendEvent:WLEventTypeSourceSelectionChanged info:@{
+        @"sourcePtr": sel ? [NSValue valueWithPointer:sel.src] : [NSNull null]
     }];
 }
 
-- (void)removeSelectedSource:(id)sender {
-    NSInteger idx = self.tableView.selectedRow;
-    if (idx < 0 || idx >= (NSInteger)self.rows.count) return;
-    WLSourceRow *row = self.rows[idx];
-    WLSource *src = row.src;
-    [self.rows removeObjectAtIndex:idx];   // 先摘展示模型，再交 WLCore 销毁（内部 delete）
-    WLCore::remove_source(src);
-    [self.tableView reloadData];
-    self.removeButton.enabled = self.tableView.selectedRow >= 0;
-    NSLog(@"[ViewController] 已删除源: %@", row.name);
+- (void)sourcePreviewDidRequestDeselect:(WLSourcePreview *)preview {
+    [self deselectAllPreviews];
+    [self.dockManager sendEvent:WLEventTypeSourceSelectionChanged info:@{
+        @"sourcePtr": [NSNull null]
+    }];
 }
 
-- (void)warn:(NSString *)msg {
-    NSLog(@"[ViewController] %@", msg);
-    NSAlert *alert = [[NSAlert alloc] init];
-    alert.messageText = msg;
-    [alert beginSheetModalForWindow:self.view.window completionHandler:nil];
+- (void)sourcePreviewDidRequestRemove:(WLSourcePreview *)preview {
+    WLSourceEntry *e = [self entryForPreview:preview];
+    if (!e) return;
+    // 通过事件总线派发移除 → SourcesDock handler 会更新表格
+    [self.dockManager sendEvent:WLEventTypeSourceRemoved info:@{
+        @"sourcePtr": [NSValue valueWithPointer:e.src],
+        @"name": e.name
+    }];
+    WLCore::remove_source(e.src);
 }
 
-// ══════════════ NSTableView 数据源 / 委托 ══════════════
-
-- (NSInteger)numberOfRowsInTableView:(NSTableView *)tableView {
-    return (NSInteger)self.rows.count;
-}
-
-- (NSView *)tableView:(NSTableView *)tableView
-   viewForTableColumn:(NSTableColumn *)column
-                  row:(NSInteger)rowIndex {
-    NSTableCellView *cell = [tableView makeViewWithIdentifier:kColName owner:self];
-    if (!cell) {
-        cell = [[NSTableCellView alloc] initWithFrame:NSZeroRect];
-        cell.identifier = kColName;
-        NSTextField *tf = [NSTextField labelWithString:@""];
-        tf.translatesAutoresizingMaskIntoConstraints = NO;
-        tf.lineBreakMode = NSLineBreakByTruncatingMiddle;
-        [cell addSubview:tf];
-        cell.textField = tf;
-        [NSLayoutConstraint activateConstraints:@[
-            [tf.leadingAnchor  constraintEqualToAnchor:cell.leadingAnchor  constant:4],
-            [tf.trailingAnchor constraintEqualToAnchor:cell.trailingAnchor constant:-4],
-            [tf.centerYAnchor  constraintEqualToAnchor:cell.centerYAnchor],
-        ]];
+- (void)sourcePreview:(WLSourcePreview *)preview didRequestZOrderAction:(WLZOrderAction)action {
+    WLSourceEntry *e = [self entryForPreview:preview];
+    if (!e) return;
+    switch (action) {
+        case WLZOrderActionFront: [self.canvasLayout bringToFront:e.sourceID]; break;
+        case WLZOrderActionBack:  [self.canvasLayout sendToBack:e.sourceID];   break;
+        case WLZOrderActionUp:    [self.canvasLayout moveUp:e.sourceID];       break;
+        case WLZOrderActionDown:  [self.canvasLayout moveDown:e.sourceID];     break;
     }
-    WLSourceRow *row = self.rows[rowIndex];
-    cell.textField.stringValue = row.name;
-    cell.textField.toolTip = [NSString stringWithFormat:@"%@（%@）", row.name, row.type];
-    return cell;
+    [self syncPreviewZOrder];
 }
 
-- (void)tableViewSelectionDidChange:(NSNotification *)notification {
-    self.removeButton.enabled = self.tableView.selectedRow >= 0;
+- (void)syncPreviewZOrder {
+    for (NSString *sid in self.canvasLayout.sourceOrder) {
+        for (WLSourceEntry *e in self.sources) {
+            if ([e.sourceID isEqualToString:sid]) {
+                [self.canvasView addSubview:e.preview]; // 重排到最上
+                break;
+            }
+        }
+    }
+}
+
+#pragma mark - 帧轮询
+
+- (void)startFrameTimer {
+    if (self.frameTimer) return;
+    // ~30fps 轮询；加到 NSRunLoopCommonModes 保证 modal panel（NSOpenPanel）期间不中断
+    self.frameTimer = [NSTimer scheduledTimerWithTimeInterval:1.0/30.0
+                                                      target:self
+                                                    selector:@selector(frameTick:)
+                                                    userInfo:nil
+                                                     repeats:YES];
+    [[NSRunLoop mainRunLoop] addTimer:self.frameTimer forMode:NSRunLoopCommonModes];
+}
+
+- (void)stopFrameTimer {
+    [self.frameTimer invalidate];
+    self.frameTimer = nil;
+}
+
+- (void)frameTick:(NSTimer *)timer {
+    int64_t now_ns = WLTime::now_ns();
+    for (WLSourceEntry *e in self.sources) {
+        if (!e.src) continue;
+        // 只处理异步源（有帧队列）
+        if ((e.src->info.output_flags & WL_SOURCE_ASYNC) == 0) continue;
+
+        int64_t pts = 0;
+        CVPixelBufferRef frame = e.src->get_frame(now_ns, &pts);
+        if (!frame) continue;
+
+        CVPixelBufferRetain(frame);
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [e.preview enqueuePixelBuffer:frame pts:(Float64)pts / 1e9];
+            CVPixelBufferRelease(frame);
+        });
+    }
 }
 
 @end
