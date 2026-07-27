@@ -201,12 +201,4 @@
     [self addDock:[[WLControlsDockViewController alloc] init]    forIdentifier:WLDockIdentifierControls];
 }
 
-#pragma mark - 生命周期
-
-- (void)viewWillDisappear {
-    for (_WLDockRecord *rec in self.docks.allValues) {
-        [rec.dock viewWillDisappear];
-    }
-}
-
 @end

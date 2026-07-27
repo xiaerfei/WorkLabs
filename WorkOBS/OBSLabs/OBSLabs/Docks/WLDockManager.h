@@ -63,7 +63,4 @@ typedef NS_ENUM(NSInteger, WLEventType) {
 - (void)setVisible:(BOOL)visible forIdentifier:(WLDockIdentifier)identifier;
 - (nullable WLDockViewController *)dockForIdentifier:(WLDockIdentifier)identifier;
 
-/// 转发 viewWillDisappear 给所有 dock VC
-- (void)viewWillDisappear;
-
 @end

@@ -184,14 +184,6 @@ static NSString *const kCellID  = @"SourceCell";
     [self subscribeEvents];
 }
 
-- (void)viewWillDisappear {
-    [super viewWillDisappear];
-    [self.rows removeAllObjects];
-    [self.tableView reloadData];
-    self.removeButton.enabled = NO;
-    [self updateEmptyLabel];
-}
-
 - (void)dealloc {
     [self.manager unsubscribeWithTag:self.subTagSourceAdded];
     [self.manager unsubscribeWithTag:self.subTagSourceRemoved];
