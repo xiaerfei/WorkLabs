@@ -3,9 +3,9 @@
 //  OBSLabs
 //
 //  主循环对标 obs_graphics_thread_loop（obs-video.c:1097）：
-//    (1) tick 所有源（逐源按 video_time 挑帧）
-//    (2) 合成            ← 阶段二 Metal，当前 stub
-//    (3) 输出合成帧      ← 阶段三，当前 stub
+//    (1) tick 所有源（逐源按 video_time 挑帧，owned +1 收集）
+//    (2) 合成            ← M3 Metal，当前 stub
+//    (3) per-source 输出（预览浮层用；合成后单帧出口随 M2 编码再加）
 //    (4) video_sleep：睡到下一 tick 的绝对时刻，卡顿一次跳 count 帧
 //
 
@@ -93,30 +93,39 @@ void WLGraphics::video_sleep() {
 
 // ---------- 主循环 ----------
 
-// tick 的收集上下文：传入本 tick 的"现在几点"，传出挑出的合成帧
+// tick 一拍最多收集的源数。栈上定长（Orthodox C++ 不用 STL）；超出不静默，告警丢弃。
+#define WL_TICK_MAX_SOURCES 64
+
+// tick 的收集上下文：传入本 tick 的"现在几点"，传出各源挑出的帧
 struct tick_ctx {
-    int64_t          video_time;   // in：本 tick 的虚拟时刻
-    CVPixelBufferRef frame;        // out：挑出的帧（已 retain，thread_loop 负责 release）
-    int64_t          pts_ns;       // out：该帧 pts
+    int64_t video_time;             // in：本 tick 的虚拟时刻
+    int     count;                  // out：收集到几个源的帧
+    struct {
+        WLSource        *src;       // 路由 key（出锁后只可比较不可解引用）
+        CVPixelBufferRef frame;     // owned（get_frame 已 +1，thread_loop 负责 release）
+        int64_t          pts_ns;
+    } out[WL_TICK_MAX_SOURCES];
 };
 
-// tick 单个源：把本 tick 的 video_time 当"现在几点"传给挑帧
+// tick 单个源：把本 tick 的 video_time 当"现在几点"传给挑帧，有帧就收集
 static void tick_one_source(WLSource *src, void *ctx) {
     tick_ctx *tc = (tick_ctx *)ctx;
     // 分流唯一依据 = ASYNC 位（对齐 obs_source_video_tick，obs-source.c:1367）：
     // 异步源本 tick 挑帧；同步源没有帧队列，render 阶段直接 video_render() 现画（M3）
     if ((src->info.output_flags & WL_SOURCE_ASYNC) == 0) return;
+    if (tc->count >= WL_TICK_MAX_SOURCES) {
+        fprintf(stderr, "[gfx] tick 源数超 %d，多余的本拍丢弃\n", WL_TICK_MAX_SOURCES);
+        return;
+    }
 
     int64_t pts = 0;
-    CVPixelBufferRef f = src->get_frame(tc->video_time, &pts);   // 返回 borrow
+    CVPixelBufferRef f = src->get_frame(tc->video_time, &pts);   // owned：+1 到手
     if (!f) return;
 
-    // Step1 没有真合成：多源时保留"最后一个有帧的源"（退化为单源直显）。
-    // 在锁内（foreach_source 持 WLCore 锁）retain，出锁后即便该源被 remove 也安全。
-    // Step2(M3) 这里换成：收集所有源帧 → Metal 合成到一张纹理 → 输出那张纹理。
-    if (tc->frame) CVPixelBufferRelease(tc->frame);
-    tc->frame  = CVPixelBufferRetain(f);
-    tc->pts_ns = pts;
+    tc->out[tc->count].src    = src;
+    tc->out[tc->count].frame  = f;      // 接管 get_frame 给的那份引用
+    tc->out[tc->count].pts_ns = pts;
+    tc->count++;
 }
 
 void *WLGraphics::graphics_thread_func(void *arg) {
@@ -128,24 +137,28 @@ void WLGraphics::thread_loop() {
     video_time = WLTime::now_ns();   // 时钟锚定（对标 obs->video.video_time = os_gettime_ns()）
 
     while (!atomic_load(&should_stop)) {
-        // ── (1) tick 所有源 + 挑帧（锁内遍历，见 WLCore::foreach_source 并发说明）──
-        tick_ctx tc;
-        tc.video_time = video_time;
-        tc.frame      = NULL;
-        tc.pts_ns     = 0;
-        WLCore::foreach_source(tick_one_source, &tc);
+        // 先看有没有人接帧：锁内只拷指针（避免持 output_mutex 期间跑用户代码），
+        // 没人接就整拍跳过挑帧——不白做 retain/release，缓冲靠 drop-oldest 自净。
+        pthread_mutex_lock(&output_mutex);
+        wl_frame_output_cb cb = output_cb;
+        void *cb_ctx = output_ctx;
+        pthread_mutex_unlock(&output_mutex);
 
-        // ── (2) 合成 ── Step1 = 直显：tc.frame 即"合成"产物（Step2/M3 换 Metal 合成）
-        // ── (3) 输出 ── 把合成帧 push 给预览/编码。回调在锁外调（只做轻量转发），
-        //     先把 output_cb/ctx 拷到局部再出锁调用，避免持 output_mutex 期间跑用户代码。
-        if (tc.frame) {
-            pthread_mutex_lock(&output_mutex);
-            wl_frame_output_cb cb = output_cb;
-            void *cb_ctx = output_ctx;
-            pthread_mutex_unlock(&output_mutex);
+        if (cb) {
+            // ── (1) tick 所有源 + 逐源挑帧（锁内遍历，见 WLCore::foreach_source 并发说明）──
+            tick_ctx tc;
+            tc.video_time = video_time;
+            tc.count      = 0;
+            WLCore::foreach_source(tick_one_source, &tc);
 
-            if (cb) cb(tc.frame, tc.pts_ns, cb_ctx);
-            CVPixelBufferRelease(tc.frame);   // 释放 tick 里 retain 的那份
+            // ── (2) 合成 ── M3 换 Metal：把 tc.out 各源帧按画布模型合成一张纹理再输出
+            // ── (3) 输出 ── 出了源列表锁逐源 push（对标 render_displays：渲染线程推，UI 不拉）。
+            //     帧攥着 owned 引用，回调返回后才 release——回调内 borrow 绝对有效；
+            //     源此刻即便被删也不影响这份帧引用，src 只当路由 key。
+            for (int i = 0; i < tc.count; i++) {
+                cb(tc.out[i].src, tc.out[i].frame, tc.out[i].pts_ns, cb_ctx);
+                CVPixelBufferRelease(tc.out[i].frame);
+            }
         }
 
         // ── (4) 睡到下一 tick ──

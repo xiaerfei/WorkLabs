@@ -36,7 +36,7 @@ public:
     // 锁内遍历所有源（graphics tick 用）。回调内勿 add/remove —— 同一把锁，会死锁。
     static void foreach_source(void (*fn)(WLSource *src, void *ctx), void *ctx);
 
-    // 注册合成帧输出回调，转发给内部 graphics（对齐 OBS 走全局 API，不直接暴露内部）。
+    // 注册 per-source 帧输出回调，转发给内部 graphics（对齐 OBS 走全局 API，不直接暴露内部）。
     // 须在 startup 之后调用；未 startup 时忽略。cb=NULL 注销。
     static void set_frame_output(wl_frame_output_cb cb, void *ctx);
 };

@@ -97,7 +97,6 @@ CVPixelBufferRef WLSource::get_frame(int64_t sys_time_ns, int64_t *out_pts_ns) {
         consume_anchored  = true;
     }
 
-    int advanced = 0;   // 本 tick 从缓冲取走几帧（显示 1 + 跳过 advanced-1）
     if (consume_anchored) {
         // 此刻按墙钟推算，媒体本该播到的位置（与生产端 pace 对偶）
         int64_t target = consume_first_pts + (sys_time_ns - consume_first_sys);
@@ -110,18 +109,15 @@ CVPixelBufferRef WLSource::get_frame(int64_t sys_time_ns, int64_t *out_pts_ns) {
             cur_frame_pts = frames[head].pts_ns;
             head = (head + 1) % capacity;
             count--;
-            advanced++;
         }
     }
 
-    CVPixelBufferRef ret = cur_frame;   // borrow（缓冲空时保持上一帧，不黑屏）
+    // owned：锁内 +1 再递出。所有对 cur_frame 的 release 也都在本锁内，
+    // 互斥保证"我 +1"与"别人 -1"不可能交错——出锁后这份引用铁定合法。
+    CVPixelBufferRef ret = cur_frame;   // 缓冲空时保持上一帧，不黑屏
+    if (ret) CVPixelBufferRetain(ret);
     if (out_pts_ns) *out_pts_ns = cur_frame_pts;
-
-    // ── 临时验证日志（验证完删除）：advanced=每 tick 取走帧数（60→30 应稳定 2）──
-    int     depth    = count;
-    int64_t show_rel = ret ? (cur_frame_pts - consume_first_pts) : -1;
     pthread_mutex_unlock(&async_mutex);
-    fprintf(stderr, "[get] show=%6lldms  depth=%2d  advanced=%d\n", show_rel / 1000000, depth, advanced);
 
     return ret;
 }

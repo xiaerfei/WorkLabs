@@ -13,8 +13,9 @@
 //  │Scenes│Sources│Audio Mixer│Transitions│ Controls │  ← WLDockManager 管理的 5 dock
 //  └──────┴──────┴──────────┴──────────┴───────────┘
 //
-//  每个源有独立的 WLSourcePreview 浮层（拖拽/缩放/选中/右键），
-//  帧通过轮询 WLSource::get_frame 分发到各浮层。
+//  每个源有独立的 WLSourcePreview 浮层（拖拽/缩放/选中/右键）。
+//  帧由 graphics 线程每 tick 逐源 push（WLCore::set_frame_output，对标 OBS
+//  render_displays：渲染线程推、UI 不拉），hop 主线程后按 src 路由到浮层。
 //
 
 #import "ViewController.h"
@@ -24,7 +25,6 @@
 #import "WLSourcePreview.h"
 #import "WLCore.hpp"
 #import "WLSource.hpp"
-#import "WLTime.hpp"
 #import <AVFoundation/AVFoundation.h>
 
 // ── 源跟踪记录 ──
@@ -42,11 +42,13 @@
 @property (nonatomic, strong) WLCanvasLayout  *canvasLayout;
 @property (nonatomic, strong) WLDockManager   *dockManager;
 @property (nonatomic, strong) NSMutableArray<WLSourceEntry *> *sources;
-@property (nonatomic, strong) NSTimer         *frameTimer;
 @property (nonatomic, assign) NSUInteger       subTagSourceAdded;
 @property (nonatomic, assign) NSUInteger       subTagSourceRemoved;
 @property (nonatomic, assign) NSUInteger       subTagSourceSelection;
+- (void)dispatchFrame:(CVPixelBufferRef)frame pts:(int64_t)pts_ns forSource:(WLSource *)src;
 @end
+
+static void onSourceFrame(WLSource *src, CVPixelBufferRef frame, int64_t pts_ns, void *ctx);
 
 @implementation ViewController {
     BOOL _didSetInitialSize;
@@ -75,17 +77,22 @@
         [win setContentSize:NSMakeSize(960, 600)];
         [win center];
     }
-    [self startFrameTimer];
+    WLCore::set_frame_output(onSourceFrame, (__bridge void *)self);
 }
 
 - (void)viewWillDisappear {
     [super viewWillDisappear];
-    [self stopFrameTimer];
+    WLCore::set_frame_output(NULL, NULL);   // 先掐输出，graphics 不再进回调
     [self.dockManager viewWillDisappear];
-    WLCore::shutdown();
+    WLCore::shutdown();                      // join 节拍/源线程，返回后无在途 libwl 调用
+    // shutdown 已销毁所有 WLSource：把 UI 侧的裸指针和浮层一并清掉，
+    // 否则重开窗口（点 Dock 图标）再 startup 时会用到悬垂 src。
     for (WLSourceEntry *e in self.sources) {
         [e.preview flush];
+        [e.preview removeFromSuperview];
+        [self.canvasLayout removeLayoutForSourceID:e.sourceID];
     }
+    [self.sources removeAllObjects];
 }
 
 - (void)dealloc {
@@ -351,40 +358,26 @@
     }
 }
 
-#pragma mark - 帧轮询
+#pragma mark - 帧输出（graphics 线程 push → 主线程 enqueue）
 
-- (void)startFrameTimer {
-    if (self.frameTimer) return;
-    // ~30fps 轮询；加到 NSRunLoopCommonModes 保证 modal panel（NSOpenPanel）期间不中断
-    self.frameTimer = [NSTimer scheduledTimerWithTimeInterval:1.0/30.0
-                                                      target:self
-                                                    selector:@selector(frameTick:)
-                                                    userInfo:nil
-                                                     repeats:YES];
-    [[NSRunLoop mainRunLoop] addTimer:self.frameTimer forMode:NSRunLoopCommonModes];
+// graphics 线程每 tick 逐源回调。契约（见 WLGraphics.hpp）：
+//   frame 仅回调内有效 → 跨线程先 retain；src 只当路由 key，不可解引用。
+static void onSourceFrame(WLSource *src, CVPixelBufferRef frame, int64_t pts_ns, void *ctx) {
+    ViewController *vc = (__bridge ViewController *)ctx;
+    CVPixelBufferRetain(frame);
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [vc dispatchFrame:frame pts:pts_ns forSource:src];
+        CVPixelBufferRelease(frame);
+    });
 }
 
-- (void)stopFrameTimer {
-    [self.frameTimer invalidate];
-    self.frameTimer = nil;
-}
-
-- (void)frameTick:(NSTimer *)timer {
-    int64_t now_ns = WLTime::now_ns();
+// 主线程：按 src 指针路由到对应浮层。查不到 = 源刚被删，丢帧即可。
+- (void)dispatchFrame:(CVPixelBufferRef)frame pts:(int64_t)pts_ns forSource:(WLSource *)src {
     for (WLSourceEntry *e in self.sources) {
-        if (!e.src) continue;
-        // 只处理异步源（有帧队列）
-        if ((e.src->info.output_flags & WL_SOURCE_ASYNC) == 0) continue;
-
-        int64_t pts = 0;
-        CVPixelBufferRef frame = e.src->get_frame(now_ns, &pts);
-        if (!frame) continue;
-
-        CVPixelBufferRetain(frame);
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [e.preview enqueuePixelBuffer:frame pts:(Float64)pts / 1e9];
-            CVPixelBufferRelease(frame);
-        });
+        if (e.src == src) {
+            [e.preview enqueuePixelBuffer:frame pts:(Float64)pts_ns / 1e9];
+            return;
+        }
     }
 }
 

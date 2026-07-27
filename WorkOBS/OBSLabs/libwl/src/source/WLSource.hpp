@@ -136,9 +136,10 @@ public:
 
     // ---- 消费端（渲染 tick 调用）----
     // 按系统时钟（纳秒，CLOCK_MONOTONIC）挑"当前该显示的帧"：追赶式跳过并
-    // 释放过期帧，缓冲空时重复上一帧。返回 borrow（source 持有，调用者勿
-    // release），无帧返回 NULL。out_pts_ns 可为 NULL。
-    // 当前假定单消费者（一个 tick）调用。
+    // 释放过期帧，缓冲空时重复上一帧。返回 owned（+1 引用，调用者用完必须
+    // release，对齐 obs_source_get_frame/release_frame 对），无帧返回 NULL。
+    // out_pts_ns 可为 NULL。retain 在锁内做：出锁后其他消费者推进（release
+    // cur_frame）也动不了调用者手里这份。
     CVPixelBufferRef get_frame(int64_t sys_time_ns, int64_t *out_pts_ns);
 };
 

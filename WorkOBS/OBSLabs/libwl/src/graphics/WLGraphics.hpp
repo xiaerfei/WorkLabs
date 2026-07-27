@@ -15,11 +15,20 @@
 #include <pthread.h>
 #include <CoreVideo/CoreVideo.h>   // CVPixelBufferRef（合成帧输出）
 
-// 合成帧输出回调（对标 OBS 的 output 分发点，obs-video.c render_main_texture 之后）。
-// graphics 线程每 tick 合成出一帧后回调它。约定：
+class WLSource;   // 回调签名只用指针，前置声明即可
+
+// per-source 帧输出回调（对标 OBS render_displays：渲染线程逐 display push，UI 不拉）。
+// graphics 线程每 tick 给"本 tick 有帧"的每个源调一次。约定：
 //   - 在 graphics 线程被调，回调内只做轻量转发（勿阻塞、勿回头调 WLCore 增删源 → 同锁死锁）；
-//   - frame 是 borrow（仅保证本次回调内有效），要留到别的线程用必须自己 retain。
-typedef void (*wl_frame_output_cb)(CVPixelBufferRef frame, int64_t pts_ns, void *ctx);
+//   - src 只可当路由 key 做指针比较，不可解引用——出了源列表锁，源随时可能被删
+//     （OBS 靠源引用计数保活，我们用这条契约简化）；
+//   - frame 仅保证回调内有效（graphics 攥着一份 owned 引用，回调返回后才放手），
+//     要跨线程/留到之后用必须自己 retain。这个 borrow 与 get_frame 旧契约不同：
+//     持有者是调用方栈上的引用，回调返回前不可能被并发释放，绝对安全。
+// M2/M3 真合成落地后，编码走的"合成后单帧"出口另行新增；Step1 的 last-wins
+// 假合成出口已废弃，就是本签名的前身。
+typedef void (*wl_frame_output_cb)(WLSource *src, CVPixelBufferRef frame,
+                                   int64_t pts_ns, void *ctx);
 
 class WLGraphics {
     // 所有成员在构造函数里逐个初始化：new 不像 calloc 会清零
@@ -35,7 +44,7 @@ class WLGraphics {
     uint64_t total_frames;
     uint64_t lagged_frames;
 
-    // 合成帧输出出口：set_output 写（主线程）、thread_loop 每 tick 读（节拍线程），
+    // per-source 帧输出出口：set_output 写（主线程）、thread_loop 每 tick 读（节拍线程），
     // output_mutex 护住这对指针的读写（避免撕裂 / 半更新）
     wl_frame_output_cb output_cb;
     void              *output_ctx;
@@ -52,7 +61,7 @@ public:
     int  start();
     void stop();
 
-    // 注册合成帧输出回调（cb=NULL 注销）。线程安全，可在节拍运行时调用。
+    // 注册 per-source 帧输出回调（cb=NULL 注销）。线程安全，可在节拍运行时调用。
     void set_output(wl_frame_output_cb cb, void *ctx);
 };
 
