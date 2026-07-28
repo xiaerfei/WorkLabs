@@ -153,11 +153,7 @@ typedef NS_ENUM(NSInteger, WLHandle) {
         if (!self.aspectInitialized) {
             self.aspectInitialized = YES;
             dispatch_async(dispatch_get_main_queue(), ^{
-                CGRect f = self.frame;
-                f.size.height = f.size.width / a;
-                self.frame = f;
-                [self layoutHandles];
-                [self notifyFrameUpdate];
+                [self applyAspectFitFrame:a];
             });
         }
     }
@@ -361,6 +357,27 @@ typedef NS_ENUM(NSInteger, WLHandle) {
     if ([self.delegate respondsToSelector:@selector(sourcePreview:didUpdateFrame:)]) {
         [self.delegate sourcePreview:self didUpdateFrame:self.frame];
     }
+}
+
+// 首帧按视频宽高比调整 frame：保持中心与宽度、高随 aspect；
+// 超出画布则整体缩小并夹回画布内（竖屏视频初始不再溢出）。
+- (void)applyAspectFitFrame:(CGFloat)aspect {
+    if (aspect <= 0) return;
+    NSView *sv = self.superview;
+    CGRect f = self.frame;
+    CGPoint center = CGPointMake(NSMidX(f), NSMidY(f));
+    CGFloat w = f.size.width, h = w / aspect;
+    CGFloat x = center.x - w / 2, y = center.y - h / 2;
+    if (sv) {
+        CGFloat maxW = sv.bounds.size.width, maxH = sv.bounds.size.height;
+        if (w > maxW) { w = maxW; h = w / aspect; }
+        if (h > maxH) { h = maxH; w = h * aspect; }
+        x = fmax(0, fmin(center.x - w / 2, maxW - w));
+        y = fmax(0, fmin(center.y - h / 2, maxH - h));
+    }
+    self.frame = NSMakeRect(x, y, w, h);
+    [self layoutHandles];
+    [self notifyFrameUpdate];
 }
 
 #pragma mark - Private

@@ -26,7 +26,6 @@ static NSColor *kToolBtnTextIdle(void){ return [NSColor colorWithWhite:0.60 alph
 static NSColor *kToolBtnTextHov(void) { return [NSColor colorWithWhite:0.90 alpha:1]; }
 static NSColor *kEmptyTextColor(void) { return [NSColor colorWithWhite:0.35 alpha:1]; }
 static NSColor *kTextNormal(void)     { return [NSColor colorWithWhite:0.85 alpha:1]; }
-static NSColor *kTextDim(void)        { return [NSColor colorWithWhite:0.45 alpha:1]; }
 
 // ══════════════ 私有模型 ═══════════════
 
@@ -378,6 +377,9 @@ static NSString *const kCellID  = @"SourceCell";
 
 - (void)pickAddSourceType:(id)sender {
     NSMenu *menu = [[NSMenu alloc] initWithTitle:@"添加源"];
+    // 默认 autoenablesItems=YES 会按"target 是否响应 action"自动启用所有项，
+    // 覆盖手动 enabled=NO——关掉才能让未实现的源类型真正置灰
+    menu.autoenablesItems = NO;
 
     struct { NSString *title; NSString *icon; NSString *key; BOOL enabled; } items[] = {
         { @"媒体源",     @"film",                                     @"media_file", YES },
@@ -389,8 +391,9 @@ static NSString *const kCellID  = @"SourceCell";
     };
 
     for (int i = 0; i < 6; i++) {
+        // keyEquivalent 是单字符快捷键位，类型 key 走 representedObject
         NSMenuItem *item = [menu addItemWithTitle:items[i].title
-                                           action:@selector(addSourceFromMenu:) keyEquivalent:items[i].key];
+                                           action:@selector(addSourceFromMenu:) keyEquivalent:@""];
         item.target = self;
         item.representedObject = items[i].key;
         item.enabled = items[i].enabled;
@@ -465,18 +468,24 @@ static NSString *const kCellID  = @"SourceCell";
     browseBtn.translatesAutoresizingMaskIntoConstraints = NO;
     [content addSubview:browseBtn];
 
-    // ── 选项 checkboxes ──
+    // ── 选项 checkboxes（未接入 libwl 的先置灰，避免"勾了没反应"）──
     NSButton *loopCheck = [NSButton checkboxWithTitle:@"循环" target:nil action:nil];
     loopCheck.translatesAutoresizingMaskIntoConstraints = NO;
+    loopCheck.enabled = NO;   // TODO: libwl loop 落地后接入并启用
+    loopCheck.toolTip = @"暂未实现";
     [content addSubview:loopCheck];
 
-    NSButton *hwCheck = [NSButton checkboxWithTitle:@"在可用时使用硬编码" target:nil action:nil];
+    NSButton *hwCheck = [NSButton checkboxWithTitle:@"在可用时使用硬件解码" target:nil action:nil];
     hwCheck.translatesAutoresizingMaskIntoConstraints = NO;
-    hwCheck.state = NSControlStateValueOn;
+    hwCheck.state = NSControlStateValueOn;   // 解码侧现在无条件走 VideoToolbox，先展示默认开
+    hwCheck.enabled = NO;
+    hwCheck.toolTip = @"暂未实现（当前始终使用硬件解码）";
     [content addSubview:hwCheck];
 
     NSButton *autoRemoveCheck = [NSButton checkboxWithTitle:@"播放结束后自动移除" target:nil action:nil];
     autoRemoveCheck.translatesAutoresizingMaskIntoConstraints = NO;
+    autoRemoveCheck.enabled = NO;
+    autoRemoveCheck.toolTip = @"暂未实现";
     [content addSubview:autoRemoveCheck];
 
     // ── 速度滑块 ──
@@ -491,6 +500,8 @@ static NSString *const kCellID  = @"SourceCell";
     speedSlider.maxValue = 4.0;
     speedSlider.doubleValue = 1.0;
     speedSlider.continuous = YES;
+    speedSlider.enabled = NO;   // TODO: 变速播放未实现
+    speedSlider.toolTip = @"暂未实现";
     [content addSubview:speedSlider];
 
     NSTextField *speedValue = [NSTextField labelWithString:@"100%"];

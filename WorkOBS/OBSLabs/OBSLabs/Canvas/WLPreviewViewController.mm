@@ -95,6 +95,9 @@ static void onSourceFrame(WLSource *src, CVPixelBufferRef frame, int64_t pts_ns,
     canvas.translatesAutoresizingMaskIntoConstraints = NO;
     canvas.wantsLayer = YES;
     canvas.layer.backgroundColor = [NSColor colorWithWhite:0.10 alpha:1].CGColor;
+    // NSView 默认不裁剪 subview：浮层缩放拖出画布会悬在深色区上穿帮。
+    // 裁掉——对齐 OBS：源允许部分出画布，超出部分不显示
+    canvas.layer.masksToBounds = YES;
     canvas.onBackgroundClick = ^{ [weakSelf deselectAllPreviews]; };
     self.canvasView = canvas;
     [self.view addSubview:canvas];
