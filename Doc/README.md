@@ -27,6 +27,18 @@ Doc/
 - [MPV时间戳_讨论纪要与功能规划.md](调研/mpv/MPV时间戳_讨论纪要与功能规划.md) — 上述调研的**应用层讨论纪要**：mpv 时间戳对 WorkLabs 的参考意义（含现状核实）/ 设计本质 / 面向 seek 拖进度条 + loop 循环 + 精确 A/V 同步的落地规划与待斟酌决策点
 
 ### OBS/
+- **目录导航系列（obs-studio `f2db097`，2026-07-09 · 约 1900 源文件 49 万行的逐目录/逐文件功能地图）** ← *找代码从这里进*
+  - [目录导航/README.md](调研/OBS/目录导航/README.md) — **总索引**：顶层目录地图 + 「我想看 X → 去哪」全局速查表 + OBS 五条主干读码路线 + libwl 对应关系
+  - [01 libobs 内核](调研/OBS/目录导航/01_libobs核心.md) — 对象模型（源/场景/输出/编码器）+ 节拍主循环 + 音频混音 + 插件系统 + `obs-cocoa.m`
+  - [02 libobs/graphics](调研/OBS/目录导航/02_libobs_graphics.md) — `gs_*` 图形抽象层 + `.effect` 着色器语言解析器 + 数学库
+  - [03 libobs/util + media-io](调研/OBS/目录导航/03_libobs_util_media-io.md) — 基础设施轮子（含 🔧 可直接搬走标记）+ 帧总线 `video_output_*` + 重采样/格式转换
+  - [04 编码 / 输出 / 服务](调研/OBS/目录导航/04_plugins_编码_输出_服务.md) — obs-ffmpeg（含独立 mux 子进程）· RTMP 推流与丢帧策略 · VideoToolbox 编码
+  - [05 源 / 滤镜 / 转场](调研/OBS/目录导航/05_plugins_源_滤镜_转场.md) — 内置滤镜的标准形状 · 转场机制 · 图片源（同步源代表）
+  - [06 平台采集](调研/OBS/目录导航/06_plugins_平台采集.md) — macOS 摄像头/屏幕/系统音频/虚拟摄像头（详）+ Windows/Linux（略）
+  - [07 硬件 / 浏览器 / 远控 / 工具](调研/OBS/目录导航/07_plugins_硬件_浏览器_远控_工具.md) — DeckLink/AJA 采集卡 · CEF 浏览器源 · obs-websocket · frontend-tools
+  - [08 frontend（Qt 界面）](调研/OBS/目录导航/08_frontend_Qt界面.md) — 主窗口 25 文件分片 · 预览控件如何对接 `obs_display` · 设置面板
+  - [09 图形后端](调研/OBS/目录导航/09_图形后端_metal_opengl_d3d11.md) — Metal(Swift)/OpenGL/D3D11 三后端 + 抽象层绑定机制 + CVPixelBuffer→MTLTexture
+  - [10 shared / deps / 构建 / 测试](调研/OBS/目录导航/10_shared_deps_构建_测试_文档.md) — **`shared/media-playback` 媒体播放内核**（pts 节流/seek/loop）+ 最小插件示例 + macOS 编译
 - [OBS_UI_Analysis.md](调研/OBS/OBS_UI_Analysis.md) — OBS UI 面板分析
 - OBS_Architecture.drawio / OBS_Architecture.png — OBS 架构图
 - **源码级深挖系列（obs-studio 32.1.2，与 WorkLabs 逻辑几乎一致，比 mpv 更贴近）**：
