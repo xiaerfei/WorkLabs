@@ -631,10 +631,10 @@ static NSString *const kCellID  = @"SourceCell";
 
     [panel.sheetParent endSheet:panel returnCode:NSModalResponseOK];
 
-    WLSource *src = WLCore::add_source("media_file", path.fileSystemRepresentation);
+    WLSource *src = WLCore::AddSource("media_file", path.fileSystemRepresentation);
     if (!src) { [self warn:[NSString stringWithFormat:@"添加失败：%@", path.lastPathComponent]]; return; }
-    if (src->start() != 0) {
-        WLCore::remove_source(src);
+    if (src->Start() != 0) {
+        WLCore::RemoveSource(src);
         [self warn:[NSString stringWithFormat:@"启动失败：%@", path.lastPathComponent]];
         return;
     }
@@ -644,7 +644,7 @@ static NSString *const kCellID  = @"SourceCell";
     [self.manager sendEvent:WLEventTypeSourceAdded info:@{
         @"sourcePtr": [NSValue valueWithPointer:src],
         @"name":      path.lastPathComponent,
-        @"type":      src->info.type_name ? @(src->info.type_name) : @"—"
+        @"type":      src->Info().type_name ? @(src->Info().type_name) : @"—"
     }];
 }
 
@@ -659,7 +659,7 @@ static NSString *const kCellID  = @"SourceCell";
         @"name":      row.name
     }];
 
-    WLCore::remove_source(src);
+    WLCore::RemoveSource(src);
 }
 
 - (void)warn:(NSString *)msg {

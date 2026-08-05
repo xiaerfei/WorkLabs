@@ -5,7 +5,7 @@
 //  预览逻辑内聚（自 ViewController.mm 迁入）：
 //  - 每个源一个 WLSourcePreview 浮层（拖拽/缩放/选中/右键），布局真值在
 //    WLCanvasLayout（画布像素坐标），本 VC 负责显示坐标 ↔ 画布坐标换算。
-//  - 帧由 graphics 线程每 tick 逐源 push（WLCore::set_frame_output，对标
+//  - 帧由 graphics 线程每 tick 逐源 push（WLCore::SetFrameOutput，对标
 //    OBS render_displays：渲染线程推、UI 不拉），hop 主线程后按 src 路由。
 //  - 与 Sources dock 的增删/选中联动走 WLDockManager 事件总线（同步派发）。
 //
@@ -80,11 +80,11 @@ static void onSourceFrame(WLSource *src, CVPixelBufferRef frame, int64_t pts_ns,
 #pragma mark - 帧输出挂/摘（由父控制器编排：窗口可见挂、不可见摘，管线不动）
 
 - (void)startFrameOutput {
-    WLCore::set_frame_output(onSourceFrame, (__bridge void *)self);
+    WLCore::SetFrameOutput(onSourceFrame, (__bridge void *)self);
 }
 
 - (void)stopFrameOutput {
-    WLCore::set_frame_output(NULL, NULL);
+    WLCore::SetFrameOutput(NULL, NULL);
 }
 
 #pragma mark - UI 搭建
@@ -293,7 +293,7 @@ static void onSourceFrame(WLSource *src, CVPixelBufferRef frame, int64_t pts_ns,
         @"sourcePtr": [NSValue valueWithPointer:e.src],
         @"name": e.name
     }];
-    WLCore::remove_source(e.src);
+    WLCore::RemoveSource(e.src);
 }
 
 - (void)sourcePreview:(WLSourcePreview *)preview didRequestZOrderAction:(WLZOrderAction)action {

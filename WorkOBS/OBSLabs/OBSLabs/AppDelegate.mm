@@ -18,7 +18,7 @@
 }
 
 - (void)applicationWillTerminate:(NSNotification *)aNotification {
-    WLCore::shutdown();   // join 节拍/解码线程 + 销毁所有源
+    WLCore::Shutdown();   // join 节拍/解码线程 + 销毁所有源
 }
 
 // 单窗口工具 app：关最后一个窗口即退出（没有托盘/菜单栏入口，

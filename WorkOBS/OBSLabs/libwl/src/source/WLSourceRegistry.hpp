@@ -18,14 +18,13 @@ struct wl_source_type_info;   // 定义见 WLSource.hpp（接口只碰指针，�
 class WLSourceRegistry {
 public:
     // 注册一种源类型（通常在应用启动时调用）。重复 id → 覆盖并打 warning。
-    // （方法名不叫 register：那是 C/C++ 保留字。）
-    static void register_type(const wl_source_type_info *info);
+    static void RegisterType(const wl_source_type_info *info);
 
     // 注销一种源类型。
-    static void unregister_type(const char *id);
+    static void UnregisterType(const char *id);
 
     // 按 id 查找；未找到返回 NULL。
-    static const wl_source_type_info *find(const char *id);
+    static const wl_source_type_info *Find(const char *id);
 };
 
 #endif /* WLSourceRegistry_hpp */

@@ -18,7 +18,7 @@
 class WLTime {
 public:
     // 单调时钟当前值（纳秒）
-    static int64_t now_ns() {
+    static int64_t NowNs() {
         struct timespec ts;
         clock_gettime(CLOCK_MONOTONIC, &ts);
         return (int64_t)ts.tv_sec * 1000000000LL + ts.tv_nsec;
@@ -27,8 +27,8 @@ public:
     // 睡到单调时钟的绝对时刻 target_ns。
     // 返回 true = 确实睡了；false = target 已是过去（调用方按"落后"处理）。
     // 实现为 nanosleep 差值（对标 OBS os_sleepto_ns 语义）；精度不够时可换 mach_wait_until。
-    static bool sleep_to_ns(int64_t target_ns) {
-        int64_t d = target_ns - now_ns();
+    static bool SleepToNs(int64_t target_ns) {
+        int64_t d = target_ns - NowNs();
         if (d <= 0) return false;
         struct timespec req = {
             .tv_sec  = (time_t)(d / 1000000000LL),

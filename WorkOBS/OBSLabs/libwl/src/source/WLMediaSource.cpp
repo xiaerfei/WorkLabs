@@ -7,9 +7,9 @@
 //
 //  主循环串行执行：
 //    1. 控制检查（pause / stop / seek）
-//    2. receive_video   ← 尝试从 video codec 收帧
-//    3. receive_audio   ← 尝试从 audio codec 收帧
-//    4. read            ← 若两个 codec 都没产出，读下一个 pkt
+//    2. ReceiveVideo   ← 尝试从 video codec 收帧
+//    3. ReceiveAudio   ← 尝试从 audio codec 收帧
+//    4. Read           ← 若两个 codec 都没产出，读下一个 pkt
 //    5/6. 有帧 → pace（视频）→ 提取 CVPixelBufferRef → 基类缓冲
 //
 //  关键：步骤 2/3 在步骤 4 之前。
@@ -19,7 +19,7 @@
 
 #include "WLMediaSource.hpp"
 #include "WLSourceRegistry.hpp"
-#include "WLTime.hpp"            // now_ns / sleep_to_ns（全库同一把单调钟）
+#include "WLTime.hpp"            // NowNs / SleepToNs（全库同一把单调钟）
 #include <stdio.h>
 #include <stdlib.h>              // free
 #include <string.h>              // strdup
@@ -34,69 +34,69 @@ extern "C" {
 
 WLMediaSource::WLMediaSource(const char *path, const char *hw_type) {
     // 基类 ctor 已跑完（缓冲就绪）；本类成员逐个初始化
-    this->path     = strdup(path ? path : "");
-    decoder        = new WLDecoder(this->path, hw_type);
-    if (!decoder->valid()) {          // ctor 没有返回值，失败靠 valid() 暴露
-        delete decoder;
-        decoder = NULL;               // 本类的 valid() 就看这里是否为 NULL
+    path_          = strdup(path ? path : "");
+    decoder_       = new WLDecoder(path_, hw_type);
+    if (!decoder_->Valid()) {         // ctor 没有返回值，失败靠 Valid() 暴露
+        delete decoder_;
+        decoder_ = NULL;              // 本类的 Valid() 就看这里是否为 NULL
     }
-    thread_running = false;
-    atomic_init(&should_stop, false);
-    paused         = false;
-    eof            = false;
-    base_wall_ns   = 0;
-    first_pts_ns   = AV_NOPTS_VALUE;  // pacing 未锚定（0 是合法 pts，不能当哨兵）
-    pthread_mutex_init(&ctrl_mutex, NULL);
-    pthread_cond_init(&ctrl_cond, NULL);
+    thread_running_ = false;
+    atomic_init(&should_stop_, false);
+    paused_        = false;
+    eof_           = false;
+    base_wall_ns_  = 0;
+    first_pts_ns_  = AV_NOPTS_VALUE;  // pacing 未锚定（0 是合法 pts，不能当哨兵）
+    pthread_mutex_init(&ctrl_mutex_, NULL);
+    pthread_cond_init(&ctrl_cond_, NULL);
 }
 
 WLMediaSource::~WLMediaSource() {
-    stop();   // 先停线程（幂等）——必须在释放资源前，线程还在用它们；
+    Stop();   // 先停线程（幂等）——必须在释放资源前，线程还在用它们；
               // 也必须早于基类 dtor 清缓冲（生产者死透，缓冲才无并发）
 
-    if (decoder) delete decoder;
-    free(path);
-    pthread_mutex_destroy(&ctrl_mutex);
-    pthread_cond_destroy(&ctrl_cond);
+    if (decoder_) delete decoder_;
+    free(path_);
+    pthread_mutex_destroy(&ctrl_mutex_);
+    pthread_cond_destroy(&ctrl_cond_);
 }
 
 // ═════════════════ 控制（WLSource 虚接口）═════════════════
 
-int WLMediaSource::start() {
-    if (thread_running) return 0;   // 防重入
-    if (pthread_create(&thread, NULL, media_thread_func, this) != 0)
+int WLMediaSource::Start() {
+    if (thread_running_) return 0;   // 防重入
+    if (pthread_create(&thread_, NULL, MediaThreadFunc, this) != 0)
         return -1;
-    thread_running = true;   // 守卫：只有 start 成功，stop/dtor 才会 join
+    thread_running_ = true;   // 守卫：只有 Start 成功，Stop/dtor 才会 join
     return 0;
 }
 
-void WLMediaSource::stop() {
-    // 幂等：未 start（create 完直接销毁）或已停，都安全返回。
+void WLMediaSource::Stop() {
+    // 幂等：未 Start（create 完直接销毁）或已停，都安全返回。
     // 对已自行退出（EOF/error）的线程再 join 也安全，立即返回——双重 join 才是 UB，
-    // 而 thread_running 守卫保证全程只 join 一次。
-    if (!thread_running) return;
+    // 而 thread_running_ 守卫保证全程只 join 一次。
+    if (!thread_running_) return;
 
-    pthread_mutex_lock(&ctrl_mutex);
-    atomic_store(&should_stop, true); // 在锁内设 + signal，防 lost wakeup
-    pthread_cond_signal(&ctrl_cond);  // 唤醒可能在 pause 上挂起的线程
-    pthread_mutex_unlock(&ctrl_mutex);
+    pthread_mutex_lock(&ctrl_mutex_);
+    atomic_store(&should_stop_, true); // 在锁内设 + signal，防 lost wakeup
+    pthread_cond_signal(&ctrl_cond_);  // 唤醒可能在 pause 上挂起的线程
+    pthread_mutex_unlock(&ctrl_mutex_);
 
-    pthread_join(thread, NULL);
-    thread_running = false;
+    pthread_join(thread_, NULL);
+    thread_running_ = false;
 }
 
-void WLMediaSource::pause(bool paused) {
-    pthread_mutex_lock(&ctrl_mutex);
-    this->paused = paused;
-    if (!paused) pthread_cond_signal(&ctrl_cond); // 唤醒主循环
-    pthread_mutex_unlock(&ctrl_mutex);
+void WLMediaSource::Pause(bool paused) {
+    pthread_mutex_lock(&ctrl_mutex_);
+    paused_ = paused;
+    if (!paused) pthread_cond_signal(&ctrl_cond_); // 唤醒主循环
+    pthread_mutex_unlock(&ctrl_mutex_);
 }
 
-void WLMediaSource::seek(int64_t seek_ts_us) {
+void WLMediaSource::Seek(int64_t seek_ts_us) {
     // TODO: 设置 seek 标志 + seek_ts，由主循环执行 av_seek_frame
     // 当前 stub：直接 flush 解码器（不执行 seek，后续接入）
     (void)seek_ts_us;
-    decoder->flush();
+    decoder_->Flush();
 }
 
 // ═════════════════ 视频 pacing ═════════════════
@@ -105,46 +105,46 @@ void WLMediaSource::seek(int64_t seek_ts_us) {
  * 按视频帧 pts 把主循环节流到接近实时（对标 OBS mp_media_sleep）。
  *
  * 绝对基准法：
- *   - 第一帧：记下墙钟零点 base_wall_ns 与媒体零点 first_pts_ns，立即放行（不等）。
- *   - 之后每帧："发车墙钟时刻" target = base_wall_ns + (pts_ns - first_pts_ns)；
+ *   - 第一帧：记下墙钟零点 base_wall_ns_ 与媒体零点 first_pts_ns_，立即放行（不等）。
+ *   - 之后每帧："发车墙钟时刻" target = base_wall_ns_ + (pts_ns - first_pts_ns_)；
  *     未到 target 就睡到点。绝对基准不累积漂移，卡顿后自动追回。
  *
  * 依赖：WLDecoder 保证吐出的 pts_ns 不是 AV_NOPTS_VALUE（NOPTS 已在解码器侧外推兜底）。
  */
-void WLMediaSource::pace_video(int64_t pts_ns) {
-    if (first_pts_ns == AV_NOPTS_VALUE) {
-        base_wall_ns = WLTime::now_ns();
-        first_pts_ns = pts_ns;
+void WLMediaSource::PaceVideo(int64_t pts_ns) {
+    if (first_pts_ns_ == AV_NOPTS_VALUE) {
+        base_wall_ns_ = WLTime::NowNs();
+        first_pts_ns_ = pts_ns;
         return;
     }
 
-    int64_t target = base_wall_ns + (pts_ns - first_pts_ns); // 这帧应放出的墙钟时刻
+    int64_t target = base_wall_ns_ + (pts_ns - first_pts_ns_); // 这帧应放出的墙钟时刻
 
-    // 已到点/落后则立即放行（sleep_to_ns 对过去的 target 直接返回 false）
+    // 已到点/落后则立即放行（SleepToNs 对过去的 target 直接返回 false）
     // TODO(后续): sleep 不可被 stop/pause 打断，最坏要等约一帧间隔（~33ms）
     //   才响应停止；且异常大的 target（seek / 时间戳跳变）会傻睡。后续改为
-    //   pthread_cond_timedwait 复用 ctrl_cond（signal 即醒）+ 上限 clamp。
-    WLTime::sleep_to_ns(target);
+    //   pthread_cond_timedwait 复用 ctrl_cond_（signal 即醒）+ 上限 clamp。
+    WLTime::SleepToNs(target);
 }
 
 // ═════════════════ 解码主循环 ═════════════════
 
-void *WLMediaSource::media_thread_func(void *arg) {
-    ((WLMediaSource *)arg)->thread_loop();
+void *WLMediaSource::MediaThreadFunc(void *arg) {
+    ((WLMediaSource *)arg)->ThreadLoop();
     return NULL;
 }
 
-void WLMediaSource::thread_loop() {
-    while (!atomic_load(&should_stop)) {
+void WLMediaSource::ThreadLoop() {
+    while (!atomic_load(&should_stop_)) {
         // ── 1. 控制检查 ──
 
         // pause：在条件变量上挂起，直到 resume 或 stop
-        pthread_mutex_lock(&ctrl_mutex);
-        while (paused && !atomic_load(&should_stop)) {
-            pthread_cond_wait(&ctrl_cond, &ctrl_mutex);
+        pthread_mutex_lock(&ctrl_mutex_);
+        while (paused_ && !atomic_load(&should_stop_)) {
+            pthread_cond_wait(&ctrl_cond_, &ctrl_mutex_);
         }
-        pthread_mutex_unlock(&ctrl_mutex);
-        if (atomic_load(&should_stop)) break;
+        pthread_mutex_unlock(&ctrl_mutex_);
+        if (atomic_load(&should_stop_)) break;
 
         // TODO: 检查 seek 标志（flush + av_seek_frame）
 
@@ -153,15 +153,15 @@ void WLMediaSource::thread_loop() {
         {
             AVFrame *vframe = NULL;
             int64_t  vpts   = 0;
-            wl_frame_result_t vr = decoder->receive_video(&vframe, &vpts);
+            wl_frame_result_t vr = decoder_->ReceiveVideo(&vframe, &vpts);
             if (vr == WL_FRAME_OK) {
-                pace_video(vpts);   // 按 pts 节流到 ~实时
+                PaceVideo(vpts);   // 按 pts 节流到 ~实时
 
                 // 硬解帧零拷贝提取 CVPixelBufferRef → 基类缓冲统一入口
                 //（C 版这里是 output 回调跳到 wl_media_source.c；继承后直接调）
                 if (vframe->format == AV_PIX_FMT_VIDEOTOOLBOX) {
                     CVPixelBufferRef pb = (CVPixelBufferRef)vframe->data[3];
-                    if (pb) output_video(pb, vpts);
+                    if (pb) OutputVideo(pb, vpts);
                 }
                 // 软解（format != VIDEOTOOLBOX）：TODO sws_scale → CVPixelBuffer，M1 暂不支持
 
@@ -175,7 +175,7 @@ void WLMediaSource::thread_loop() {
         {
             AVFrame *aframe = NULL;
             int64_t  apts   = 0;
-            wl_frame_result_t ar = decoder->receive_audio(&aframe, &apts);
+            wl_frame_result_t ar = decoder_->ReceiveAudio(&aframe, &apts);
             if (ar == WL_FRAME_OK) {
                 // 音频未 pace：靠单线程串行"搭便车"被视频 sleep 间接节流。
                 // 临时日志（音频通用帧形态待 audio buffer 步定，暂不进缓冲）；
@@ -188,9 +188,9 @@ void WLMediaSource::thread_loop() {
         }
 
         // ── 4. 两个 codec 都没产出 → 读下一个 packet ──
-        if (eof) break;   // 文件已读完且 codec 已 drain，主循环结束
+        if (eof_) break;   // 文件已读完且 codec 已 drain，主循环结束
 
-        switch (decoder->read()) {
+        switch (decoder_->Read()) {
             case WL_READ_VIDEO:
             case WL_READ_AUDIO:
             case WL_READ_SKIP:
@@ -198,12 +198,12 @@ void WLMediaSource::thread_loop() {
 
             case WL_READ_EOF:
                 // 文件读完，codec 已被 flush（send NULL）；继续循环 drain 残余帧
-                eof = true;
+                eof_ = true;
                 break;
 
             case WL_READ_ERROR:
                 fprintf(stderr, "[WLMediaSource] read error, stopping\n");
-                atomic_store(&should_stop, true);
+                atomic_store(&should_stop_, true);
                 break;
         }
     }
@@ -211,11 +211,11 @@ void WLMediaSource::thread_loop() {
 
 // ═════════════════ 类型注册（原 vtable 桥接区，虚函数化后只剩工厂）═════════════════
 
-static WLSource *create_media_source(const char *settings) {
+static WLSource *CreateMediaSource(const char *settings) {
     if (!settings) return NULL;
 
     WLMediaSource *ms = new WLMediaSource(settings, "videotoolbox");
-    if (!ms->valid()) {        // decoder 打不开（路径/格式错）
+    if (!ms->Valid()) {        // decoder 打不开（路径/格式错）
         delete ms;
         return NULL;
     }
@@ -232,9 +232,9 @@ static const wl_source_type_info g_media_source_info = {
     .type         = WL_SOURCE_TYPE_INPUT,
     .output_flags = WL_SOURCE_ASYNC_VIDEO | WL_SOURCE_AUDIO,
     .type_name    = "Media File",
-    .create       = create_media_source,
+    .create       = CreateMediaSource,
 };
 
-void WLMediaSource::register_type() {
-    WLSourceRegistry::register_type(&g_media_source_info);
+void WLMediaSource::RegisterType() {
+    WLSourceRegistry::RegisterType(&g_media_source_info);
 }

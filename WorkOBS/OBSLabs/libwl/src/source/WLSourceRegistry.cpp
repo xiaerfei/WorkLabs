@@ -24,7 +24,7 @@ static struct {
     PTHREAD_MUTEX_INITIALIZER,
 };
 
-void WLSourceRegistry::register_type(const wl_source_type_info *info) {
+void WLSourceRegistry::RegisterType(const wl_source_type_info *info) {
     if (!info || !info->id) return;
 
     pthread_mutex_lock(&g_registry.mutex);
@@ -49,7 +49,7 @@ void WLSourceRegistry::register_type(const wl_source_type_info *info) {
     pthread_mutex_unlock(&g_registry.mutex);
 }
 
-void WLSourceRegistry::unregister_type(const char *id) {
+void WLSourceRegistry::UnregisterType(const char *id) {
     if (!id) return;
 
     pthread_mutex_lock(&g_registry.mutex);
@@ -63,7 +63,7 @@ void WLSourceRegistry::unregister_type(const char *id) {
     pthread_mutex_unlock(&g_registry.mutex);
 }
 
-const wl_source_type_info *WLSourceRegistry::find(const char *id) {
+const wl_source_type_info *WLSourceRegistry::Find(const char *id) {
     if (!id) return NULL;
 
     pthread_mutex_lock(&g_registry.mutex);

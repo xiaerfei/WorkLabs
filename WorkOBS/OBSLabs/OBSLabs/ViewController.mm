@@ -37,9 +37,9 @@
 
 - (void)viewDidAppear {
     [super viewDidAppear];
-    // startup 幂等（started 守卫）：最小化→恢复会重入这里，只有首次真正启动
-    if (WLCore::startup(30) != 0) {
-        NSLog(@"[ViewController] WLCore::startup 失败");
+    // Startup 幂等（started 守卫）：最小化→恢复会重入这里，只有首次真正启动
+    if (WLCore::Startup(30) != 0) {
+        NSLog(@"[ViewController] WLCore::Startup 失败");
         return;
     }
     NSWindow *win = self.view.window;

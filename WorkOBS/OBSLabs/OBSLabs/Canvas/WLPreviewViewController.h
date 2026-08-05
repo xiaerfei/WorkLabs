@@ -7,7 +7,7 @@
 //
 //  view = 预览外围深色区（previewArea），父控制器加约束定位即可。
 //  帧输出的挂/摘由父控制器显式编排（不依赖 viewDidAppear 传播顺序）：
-//    WLCore::startup 成功后 → startFrameOutput
+//    WLCore::Startup 成功后 → startFrameOutput
 //    窗口不可见时           → stopFrameOutput（摘输出不拆管线，恢复时重挂）
 //  浮层/源数据的生命周期跟管线（= app）走，窗口消失不清理；
 //  管线 shutdown 挂在 app 退出（AppDelegate）。

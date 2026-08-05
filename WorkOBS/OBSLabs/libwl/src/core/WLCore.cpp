@@ -7,7 +7,7 @@
 //  （dtor 会 join 解码线程，可能耗时，别堵住 tick）。
 //
 //  C 版 wl_source_create 的职责在这里拆开了：
-//    registry 查找 + 工厂调用 → add_source（本文件）
+//    registry 查找 + 工厂调用 → AddSource（本文件）
 //    缓冲分配                 → WLSource 基类 ctor
 //    失败清理                 → 工厂内 delete（见 WLMediaSource.cpp）
 //
@@ -39,15 +39,15 @@ static struct {
 
 // ---- 生命周期 ----
 
-int WLCore::startup(int fps) {
+int WLCore::Startup(int fps) {
     if (g_core.started) return 0;
     if (fps <= 0) return -1;   // C 版这个检查在 wl_graphics_create 里，移到入口处
 
     // 注册内置源类型（重复注册仅打 warning，安全）
-    WLMediaSource::register_type();
+    WLMediaSource::RegisterType();
 
     g_core.graphics = new WLGraphics(fps);
-    if (g_core.graphics->start() != 0) {
+    if (g_core.graphics->Start() != 0) {
         delete g_core.graphics;
         g_core.graphics = NULL;
         return -1;
@@ -57,7 +57,7 @@ int WLCore::startup(int fps) {
     return 0;
 }
 
-void WLCore::shutdown() {
+void WLCore::Shutdown() {
     if (!g_core.started) return;
 
     // 1. 先停节拍（dtor 内 join graphics 线程）——之后没人再遍历源列表
@@ -80,13 +80,13 @@ void WLCore::shutdown() {
 
 // ---- 源管理 ----
 
-WLSource *WLCore::add_source(const char *type_id, const char *settings) {
+WLSource *WLCore::AddSource(const char *type_id, const char *settings) {
     if (!g_core.started) {
-        fprintf(stderr, "[core] add_source before startup\n");
+        fprintf(stderr, "[core] AddSource before Startup\n");
         return NULL;
     }
 
-    const wl_source_type_info *info = WLSourceRegistry::find(type_id);
+    const wl_source_type_info *info = WLSourceRegistry::Find(type_id);
     if (!info) {
         fprintf(stderr, "[core] unknown source type '%s'\n", type_id ? type_id : "(null)");
         return NULL;
@@ -97,7 +97,7 @@ WLSource *WLCore::add_source(const char *type_id, const char *settings) {
         fprintf(stderr, "[core] create failed for type '%s'\n", info->id);
         return NULL;
     }
-    src->info = *info;   // 实例持有类型信息拷贝（对齐 obs_source_create，obs-source.c:450）
+    src->SetInfo(*info);   // 实例持有类型信息拷贝（对齐 obs_source_create，obs-source.c:450）
 
     pthread_mutex_lock(&g_core.mutex);
     if (g_core.count == WL_CORE_MAX_SOURCES) {
@@ -112,7 +112,7 @@ WLSource *WLCore::add_source(const char *type_id, const char *settings) {
     return src;
 }
 
-void WLCore::remove_source(WLSource *src) {
+void WLCore::RemoveSource(WLSource *src) {
     if (!src) return;
 
     // 出表（锁内）。拿锁即与 tick 遍历互斥：返回时保证 tick 不再触碰 src。
@@ -130,12 +130,12 @@ void WLCore::remove_source(WLSource *src) {
 
     // 销毁在锁外：dtor 内部 join 解码线程可能耗时，别堵住 tick
     if (found) delete src;
-    else fprintf(stderr, "[core] remove_source: source not in list\n");
+    else fprintf(stderr, "[core] RemoveSource: source not in list\n");
 }
 
 // ---- 遍历 ----
 
-void WLCore::foreach_source(void (*fn)(WLSource *src, void *ctx), void *ctx) {
+void WLCore::ForeachSource(void (*fn)(WLSource *src, void *ctx), void *ctx) {
     pthread_mutex_lock(&g_core.mutex);
     for (int i = 0; i < g_core.count; i++) {
         fn(g_core.sources[i], ctx);
@@ -145,6 +145,6 @@ void WLCore::foreach_source(void (*fn)(WLSource *src, void *ctx), void *ctx) {
 
 // ---- 输出 ----
 
-void WLCore::set_frame_output(wl_frame_output_cb cb, void *ctx) {
-    if (g_core.graphics) g_core.graphics->set_output(cb, ctx);
+void WLCore::SetFrameOutput(wl_frame_output_cb cb, void *ctx) {
+    if (g_core.graphics) g_core.graphics->SetOutput(cb, ctx);
 }
