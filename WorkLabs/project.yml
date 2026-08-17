@@ -11,17 +11,20 @@ targets:
     type: application
     platform: macOS
     sources:
-      - WorkLabs
+      - path: .
+        excludes:
+          - Pods
+          - LocalPodspecs
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.tvunetworks.partyline
       DEVELOPMENT_TEAM: YDEVQQ22JR
       CODE_SIGN_STYLE: Automatic
       CODE_SIGN_IDENTITY: Apple Development
     info:
-      path: WorkLabs/Info.plist
+      path: Info.plist
       properties:
         NSMainStoryboardFile: Main
         NSCameraUsageDescription: WorkLabs 需要访问摄像头以采集视频画面用于预览与推流。
         NSMicrophoneUsageDescription: WorkLabs 需要访问麦克风以采集音频用于混音、播放与录制。
     entitlements:
-      path: WorkLabs/WorkLabs.entitlements
+      path: WorkLabs.entitlements

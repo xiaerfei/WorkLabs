@@ -2,15 +2,15 @@ PODS:
   - ffmpeg-kit-local (1.0.0)
 
 DEPENDENCIES:
-  - ffmpeg-kit-local (from `../../LocalPodspecs/ffmpeg-kit-macos-full/`)
+  - ffmpeg-kit-local (from `../../WorkLabs/LocalPodspecs/ffmpeg-kit-macos-full/`)
 
 EXTERNAL SOURCES:
   ffmpeg-kit-local:
-    :path: "../../LocalPodspecs/ffmpeg-kit-macos-full/"
+    :path: "../../WorkLabs/LocalPodspecs/ffmpeg-kit-macos-full/"
 
 SPEC CHECKSUMS:
   ffmpeg-kit-local: 77e54a4fcc45dab294fc3f024483fd2030660f45
 
-PODFILE CHECKSUM: d5c287e751b42452ffef6b2dde9710173a48bd7c
+PODFILE CHECKSUM: bc2a34a5e0141f57265a0fa97fda779b77bb9fdd
 
 COCOAPODS: 1.16.2
