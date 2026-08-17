@@ -2,5 +2,5 @@ platform :osx, '15.2'
 
 target 'OBSLabs' do
   use_frameworks!
-  pod 'ffmpeg-kit-local', :path => '../../LocalPodspecs/ffmpeg-kit-macos-full/'
+  pod 'ffmpeg-kit-local', :path => '../../WorkLabs/LocalPodspecs/ffmpeg-kit-macos-full/'
 end

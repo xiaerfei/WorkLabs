@@ -2,7 +2,19 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Overview
+## Repository Structure
+
+This repo contains two independent projects sharing common docs (`Doc/`) and config (`CLAUDE.md`, `AGENTS.md`):
+
+```
+├── WorkLabs/   — macOS 多源合成器 app（OC + Metal + FFmpeg）
+├── WorkOBS/    — 音视频学习项目（C 内核 libwl + OC UI），独立工程
+├── Doc/        — 共用文档（调研 / 基础知识 / 规划）
+├── CLAUDE.md   — 本文件
+└── README.md
+```
+
+## WorkLabs — Project Overview
 
 WorkLabs is a macOS, OBS‑like multi‑source compositor. It takes live camera, FFmpeg‑decoded media‑file, and microphone sources, composites the video onto a configurable canvas (drag / resize / z‑order, WYSIWYG) with optional per‑source filters, mixes multi‑track audio, shows a live preview, and encodes the result once to feed both mp4 recording and RTMP streaming via FFmpeg.
 
@@ -20,14 +32,17 @@ Planned / not yet wired: network pull sources (RTMP/RTSP/HLS — `WLNetWorkSourc
 The `.xcodeproj` is generated from `project.yml` — **do not hand‑edit the project file**. After adding, removing, or moving source files you MUST regenerate, then reinstall pods (which re‑integrates the workspace):
 
 ```bash
+cd WorkLabs/
 xcodegen generate && pod install
 ```
 
-`sources: WorkLabs` in `project.yml` means the entire `WorkLabs/` directory tree is compiled — any `.h/.m/.mm/.metal` placed under it is picked up automatically on regeneration. `#import "X.h"` uses **bare filenames** resolved via Xcode's headermap, so source files can be moved between folders without editing any imports.
+`sources: .` in `project.yml` means the entire `WorkLabs/` directory tree is compiled — any `.h/.m/.mm/.metal` placed under it is picked up automatically on regeneration. `#import "X.h"` uses **bare filenames** resolved via Xcode's headermap, so source files can be moved between folders without editing any imports.
 
 ## Build & Run
 
 ```bash
+cd WorkLabs/
+
 # Install dependencies (run after cloning, editing the Podfile, or `xcodegen generate`)
 pod install
 
@@ -52,7 +67,7 @@ No unit tests exist yet. The app logs to the console for debugging.
 ### Directory layout (by pipeline responsibility)
 
 ```
-WorkLabs/
+WorkLabs/WorkLabs/
 ├─ App/      Entry + main window (main · AppDelegate · WLMainWindow/ViewController)
 ├─ Core/     Orchestration + canvas model (WLStreamsManager · WLCanvasModel)
 ├─ Source/   Input sources (WLStreamSourceProtocol)
@@ -115,9 +130,9 @@ Supporting types in `Common/`:
 
 - **ReactiveObjC** — reactive programming (limited use, see Code Style).
 - **Masonry** — Auto Layout DSL.
-- **ffmpeg‑kit‑local** — local pod in `LocalPodspecs/ffmpeg‑kit‑macos‑full/` providing FFmpeg frameworks (libavformat, libavcodec, libswscale, libswresample, …). LGPL build: VideoToolbox encoders (`h264_videotoolbox` / `hevc_videotoolbox`) and `aac_at` are available; there is **no** libx264. Use quoted includes (`#include "libavformat/avformat.h"`); the header search path is pre‑configured.
+- **ffmpeg‑kit‑local** — local pod in `WorkLabs/LocalPodspecs/ffmpeg‑kit‑macos‑full/` providing FFmpeg frameworks (libavformat, libavcodec, libswscale, libswresample, …). LGPL build: VideoToolbox encoders (`h264_videotoolbox` / `hevc_videotoolbox`) and `aac_at` are available; there is **no** libx264. Use quoted includes (`#include "libavformat/avformat.h"`); the header search path is pre‑configured.
 - **TPCircularBuffer** — lock‑free ring buffer.
-- **TVURSignal** — local pod in `LocalPodspecs/TVURSignal/`; **currently unused by the code** (still listed in the Podfile).
+- **TVURSignal** — local pod in `WorkLabs/LocalPodspecs/TVURSignal/`; **currently unused by the code** (still listed in the Podfile).
 
 ### Key stubs / incomplete areas
 
