@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TVUAnywhere 音视频管线全景</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --paper:  #f5f5f5;
+      --paper2: #ececec;
+      --ink:    #2d3142;
+      --muted:  #4f5d75;
+      --soft:   #7a8399;
+      --rule:   rgba(45,49,66,0.12);
+      --accent: #eb6c36;
+      --link:   #2e5aa8;
+      --sans:   'Geist', system-ui, sans-serif;
+      --serif:  'Instrument Serif', serif;
+      --mono:   'Geist Mono', ui-monospace, monospace;
+    }
+    body {
+      font-family: var(--sans);
+      background: var(--paper);
+      color: var(--ink);
+      padding: 3rem 2rem 4rem;
+      display: flex; justify-content: center;
+    }
+    .frame { max-width: 1320px; width: 100%; }
+    .eyebrow {
+      font-family: var(--mono); font-size: 0.66rem; font-weight: 500;
+      letter-spacing: 0.18em; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 0.5rem;
+    }
+    h1 {
+      font-family: var(--serif); font-size: clamp(1.6rem, 2.4vw + 0.75rem, 2.1rem);
+      font-weight: 400; letter-spacing: -0.02em; line-height: 1.15; margin-bottom: 0.5rem;
+    }
+    .lede { font-size: 0.9rem; color: var(--muted); line-height: 1.6; max-width: 62ch; margin-bottom: 1.75rem; }
+    svg { width: 100%; min-width: 980px; display: block; }
+    .cards {
+      display: grid; grid-template-columns: 1.15fr 1fr 0.95fr;
+      gap: 1rem; margin-top: 2rem;
+    }
+    .card { background: #ffffff; border: 1px solid var(--rule); border-radius: 6px; padding: 1.25rem; }
+    .card .eyebrow { margin-bottom: 0.65rem; }
+    .card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.65rem; }
+    .card-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+    .card-dot.ink { background: var(--ink); }
+    .card-dot.coral { background: var(--accent); }
+    .card-dot.muted { background: var(--muted); }
+    .card h3 { font-size: 0.86rem; font-weight: 600; }
+    .card ul { list-style: none; display: flex; flex-direction: column; gap: 0.45rem; }
+    .card li { font-size: 0.8rem; line-height: 1.5; color: var(--muted); padding-left: 0.85rem; position: relative; }
+    .card li::before { content: '·'; position: absolute; left: 0.2rem; color: var(--soft); }
+    .card code { font-family: var(--mono); font-size: 0.74rem; color: var(--ink); }
+    footer {
+      margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--rule);
+      font-family: var(--mono); font-size: 0.68rem; color: var(--soft); letter-spacing: 0.06em;
+    }
+    @media (max-width: 900px) { .cards { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">Architecture · TVUAnywhere iOS</p>
+    <h1>音视频管线全景 — 从采集到推流</h1>
+    <p class="lede">7 类采集源汇入 5 路视频队列与 3 套音频混音器，经合成分发后由硬件编码器编码，最终走 Mux 双链路交给 TVU 传输库。视频与音频在编码之前始终是两条独立的时间轴，只在 Mux 阶段按时间戳交错。</p>
+
+    <svg viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="ov-title ov-desc">
+      <title id="ov-title">TVUAnywhere 音视频管线全景</title>
+      <desc id="ov-desc">采集源分为五类视频源与两类音频源；视频源进入五路输入队列后由 handleWithSamplebuffer 合成分发，再经编码入口交给视频编码器；音频源进入三套混音器后交给音频编码器；两路编码输出汇入 Mux 双链路，最终由 TVU 传输库推向云端，另有录制、Partyline 与画中画预览三条旁路。</desc>
+      <defs>
+        <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+        <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/></marker>
+        <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#2e5aa8"/></marker>
+      </defs>
+
+      <rect width="100%" height="100%" fill="#f5f5f5"/>
+
+      <!-- ============ ZONES (drawn first) ============ -->
+      <rect x="40" y="56" width="340" height="564" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+      <rect x="56" y="60" width="128" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="120" y="69" fill="rgba(45,49,66,0.40)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.14em">01 · 采集源 SOURCES</text>
+
+      <rect x="420" y="56" width="400" height="564" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+      <rect x="436" y="60" width="164" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="518" y="69" fill="rgba(45,49,66,0.40)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.14em">02 · 合流与混音 MERGE &amp; MIX</text>
+
+      <rect x="860" y="56" width="380" height="564" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+      <rect x="876" y="60" width="172" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="962" y="69" fill="rgba(45,49,66,0.40)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.14em">03 · 编码与输出 ENCODE &amp; OUT</text>
+
+      <!-- video / audio divider inside zone A -->
+      <line x1="56" y1="452" x2="364" y2="452" stroke="rgba(45,49,66,0.12)" stroke-width="0.8"/>
+      <rect x="56" y="446" width="76" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="94" y="455" fill="rgba(45,49,66,0.40)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.14em">音频源</text>
+
+      <!-- ============ ARROWS (before boxes) ============ -->
+      <!-- A1 -> B1 (straight) -->
+      <line x1="352" y1="126" x2="452" y2="126" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <!-- A2 -> B1 -->
+      <path d="M 352,198 H 388 Q 396,198 396,190 V 150 Q 396,142 404,142 H 452" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <!-- A3 -> B1 -->
+      <path d="M 352,270 H 400 Q 408,270 408,262 V 166 Q 408,158 416,158 H 452" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <!-- A4 -> B1 -->
+      <path d="M 352,342 H 412 Q 420,342 420,334 V 182 Q 420,174 428,174 H 452" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <!-- A5 -> B3 (bypasses the merge stage) -->
+      <line x1="352" y1="414" x2="452" y2="414" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+      <rect x="358" y="392" width="92" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="404" y="401" fill="#2e5aa8" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">直送 · INDEX 100</text>
+      <!-- A6 -> B4 -->
+      <path d="M 352,490 H 364 Q 372,490 372,498 V 512 Q 372,520 380,520 H 452" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <!-- A7 -> B4 (straight) -->
+      <line x1="352" y1="562" x2="452" y2="562" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+      <!-- B1 -> B2 -->
+      <line x1="620" y1="204" x2="620" y2="248" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <rect x="628" y="214" width="72" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="664" y="223" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.06em" text-anchor="middle">出队 · 4 线程</text>
+      <!-- B2 -> B3 -->
+      <line x1="620" y1="328" x2="620" y2="372" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <!-- B3 -> C1 -->
+      <path d="M 788,408 H 828 Q 836,408 836,400 V 220 Q 836,212 844,212 H 892" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <rect x="844" y="290" width="56" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="872" y="299" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.06em" text-anchor="middle">NV12 帧</text>
+      <!-- B4 -> C2 -->
+      <path d="M 788,540 H 844 Q 852,540 852,532 V 328 Q 852,320 860,320 H 968" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <rect x="788" y="452" width="56" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="816" y="461" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.06em" text-anchor="middle">PCM 48K</text>
+
+      <!-- C1 -> C0 (bypass, dashed upward) -->
+      <line x1="940" y1="176" x2="940" y2="144" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+      <!-- C2 -> C0 (bypass, dashed upward) -->
+      <line x1="1160" y1="280" x2="1160" y2="144" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+      <!-- C1 -> C3 -->
+      <line x1="940" y1="248" x2="940" y2="396" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <!-- C2 -> C3 -->
+      <line x1="1160" y1="360" x2="1160" y2="396" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <!-- C3 -> C4 -->
+      <line x1="1050" y1="468" x2="1050" y2="504" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+      <!-- ============ NODES ============ -->
+      <!-- A1 -->
+      <rect x="64" y="100" width="288" height="52" rx="6" fill="#f5f5f5"/>
+      <rect x="64" y="100" width="288" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="72" y="106" width="32" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="88" y="115" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">CAM</text>
+      <text x="208" y="130" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">内置相机 · 双摄</text>
+      <text x="208" y="145" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">AVCaptureSession · index −1 / 1001</text>
+
+      <!-- A2 -->
+      <rect x="64" y="172" width="288" height="52" rx="6" fill="#f5f5f5"/>
+      <rect x="64" y="172" width="288" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="72" y="178" width="32" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="88" y="187" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">USB</text>
+      <text x="208" y="202" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">外接相机 UVC · SeeMo</text>
+      <text x="208" y="217" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">AVCapture external · H.264/265 裸流</text>
+
+      <!-- A3 -->
+      <rect x="64" y="244" width="288" height="52" rx="6" fill="#f5f5f5"/>
+      <rect x="64" y="244" width="288" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="72" y="250" width="32" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="88" y="259" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">EXT</text>
+      <text x="208" y="274" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">文件 · RTSP · 组播 · 图片</text>
+      <text x="208" y="289" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">FFmpeg 解析 · 槽位 row 0/1/2</text>
+
+      <!-- A4 -->
+      <rect x="64" y="316" width="288" height="52" rx="6" fill="#f5f5f5"/>
+      <rect x="64" y="316" width="288" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="72" y="322" width="32" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="88" y="331" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">DJI</text>
+      <text x="208" y="346" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">DJI OSMO 直连 · OA5 RTMP</text>
+      <text x="208" y="361" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">DJI SDK −1 · RTMP index 200</text>
+
+      <!-- A5 -->
+      <rect x="64" y="388" width="288" height="52" rx="6" fill="#f5f5f5"/>
+      <rect x="64" y="388" width="288" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="72" y="394" width="32" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="88" y="403" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">SCR</text>
+      <text x="208" y="418" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">屏幕录制 ReplayKit</text>
+      <text x="208" y="433" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Peertalk :2345 · index 100</text>
+
+      <!-- A6 (audio) -->
+      <rect x="64" y="464" width="288" height="52" rx="6" fill="#f5f5f5"/>
+      <rect x="64" y="464" width="288" height="52" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+      <rect x="72" y="470" width="32" height="12" rx="2" fill="transparent" stroke="rgba(122,131,153,0.60)" stroke-width="0.8"/>
+      <text x="88" y="479" fill="#4f5d75" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">MIC</text>
+      <text x="208" y="494" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">麦克风 · 蓝牙 · USB 音频</text>
+      <text x="208" y="509" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">TVURecorder → aacEncoder · −1</text>
+
+      <!-- A7 (audio) -->
+      <rect x="64" y="536" width="288" height="52" rx="6" fill="#f5f5f5"/>
+      <rect x="64" y="536" width="288" height="52" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+      <rect x="72" y="542" width="32" height="12" rx="2" fill="transparent" stroke="rgba(122,131,153,0.60)" stroke-width="0.8"/>
+      <text x="88" y="551" fill="#4f5d75" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">OVL</text>
+      <text x="208" y="566" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Overlay 音频 · 弹幕朗读</text>
+      <text x="208" y="581" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">WebView PCM · ChatTTS 合成</text>
+
+      <!-- B1 queues -->
+      <rect x="452" y="100" width="336" height="104" rx="6" fill="#f5f5f5"/>
+      <rect x="452" y="100" width="336" height="104" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <rect x="460" y="106" width="44" height="12" rx="2" fill="transparent" stroke="rgba(79,93,117,0.50)" stroke-width="0.8"/>
+      <text x="482" y="115" fill="#4f5d75" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">QUEUE</text>
+      <text x="620" y="136" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">5 路输入队列 + 3 路回填</text>
+      <text x="620" y="154" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Camera · MutiCamera · External</text>
+      <text x="620" y="170" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">OSMO · OSMORTMP</text>
+      <text x="620" y="190" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Render / Encoder / AutoPan 回填</text>
+
+      <!-- B2 focal -->
+      <rect x="452" y="248" width="336" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="452" y="248" width="336" height="80" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <rect x="460" y="254" width="44" height="12" rx="2" fill="transparent" stroke="rgba(235,108,54,0.50)" stroke-width="0.8"/>
+      <text x="482" y="263" fill="#eb6c36" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">MERGE</text>
+      <text x="620" y="284" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">handleWithSamplebuffer</text>
+      <text x="620" y="302" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">PIP / PBP / 双摄合成 · index 丢错位帧</text>
+      <text x="620" y="318" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Metal 直达可绕过 NV12 软合成</text>
+
+      <!-- B3 -->
+      <rect x="452" y="372" width="336" height="72" rx="6" fill="#f5f5f5"/>
+      <rect x="452" y="372" width="336" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="460" y="378" width="44" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="482" y="387" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">ENC-IN</text>
+      <text x="620" y="408" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">sendToEncoder 编码入口</text>
+      <text x="620" y="426" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Overlay GPU 水印 · PTS 守门 · I 帧决策</text>
+
+      <!-- B4 mixers -->
+      <rect x="452" y="496" width="336" height="88" rx="6" fill="#f5f5f5"/>
+      <rect x="452" y="496" width="336" height="88" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <rect x="460" y="502" width="44" height="12" rx="2" fill="transparent" stroke="rgba(79,93,117,0.50)" stroke-width="0.8"/>
+      <text x="482" y="511" fill="#4f5d75" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">MIXER</text>
+      <text x="620" y="534" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">三套独立音频混音器</text>
+      <text x="620" y="552" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">外部源 2 路 · Overlay 3 路 · 屏录 2 路</text>
+      <text x="620" y="570" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">mic 为节拍源 · 归一化叠加</text>
+
+      <!-- C0 bypass -->
+      <rect x="892" y="92" width="316" height="52" rx="6" fill="#f5f5f5"/>
+      <rect x="892" y="92" width="316" height="52" rx="6" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.20)" stroke-width="1" stroke-dasharray="4,3"/>
+      <rect x="900" y="98" width="36" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.30)" stroke-width="0.8"/>
+      <text x="918" y="107" fill="rgba(45,49,66,0.70)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">SIDE</text>
+      <text x="1050" y="122" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">旁路输出</text>
+      <text x="1050" y="137" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">.asf 录制 → MP4 · Agora · PiP 预览</text>
+
+      <!-- C1 video encoder -->
+      <rect x="892" y="176" width="240" height="72" rx="6" fill="#f5f5f5"/>
+      <rect x="892" y="176" width="240" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="900" y="182" width="40" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="920" y="191" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">VIDEO</text>
+      <text x="1012" y="212" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">视频编码 VideoToolbox</text>
+      <text x="1012" y="230" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">H.264 / H.265 · I 帧事件驱动</text>
+
+      <!-- C2 audio encoder -->
+      <rect x="968" y="280" width="240" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="968" y="280" width="240" height="80" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="976" y="286" width="40" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="996" y="295" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">AUDIO</text>
+      <text x="1088" y="316" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">音频编码 AAC</text>
+      <text x="1088" y="334" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">48k stereo · index 守门</text>
+      <text x="1088" y="350" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">VOIP / Partyline 二次混音</text>
+
+      <!-- C3 mux -->
+      <rect x="892" y="396" width="316" height="72" rx="6" fill="#f5f5f5"/>
+      <rect x="892" y="396" width="316" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="900" y="402" width="32" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="916" y="411" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">MUX</text>
+      <text x="1050" y="432" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Mux 双链路 · 时间戳交错</text>
+      <text x="1050" y="450" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">AVFormatControl ASF · libtvulive2 · SEI</text>
+
+      <!-- C4 focal transport -->
+      <rect x="892" y="504" width="316" height="72" rx="6" fill="#f5f5f5"/>
+      <rect x="892" y="504" width="316" height="72" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <rect x="900" y="510" width="32" height="12" rx="2" fill="transparent" stroke="rgba(235,108,54,0.50)" stroke-width="0.8"/>
+      <text x="916" y="519" fill="#eb6c36" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">NET</text>
+      <text x="1050" y="540" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">TVU 传输库 → 云端</text>
+      <text x="1050" y="558" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">分块 · 重传 · 拥塞控制 · 码率反馈</text>
+
+      <!-- ============ LEGEND ============ -->
+      <line x1="40" y1="644" x2="1240" y2="644" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+      <text x="40" y="662" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">图例</text>
+
+      <rect x="96" y="653" width="16" height="11" rx="2" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="120" y="662" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">视频源 / 处理级</text>
+
+      <rect x="252" y="653" width="16" height="11" rx="2" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+      <text x="276" y="662" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">音频源</text>
+
+      <rect x="356" y="653" width="16" height="11" rx="2" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <text x="380" y="662" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">队列 / 缓冲</text>
+
+      <rect x="488" y="653" width="16" height="11" rx="2" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <text x="512" y="662" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">链路关键节点</text>
+
+      <rect x="644" y="653" width="16" height="11" rx="2" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.20)" stroke-width="1" stroke-dasharray="4,3"/>
+      <text x="668" y="662" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">旁路 / 可选</text>
+
+      <line x1="792" y1="658" x2="828" y2="658" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <text x="840" y="662" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">主链路</text>
+
+      <line x1="924" y1="658" x2="960" y2="658" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+      <text x="972" y="662" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">绕过合成直送编码</text>
+
+      <line x1="1128" y1="658" x2="1164" y2="658" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+      <text x="1176" y="662" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">旁路</text>
+    </svg>
+
+    <div class="cards">
+      <div class="card">
+        <p class="eyebrow">源隔离机制</p>
+        <div class="card-header"><span class="card-dot coral"></span><h3>externalSourceIndex 贯穿全程</h3></div>
+        <ul>
+          <li>入队时丢弃非活跃源的错位帧（<code>AddBufferToWorkQueue</code>）</li>
+          <li>编码前 PTS 守门判切源（<code>checkSampleBufferPTSForEncode</code>）</li>
+          <li>音频编码器按 index 整块丢弃：屏录 <code>100</code> 生效期间，本地 <code>−1</code> 的帧全部丢掉</li>
+          <li>DJI 接管期间只收 <code>200</code>，混出帧的 index 取自主源</li>
+        </ul>
+      </div>
+      <div class="card">
+        <p class="eyebrow">两条互斥推流链路</p>
+        <div class="card-header"><span class="card-dot ink"></span><h3>isEnableFrameTransfer 决定走哪条</h3></div>
+        <ul>
+          <li>关：<code>AVFormatControl</code> → ASF mux → <code>CTVUTransporterT</code></li>
+          <li>开：<code>TVULiveMediaCenter</code> → <code>libtvulive2_mux_frame</code> → <code>SendMsg_SendFrameData</code></li>
+          <li>两链路都在 Mux 阶段按时间戳把音视频交错成单调序列</li>
+          <li>推流前置双门槛：<code>g_livestate &amp;&amp; ntpSynced</code></li>
+        </ul>
+      </div>
+      <div class="card">
+        <p class="eyebrow">越过合成层的两条捷径</p>
+        <div class="card-header"><span class="card-dot muted"></span><h3>不是所有帧都走合成</h3></div>
+        <ul>
+          <li>纯内置相机：<code>isOnlyBuildInCameraStream</code> 直通编码</li>
+          <li>屏幕录制：直送 <code>TVUEncoderQueue</code>，整帧无需 PIP/PBP</li>
+          <li>双摄 Metal 直达：GPU 直渲预览 + 异步交付编码</li>
+        </ul>
+      </div>
+    </div>
+
+    <footer>TVUAnywhere iOS · share/SPAR-705 @ bc4021368 · 2026-08-24 · Diagram Design 2.6.1</footer>
+  </div>
+</body>
+</html>

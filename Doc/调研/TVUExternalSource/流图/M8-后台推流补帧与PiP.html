@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>后台推流补帧与画中画 — 一个方法一个盒子</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{--paper:#f5f5f5;--ink:#2d3142;--muted:#4f5d75;--soft:#7a8399;--rule:rgba(45,49,66,0.12);--accent:#eb6c36;
+        --sans:'Geist',system-ui,sans-serif;--serif:'Instrument Serif',serif;--mono:'Geist Mono',ui-monospace,monospace}
+  body{font-family:var(--sans);background:var(--paper);color:var(--ink);padding:3rem 2rem 4rem}
+  .frame{max-width:1760px;margin:0 auto}
+  .eyebrow{font-family:var(--mono);font-size:.66rem;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem}
+  h1{font-family:var(--serif);font-size:clamp(1.6rem,2.4vw + .75rem,2.1rem);font-weight:400;letter-spacing:-.02em;line-height:1.15;margin-bottom:.5rem}
+  .lede{font-size:.9rem;color:var(--muted);line-height:1.6;max-width:74ch;margin-bottom:1rem}
+  .hint{font-family:var(--mono);font-size:.68rem;color:var(--soft);margin-bottom:.75rem;letter-spacing:.04em}
+  .scroll{overflow-x:auto;border:1px solid var(--rule);border-radius:8px;background:#fff}
+  svg{display:block;min-width:2364px;width:2364px;height:auto}
+  .cards{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:1rem;margin-top:2rem}
+  .card{background:#fff;border:1px solid var(--rule);border-radius:6px;padding:1.25rem}
+  .card .eyebrow{margin-bottom:.65rem}
+  .card-header{display:flex;align-items:center;gap:.5rem;margin-bottom:.65rem}
+  .card-dot{width:7px;height:7px;border-radius:50%;flex:none}
+  .card-dot.ink{background:var(--ink)} .card-dot.coral{background:var(--accent)} .card-dot.muted{background:var(--muted)}
+  .card h3{font-size:.86rem;font-weight:600}
+  .card ul{list-style:none;display:flex;flex-direction:column;gap:.45rem}
+  .card li{font-size:.8rem;line-height:1.5;color:var(--muted);padding-left:.85rem;position:relative}
+  .card li::before{content:'·';position:absolute;left:.2rem;color:var(--soft)}
+  .card code{font-family:var(--mono);font-size:.74rem;color:var(--ink)}
+  footer{margin-top:2.5rem;padding-top:1rem;border-top:1px solid var(--rule);font-family:var(--mono);font-size:.68rem;color:var(--soft);letter-spacing:.06em}
+  @media (max-width:900px){.cards{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="frame">
+  <p class="eyebrow">Call graph · 方法级 M8</p>
+  <h1>后台推流补帧与画中画 — 一个方法一个盒子</h1>
+  <p class="lede">编码器拿到的那一帧同时驱动画中画和补帧器。橙色是三处关键取舍：喂点位置、补帧率降档、合成帧标记。虚线是回灌路径。</p>
+  <p class="hint">← 图宽 2364px，可横向拖动 →</p>
+  <div class="scroll">
+<svg viewBox="0 0 2364 940" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="m8-title m8-desc">
+  <title id="m8-title">后台推流补帧与画中画 · 方法级调用图</title>
+  <desc id="m8-desc">编码器实际拿到的那一帧被喂给统一喂点，同时驱动画中画窗口与补帧器。Plan A 靠 multitasking camera access 权限让相机在后台继续出帧；相机冻帧后补帧器自动接手，把最后一帧高斯模糊后按降档帧率持续重发，合成的待机帧带标记回灌编码器且不会二次进入喂点。</desc>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+    <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/></marker>
+    <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#2e5aa8"/></marker>
+  </defs>
+  <rect width="100%" height="100%" fill="#f5f5f5"/>
+  <rect x="80" y="108" width="500" height="424" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+  <rect x="96" y="102" width="130" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="104" y="111" fill="rgba(45,49,66,0.55)" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.10em">① 统一喂点（在 sendToEncoder 内）</text>
+  <rect x="648" y="108" width="480" height="424" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+  <rect x="664" y="102" width="195" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="672" y="111" fill="rgba(45,49,66,0.55)" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.10em">② TVUBackgroundStreamingManager   状态与闸门</text>
+  <rect x="1196" y="108" width="520" height="424" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+  <rect x="1212" y="102" width="130" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="1220" y="111" fill="rgba(45,49,66,0.55)" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.10em">③ TVUVideoGapFiller   补帧器</text>
+  <rect x="1784" y="108" width="500" height="424" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+  <rect x="1800" y="102" width="48" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="1808" y="111" fill="rgba(45,49,66,0.55)" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.10em">④ 回灌编码器</text>
+  <rect x="648" y="560" width="1068" height="320" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+  <rect x="664" y="554" width="71" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="672" y="563" fill="rgba(45,49,66,0.55)" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.10em">⑤ 画中画窗口（第二带）</text>
+  <path d="M 330.0,180 L 330.0,196" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 330.0,248 L 330.0,264" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <rect x="340.0" y="250.0" width="29" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="354.5" y="259.0" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">不是</text>
+  <path d="M 330.0,316 L 330.0,332" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 888.0,180 L 888.0,196" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 888.0,248 L 888.0,264" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 888.0,316 L 888.0,332" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 888.0,384 L 888.0,400" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 540,290.0 H 606 Q 614,290.0 614,282.0 V 162.0 Q 614,154.0 622,154.0 H 688" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 1456.0,180 L 1456.0,196" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 1456.0,248 L 1456.0,264" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 1456.0,316 L 1456.0,332" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 1456.0,384 L 1456.0,400" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 1088,290.0 H 1154 Q 1162,290.0 1162,282.0 V 162.0 Q 1162,154.0 1170,154.0 H 1236" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <rect x="1139.0" y="216.0" width="46" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="1162.0" y="225.0" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">喂真实帧</text>
+  <path d="M 2034.0,248 L 2034.0,264" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 2034.0,316 L 2034.0,332" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 1676,426.0 H 1742 Q 1750,426.0 1750,418.0 V 230.0 Q 1750,222.0 1758,222.0 H 1824" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <rect x="1731.5" y="318.0" width="37" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="1750.0" y="327.0" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">待机帧</text>
+  <path d="M 2034.0,384 V 536 Q 2034.0,544 2026.0,544 H 104 Q 96,544 96,536 V 230.0 Q 96,222.0 104,222.0 H 120" fill="none" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+  <rect x="1062.5" y="524" width="29" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="1077.0" y="533" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">回灌</text>
+  <path d="M 898.0,640 L 898.0,656" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 1108,682.0 H 1140 Q 1148,682.0 1148,674.0 V 622.0 Q 1148,614.0 1156,614.0 H 1188" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 1398.0,640 L 1398.0,656" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 888.0,452 V 512.0 Q 888.0,520.0 896.0,520.0 H 890.0 Q 898.0,520.0 898.0,528.0 V 588" fill="none" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+  <rect x="874.5" y="432" width="37" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="893.0" y="441" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">进后台</text>
+  <path d="M 1456.0,452 V 528 Q 1456.0,536 1448.0,536 H 1406.0 Q 1398.0,536 1398.0,544 V 588" fill="none" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+  <rect x="1404.0" y="516" width="46" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="1427.0" y="525" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">待机画面</text>
+  <rect x="120" y="128" width="420" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="120" y="128" width="420" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="330.0" y="151.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">sendToEncoderWithSamplebuffer(…)</text>
+  <text x="330.0" y="166.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">M4 的最后一步</text>
+  <rect x="120" y="196" width="420" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="120" y="196" width="420" height="52" rx="6" fill="#ffffff" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="330.0" y="219.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">CMGetAttachment(sb, …SynthesizedFrameKey)</text>
+  <text x="330.0" y="234.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">查是不是补帧器自己合成的</text>
+  <rect x="120" y="264" width="420" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="120" y="264" width="420" height="52" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+  <text x="330.0" y="287.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">-enqueueCameraSampleBuffer:</text>
+  <text x="330.0" y="302.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">喂的就是编码器实际拿到的那一帧</text>
+  <rect x="120" y="332" width="420" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="120" y="332" width="420" height="52" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+  <text x="330.0" y="355.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">[[TVUVideoEncoderManager manager] encode:…]</text>
+  <text x="330.0" y="370.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">主链继续往下走</text>
+  <rect x="688" y="128" width="400" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="688" y="128" width="400" height="52" rx="6" fill="#ffffff" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="888.0" y="151.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">isEnabled &amp;&amp; isStreaming</text>
+  <text x="888.0" y="166.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">= shouldKeepStreamingInBackground</text>
+  <rect x="688" y="196" width="400" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="688" y="196" width="400" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="888.0" y="219.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">-applicationDidEnterBackground</text>
+  <text x="888.0" y="234.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">宿主转发生命周期</text>
+  <rect x="688" y="264" width="400" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="688" y="264" width="400" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="888.0" y="287.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">liveFrameRate</text>
+  <text x="888.0" y="302.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">宿主在开播时写入实时编码帧率</text>
+  <rect x="688" y="332" width="400" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="688" y="332" width="400" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="888.0" y="355.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">pipelineKeptAliveAcrossBackground</text>
+  <text x="888.0" y="370.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">记录上次是否跳过了拆管线</text>
+  <rect x="688" y="400" width="400" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="688" y="400" width="400" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="888.0" y="423.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">inBackground</text>
+  <text x="888.0" y="438.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">预览渲染器据此跳过渲染</text>
+  <rect x="1236" y="128" width="440" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="1236" y="128" width="440" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="1456.0" y="151.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">-onCapturedSampleBuffer:</text>
+  <text x="1456.0" y="166.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">每帧真实帧都喂 · 重置计时</text>
+  <rect x="1236" y="196" width="440" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="1236" y="196" width="440" height="52" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+  <text x="1456.0" y="219.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">+standbyFrameRateForLiveFrameRate:</text>
+  <text x="1456.0" y="234.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">50/60 → 25 · 25/30 → 10</text>
+  <rect x="1236" y="264" width="440" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="1236" y="264" width="440" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="1456.0" y="287.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">-startFillingWithHandler:</text>
+  <text x="1456.0" y="302.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">起周期 tick</text>
+  <rect x="1236" y="332" width="440" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="1236" y="332" width="440" height="52" rx="6" fill="#ffffff" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="1456.0" y="355.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">距上一真实帧超过阈值 ?</text>
+  <text x="1456.0" y="370.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">才认定为「有缺口」</text>
+  <rect x="1236" y="400" width="440" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="1236" y="400" width="440" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="1456.0" y="423.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">-newBlurredLatestSampleBuffer</text>
+  <text x="1456.0" y="438.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">高斯模糊一次，之后复用</text>
+  <rect x="1824" y="196" width="420" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="1824" y="196" width="420" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="2034.0" y="219.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">PTS 持续推进</text>
+  <text x="2034.0" y="234.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">编码器与服务端都看不到断流</text>
+  <rect x="1824" y="264" width="420" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="1824" y="264" width="420" height="52" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+  <text x="2034.0" y="287.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">打 SynthesizedFrameKey 标记</text>
+  <text x="2034.0" y="302.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">kCFBooleanTrue</text>
+  <rect x="1824" y="332" width="420" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="1824" y="332" width="420" height="52" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+  <text x="2034.0" y="355.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">reinjectFrameHandler(sb)</text>
+  <text x="2034.0" y="370.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">宿主注入的 block</text>
+  <rect x="688" y="588" width="420" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="688" y="588" width="420" height="52" rx="6" fill="#ffffff" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="898.0" y="611.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">showPiPEnabled</text>
+  <text x="898.0" y="626.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">用户设置 · 默认 YES</text>
+  <rect x="688" y="656" width="420" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="688" y="656" width="420" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="898.0" y="679.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">-updatePictureInPictureState</text>
+  <text x="898.0" y="694.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">设置或推流状态变了就重评</text>
+  <rect x="1188" y="588" width="420" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="1188" y="588" width="420" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="1398.0" y="611.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">TVUSampleBufferDisplayView</text>
+  <text x="1398.0" y="626.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">裸 display layer 宿主视图</text>
+  <rect x="1188" y="656" width="420" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="1188" y="656" width="420" height="52" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+  <text x="1398.0" y="679.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">系统 PiP 窗口</text>
+  <text x="1398.0" y="694.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">宿主没挂就自己挂到 keyWindow 离屏</text>
+  <text x="120" y="472" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">查这个 key 是为了防模糊叠加：补帧器合成的帧会回灌到这里，</text>
+  <text x="120" y="487" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">再进一次喂点就会重置「最后一帧」计时器并二次模糊</text>
+  <text x="120" y="502" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">喂点覆盖单摄 / 双摄合成 / 外部源全部场景，是唯一入口</text>
+  <text x="688" y="472" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">shouldKeepStreamingInBackground 为真时宿主不能停采集 / 关编码器 / OffAir</text>
+  <text x="688" y="487" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">它整个直播期间恒为真，不等于「当前在后台」——所以「跳过重新初始化」</text>
+  <text x="688" y="502" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">要用 pipelineKeptAliveAcrossBackground 判，否则二级页面返回会误跳编码器重启</text>
+  <text x="1236" y="472" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">50fps 直降固定 10fps 会让后台硬编停止出包，画面冻在前台最后一帧，</text>
+  <text x="1236" y="487" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">模糊根本到不了线上（30 → 10 这种适度降幅可以）。blurRadius 默认 40，按 1920px 归一化</text>
+  <text x="1236" y="502" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">真实帧一恢复，待机状态自动清除 —— 没有显式的「退出待机」调用</text>
+  <text x="1824" y="472" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">reinjectFrameHandler 由宿主设置，内部调 sendToEncoderWithSamplebuffer ——</text>
+  <text x="1824" y="487" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">编码器调用始终留在 TVUAnywhereSDK 里，补帧模块不直接依赖编码器</text>
+  <text x="1824" y="502" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">回灌帧走完整 M4 链路（含 Overlay 判断），只是喂点那一步被 key 挡掉</text>
+  <text x="688" y="792" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">Plan A：相机在后台继续出帧 → PiP 显示实时画面</text>
+  <text x="688" y="807" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">Plan B：相机冻帧 → PiP 显示模糊的待机画面（同一个 display layer）</text>
+  <text x="688" y="822" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">停 PiP 时用 newBlurredLatestSampleBuffer 把画面冻在一张模糊帧上</text>
+  <text x="688" y="837" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">后台时预览渲染器要跳过渲染：预览不可见，PiP 从专用层取，渲染是白费 GPU</text>
+  <line x1="40" y1="896" x2="2324" y2="896" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+  <text x="40" y="914" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">图例</text>
+  <rect x="96" y="905" width="16" height="11" rx="2" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="120" y="914" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">方法调用</text>
+  <rect x="192" y="905" width="16" height="11" rx="2" fill="#ffffff" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="216" y="914" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">条件判断</text>
+  <rect x="288" y="905" width="16" height="11" rx="2" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+  <text x="312" y="914" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">关键取舍</text>
+  <rect x="384" y="905" width="16" height="11" rx="2" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+  <text x="408" y="914" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">出口</text>
+  <line x1="464" y1="910" x2="500" y2="910" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <text x="508" y="914" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">同线程调用</text>
+  <line x1="589" y1="910" x2="625" y2="910" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+  <text x="633" y="914" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">回灌 / 条件性</text>
+</svg>
+  </div>
+  <div class="cards">
+    <div class="card">
+      <p class="eyebrow">A / B 双方案的降级</p>
+      <div class="card-header"><span class="card-dot coral"></span><h3>没有显式的权限探测</h3></div>
+      <ul>
+          <li>补帧器只在「新帧停止到达」时才介入 —— 所以 Plan A → Plan B 是自然降级</li>
+          <li>不需要先查 multitasking camera access 权限，也不需要设备白名单</li>
+          <li>真实帧恢复后待机状态自动清除，同样没有显式切换</li>
+          <li>两个方案共用同一个 display layer，PiP 侧无感</li>
+      </ul>
+    </div>
+    <div class="card">
+      <p class="eyebrow">补帧率为什么必须跟着降</p>
+      <div class="card-header"><span class="card-dot ink"></span><h3>降幅过大后台硬编直接停摆</h3></div>
+      <ul>
+          <li>50 / 60 fps → 25；25 / 30 fps → 10；低于 25fps 用原速率，上限 10（从不上调）</li>
+          <li>50fps 直降固定 10fps：后台硬件编码器停止出包，画面冻在前台最后一帧</li>
+          <li>结果是模糊帧根本到不了线上 —— 看起来像「补帧没生效」</li>
+          <li>宿主要在<strong>进后台之前</strong>写好 <code>liveFrameRate</code></li>
+      </ul>
+    </div>
+    <div class="card">
+      <p class="eyebrow">防止模糊叠加的那个标记</p>
+      <div class="card-header"><span class="card-dot muted"></span><h3>回灌帧必须被喂点识别出来</h3></div>
+      <ul>
+          <li>合成帧带 <code>kTVUBackgroundStreamingSynthesizedFrameKey</code></li>
+          <li>喂点用 <code>CMGetAttachment</code> 查到就跳过 <code>enqueueCameraSampleBuffer:</code></li>
+          <li>不跳过的话：重置「最后一帧」计时器 + 在已模糊的帧上再模糊一次</li>
+          <li>回灌帧仍走完整 M4 链路，只是不再进喂点</li>
+      </ul>
+    </div>
+  </div>
+  <footer>TVUAnywhere iOS · share/SPAR-705 @ bc4021368 · 2026-08-24 · Diagram Design 2.6.1</footer>
+</div>
+</body>
+</html>

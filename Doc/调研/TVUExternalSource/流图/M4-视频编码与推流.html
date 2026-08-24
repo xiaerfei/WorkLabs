@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>视频编码与推流 — 一个方法一个盒子</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{--paper:#f5f5f5;--ink:#2d3142;--muted:#4f5d75;--soft:#7a8399;--rule:rgba(45,49,66,0.12);--accent:#eb6c36;
+        --sans:'Geist',system-ui,sans-serif;--serif:'Instrument Serif',serif;--mono:'Geist Mono',ui-monospace,monospace}
+  body{font-family:var(--sans);background:var(--paper);color:var(--ink);padding:3rem 2rem 4rem}
+  .frame{max-width:1760px;margin:0 auto}
+  .eyebrow{font-family:var(--mono);font-size:.66rem;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem}
+  h1{font-family:var(--serif);font-size:clamp(1.6rem,2.4vw + .75rem,2.1rem);font-weight:400;letter-spacing:-.02em;line-height:1.15;margin-bottom:.5rem}
+  .lede{font-size:.9rem;color:var(--muted);line-height:1.6;max-width:74ch;margin-bottom:1rem}
+  .hint{font-family:var(--mono);font-size:.68rem;color:var(--soft);margin-bottom:.75rem;letter-spacing:.04em}
+  .scroll{overflow-x:auto;border:1px solid var(--rule);border-radius:8px;background:#fff}
+  svg{display:block;min-width:3240px;width:3240px;height:auto}
+  .cards{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:1rem;margin-top:2rem}
+  .card{background:#fff;border:1px solid var(--rule);border-radius:6px;padding:1.25rem}
+  .card .eyebrow{margin-bottom:.65rem}
+  .card-header{display:flex;align-items:center;gap:.5rem;margin-bottom:.65rem}
+  .card-dot{width:7px;height:7px;border-radius:50%;flex:none}
+  .card-dot.ink{background:var(--ink)} .card-dot.coral{background:var(--accent)} .card-dot.muted{background:var(--muted)}
+  .card h3{font-size:.86rem;font-weight:600}
+  .card ul{list-style:none;display:flex;flex-direction:column;gap:.45rem}
+  .card li{font-size:.8rem;line-height:1.5;color:var(--muted);padding-left:.85rem;position:relative}
+  .card li::before{content:'·';position:absolute;left:.2rem;color:var(--soft)}
+  .card code{font-family:var(--mono);font-size:.74rem;color:var(--ink)}
+  footer{margin-top:2.5rem;padding-top:1rem;border-top:1px solid var(--rule);font-family:var(--mono);font-size:.68rem;color:var(--soft);letter-spacing:.06em}
+  @media (max-width:900px){.cards{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="frame">
+  <p class="eyebrow">Call graph · 方法级 M4</p>
+  <h1>视频编码与推流 — 一个方法一个盒子</h1>
+  <p class="lede">从 <code>sendToEncoderWithSamplebuffer</code> 到两条互斥推流链路的逐方法调用图。这一段取代了语雀旧图里已失效的「编码器扇出 → Record + 传输」。</p>
+  <p class="hint">← 图宽 3240px，可横向拖动 →</p>
+  <div class="scroll">
+<svg viewBox="0 0 3240 760" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="m4-title m4-desc">
+  <title id="m4-title">视频编码与推流 · 方法级调用图</title>
+  <desc id="m4-desc">sendToEncoderWithSamplebuffer 里依次做 PTS 守门、缩略图、Overlay 合成、I 帧决策与后台喂点，然后调 TVUVideoEncoderManager 的 encode:isNeedKeyFrame:externalSourceIndex:；H.264 / H.265 各自送进 VTCompressionSessionEncodeFrame，回调里算 dts、拼 SPS/PPS，最后按 isEnableFrameTransfer 走 ASF mux 或 libtvulive2 两条互斥链路，另有录制旁路。</desc>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+    <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/></marker>
+    <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#2e5aa8"/></marker>
+  </defs>
+  <rect width="100%" height="100%" fill="#f5f5f5"/>
+  <rect x="80" y="108" width="460" height="560" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+  <rect x="96" y="102" width="241" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="104" y="111" fill="rgba(45,49,66,0.55)" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.10em">① sendToEncoderWithSamplebuffer 前段   〔encoder 线程〕</text>
+  <rect x="608" y="108" width="460" height="560" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+  <rect x="624" y="102" width="177" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="632" y="111" fill="rgba(45,49,66,0.55)" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.10em">② Overlay 合成（IRL / TVUOnlyAnyWhere）</text>
+  <rect x="1136" y="108" width="460" height="560" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+  <rect x="1152" y="102" width="80" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="1160" y="111" fill="rgba(45,49,66,0.55)" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.10em">③ I 帧决策 + 后台喂点</text>
+  <rect x="1664" y="108" width="420" height="560" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+  <rect x="1680" y="102" width="328" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="1688" y="111" fill="rgba(45,49,66,0.55)" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.10em">④ TVUVideoEncoderManager -encode:isNeedKeyFrame:externalSourceIndex:</text>
+  <rect x="2152" y="108" width="440" height="560" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+  <rect x="2168" y="102" width="117" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="2176" y="111" fill="rgba(45,49,66,0.55)" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.10em">⑤ VideoToolbox 压缩 + 回调</text>
+  <rect x="2660" y="108" width="500" height="560" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+  <rect x="2676" y="102" width="108" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="2684" y="111" fill="rgba(45,49,66,0.55)" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.10em">⑥ 出口：两条互斥推流链路 + 录制旁路</text>
+  <path d="M 310.0,180 L 310.0,196" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 310.0,248 L 310.0,264" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 310.0,316 L 310.0,332" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 310.0,384 L 310.0,400" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <rect x="320.0" y="386.0" width="24" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="332.0" y="395.0" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">是</text>
+  <path d="M 838.0,180 L 838.0,196" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 838.0,248 L 838.0,264" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 738.0,316 L 738.0,332" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <rect x="748.0" y="318.0" width="46" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="771.0" y="327.0" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">内置模板</text>
+  <path d="M 938.0,316 L 938.0,332" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <rect x="948.0" y="318.0" width="98" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="997.0" y="327.0" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">常规 overlay</text>
+  <path d="M 500,290.0 H 566 Q 574,290.0 574,282.0 V 162.0 Q 574,154.0 582,154.0 H 648" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <rect x="562.0" y="216.0" width="24" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="574.0" y="225.0" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">否</text>
+  <path d="M 1366.0,180 L 1366.0,196" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 1366.0,248 L 1366.0,264" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 1366.0,316 L 1366.0,332" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 1366.0,384 L 1366.0,400" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 1028,358.0 H 1094 Q 1102,358.0 1102,350.0 V 162.0 Q 1102,154.0 1110,154.0 H 1176" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 1874.0,180 L 1874.0,196" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <rect x="1884.0" y="182.0" width="24" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="1896.0" y="191.0" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">是</text>
+  <path d="M 1874.0,248 L 1874.0,264" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 1874.0,316 L 1874.0,332" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <rect x="1884.0" y="318.0" width="24" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="1896.0" y="327.0" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">是</text>
+  <path d="M 1874.0,384 L 1874.0,400" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 1556,426.0 H 1622 Q 1630,426.0 1630,418.0 V 162.0 Q 1630,154.0 1638,154.0 H 1704" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <rect x="1594.0" y="284.0" width="72" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="1630.0" y="293.0" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">encode:</text>
+  <path d="M 2372.0,180 L 2372.0,196" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 2372.0,248 L 2372.0,264" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 2372.0,316 L 2372.0,332" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 2372.0,384 L 2372.0,400" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 2044,222.0 H 2110 Q 2118,222.0 2118,214.0 V 162.0 Q 2118,154.0 2126,154.0 H 2192" fill="none" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+  <rect x="2103.5" y="182.0" width="29" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="2118.0" y="191.0" fill="#2e5aa8" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">提交</text>
+  <path d="M 2910.0,180 L 2910.0,196" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <rect x="2920.0" y="182.0" width="24" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="2932.0" y="191.0" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">否</text>
+  <path d="M 2910.0,248 L 2910.0,264" fill="none" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+  <rect x="2920.0" y="250.0" width="29" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="2934.5" y="259.0" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">互斥</text>
+  <path d="M 2552,426.0 H 2618 Q 2626,426.0 2626,418.0 V 162.0 Q 2626,154.0 2634,154.0 H 2700" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 2552,440.0 H 2634 Q 2642,440.0 2642,432.0 V 434.0 Q 2642,426.0 2650,426.0 H 2700" fill="none" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+  <rect x="2627.5" y="427.0" width="29" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="2642.0" y="436.0" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">并行</text>
+  <rect x="120" y="128" width="380" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="120" y="128" width="380" height="52" rx="6" fill="#ffffff" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="310.0" y="151.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">checkSampleBufferPTSForEncode(sb, subType)</text>
+  <text x="310.0" y="166.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">PTS 守门 · 不合格直接 return</text>
+  <rect x="120" y="196" width="380" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="120" y="196" width="380" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="310.0" y="219.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">productThumbnail:andSendSignal:</text>
+  <text x="310.0" y="234.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">每 kTVUThumbnailInterval 秒一张</text>
+  <rect x="120" y="264" width="380" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="120" y="264" width="380" height="52" rx="6" fill="#ffffff" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="310.0" y="287.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">isMuteVideoInPartyline ?</text>
+  <text x="310.0" y="302.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">partyline 里 mute video</text>
+  <rect x="120" y="332" width="380" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="120" y="332" width="380" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="310.0" y="355.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">createBlackPiexelBufferWithWidth:andHeight:</text>
+  <text x="310.0" y="370.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">分辨率变了才重建黑帧</text>
+  <rect x="120" y="400" width="380" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="120" y="400" width="380" height="52" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+  <text x="310.0" y="423.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">tvuConsumePixelBuffer:andPresentTime:</text>
+  <text x="310.0" y="438.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">partyline 另一路消费同一帧</text>
+  <rect x="648" y="128" width="380" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="648" y="128" width="380" height="52" rx="6" fill="#ffffff" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="838.0" y="151.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">[TVUSnapshotManager manager] running ?</text>
+  <text x="838.0" y="166.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">且 enableEncoding || isJoinPartline</text>
+  <rect x="648" y="196" width="380" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="648" y="196" width="380" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="838.0" y="219.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">snapNodes</text>
+  <text x="838.0" y="234.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">取全部 overlay node</text>
+  <rect x="648" y="264" width="380" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="648" y="264" width="380" height="52" rx="6" fill="#ffffff" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="838.0" y="287.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">lastObject.isBuiltInOverlay ?</text>
+  <text x="838.0" y="302.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">内置全屏模板恒在末尾</text>
+  <rect x="648" y="332" width="180" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="648" y="332" width="180" height="52" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+  <text x="738.0" y="355.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">fullScreenPixelBuffer…</text>
+  <text x="738.0" y="370.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">整帧替换</text>
+  <rect x="848" y="332" width="180" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="848" y="332" width="180" height="52" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+  <text x="938.0" y="355.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">addImageWatermarks…GPU:</text>
+  <text x="938.0" y="370.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">逐层叠加</text>
+  <rect x="1176" y="128" width="380" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="1176" y="128" width="380" height="52" rx="6" fill="#ffffff" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="1366.0" y="151.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">streamType / subType 变了 ?</text>
+  <text x="1366.0" y="166.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">切源 → isNeedKeyFrame = YES</text>
+  <rect x="1176" y="196" width="380" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="1176" y="196" width="380" height="52" rx="6" fill="#ffffff" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="1366.0" y="219.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">exif LensModel 含 "front" ?</text>
+  <text x="1366.0" y="234.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">切摄像头 → isNeedKeyFrame = YES</text>
+  <rect x="1176" y="264" width="380" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="1176" y="264" width="380" height="52" rx="6" fill="#ffffff" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="1366.0" y="287.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">isFirst ?</text>
+  <text x="1366.0" y="302.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">开播首帧 → isNeedKeyFrame = YES</text>
+  <rect x="1176" y="332" width="380" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="1176" y="332" width="380" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="1366.0" y="355.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">convertCVImageBufferRefToCMSampleBufferRef:</text>
+  <text x="1366.0" y="370.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">把合成好的 pixelbuffer 重新封装</text>
+  <rect x="1176" y="400" width="380" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="1176" y="400" width="380" height="52" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+  <text x="1366.0" y="423.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">enqueueCameraSampleBuffer:</text>
+  <text x="1366.0" y="438.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">后台推流统一喂点 → M8</text>
+  <rect x="1704" y="128" width="340" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="1704" y="128" width="340" height="52" rx="6" fill="#ffffff" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="1874.0" y="151.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">self.enableH264 ?</text>
+  <text x="1874.0" y="166.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">liveWay == TVUH264Live</text>
+  <rect x="1704" y="196" width="340" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="1704" y="196" width="340" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="1874.0" y="219.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">[self.h264Encoder encode:sb]</text>
+  <text x="1874.0" y="234.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">H.264 分支</text>
+  <rect x="1704" y="264" width="340" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="1704" y="264" width="340" height="52" rx="6" fill="#ffffff" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="1874.0" y="294.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">self.enableH265 ?</text>
+  <rect x="1704" y="332" width="340" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="1704" y="332" width="340" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="1874.0" y="355.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">[self.h265Encoder encode:sb isNeedKeyFrame:]</text>
+  <text x="1874.0" y="370.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">H.265 分支（多带一个参数）</text>
+  <rect x="1704" y="400" width="340" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="1704" y="400" width="340" height="52" rx="6" fill="#ffffff" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="1874.0" y="423.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">lastExternalSourceIndex 变了 ?</text>
+  <text x="1874.0" y="438.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">切源时低码率重启编码器</text>
+  <rect x="2192" y="128" width="360" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="2192" y="128" width="360" height="52" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+  <text x="2372.0" y="151.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">VTCompressionSessionEncodeFrame</text>
+  <text x="2372.0" y="166.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">同步提交，异步出包</text>
+  <rect x="2192" y="196" width="360" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="2192" y="196" width="360" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="2372.0" y="219.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">videoEncodeCallBack(…)</text>
+  <text x="2372.0" y="234.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">static 回调</text>
+  <rect x="2192" y="264" width="360" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="2192" y="264" width="360" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="2372.0" y="287.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">dtsAfter = (pts − g_vstarttime) × 1000</text>
+  <text x="2372.0" y="302.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">毫秒相对轴</text>
+  <rect x="2192" y="332" width="360" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="2192" y="332" width="360" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="2372.0" y="355.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">dts 兜底：0 → last_dts + 33</text>
+  <text x="2372.0" y="370.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">相等 → +1，保严格单调</text>
+  <rect x="2192" y="400" width="360" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="2192" y="400" width="360" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="2372.0" y="423.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">GetH264ParameterSetAtIndex(0/1)</text>
+  <text x="2372.0" y="438.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">IDR 时取 sps / pps 拼 4 字节起始码</text>
+  <rect x="2700" y="128" width="420" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="2700" y="128" width="420" height="52" rx="6" fill="#ffffff" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="2910.0" y="151.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">isEnableFrameTransfer ?</text>
+  <text x="2910.0" y="166.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">tvu_enable_frame_transfer</text>
+  <rect x="2700" y="196" width="420" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="2700" y="196" width="420" height="52" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+  <text x="2910.0" y="219.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">AVFormatControl::addH264Data(…)</text>
+  <text x="2910.0" y="234.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">链路① SEI → SPS/PPS → 帧数据 → ASF mux</text>
+  <rect x="2700" y="264" width="420" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="2700" y="264" width="420" height="52" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+  <text x="2910.0" y="287.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">muxFrameWithStremId:andKeyFrame:andPts:…</text>
+  <text x="2910.0" y="302.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">链路② libtvulive2_mux_frame</text>
+  <rect x="2700" y="400" width="420" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="2700" y="400" width="420" height="52" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+  <text x="2910.0" y="423.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">TVURecordMuxHandler::addVideoData(…)</text>
+  <text x="2910.0" y="438.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">录制旁路 · .asf 落盘</text>
+  <text x="120" y="548" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">setEncVideoPTS: 在这里记编码前 pts 与 UTC 的误差</text>
+  <text x="120" y="563" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">enableEncoding 为假时：resetLastExternalSourceIndex + 释放水印 buffer 后 return</text>
+  <text x="120" y="578" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">（预览照常，只是不编码）</text>
+  <text x="648" y="548" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">后台推流时 skipOverlayInBackground = inBackground：常规 overlay 刻意不合成，</text>
+  <text x="648" y="563" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">保持编码帧干净（喂给 PiP 的是同一帧）；内置全屏遮罩例外，遮住画面就是它的目的</text>
+  <text x="648" y="578" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">SPAR-30：streamType(1) + streamSubType(-1) = 0 曾把自定义流误判成相机原生流，</text>
+  <text x="648" y="593" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">绕过了从 GPU 取 buffer 的防死锁分支 —— 所以这里用 abs() 相加</text>
+  <text x="1176" y="548" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">GOP 配的是 600（H.264 当秒 / H.265 当帧），所以 I 帧基本全靠这三个业务事件驱动</text>
+  <text x="1176" y="563" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">喂点前先查 kTVUBackgroundStreamingSynthesizedFrameKey：</text>
+  <text x="1176" y="578" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">补帧器合成的待机帧要跳过，否则会重置「最后一帧」计时器、模糊叠加</text>
+  <text x="1704" y="548" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">H.265 直播 + H.264 录制时，H.264 编码器仍会被拉起（isOpenMuxFlag）</text>
+  <text x="1704" y="563" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">H.264 走 MaxKeyFrameIntervalDuration（秒）</text>
+  <text x="1704" y="578" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">H.265 走 MaxKeyFrameInterval（帧）—— 同一个常量 60*10，单位不同</text>
+  <text x="1704" y="593" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">H.265 在 30fps 下约 20 秒一个 I 帧</text>
+  <text x="2192" y="548" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">g_vstarttime 是全局唯一时间基准（首帧 HostTime 秒值），三处互斥初始化</text>
+  <text x="2192" y="563" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">H.265 侧同理，取 VPS / SPS / PPS 三段</text>
+  <text x="2192" y="578" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">CMBlockBufferGetDataPointer 拿到的是 AVCC 长度前缀格式，出口处转起始码</text>
+  <text x="2700" y="548" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">链路① 之后：Dispatch_Data() 按时间戳交错音视频 → AVFormatHttp::Product_Data_Packet</text>
+  <text x="2700" y="563" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">→ CTVUTransporterT::callback_data_in（App 层最后一站）</text>
+  <text x="2700" y="578" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">链路② 之后：sendFrameDataWithMediaType: → CMessageProcessing::SendMsg_SendFrameData</text>
+  <text x="2700" y="593" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">两条链路都要求 g_livestate &amp;&amp; ntpSynced 才真正上网</text>
+  <line x1="40" y1="716" x2="3200" y2="716" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+  <text x="40" y="734" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">图例</text>
+  <rect x="96" y="725" width="16" height="11" rx="2" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="120" y="734" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">方法调用</text>
+  <rect x="192" y="725" width="16" height="11" rx="2" fill="#ffffff" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="216" y="734" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">条件判断</text>
+  <rect x="288" y="725" width="16" height="11" rx="2" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+  <text x="312" y="734" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">GPU 合成 / 硬件压缩</text>
+  <rect x="458" y="725" width="16" height="11" rx="2" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+  <text x="482" y="734" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">出口</text>
+  <line x1="538" y1="730" x2="574" y2="730" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <text x="582" y="734" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">同线程调用</text>
+  <line x1="663" y1="730" x2="699" y2="730" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+  <text x="707" y="734" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">异步回调</text>
+  <line x1="779" y1="730" x2="815" y2="730" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+  <text x="823" y="734" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">并行 / 互斥</text>
+</svg>
+  </div>
+  <div class="cards">
+    <div class="card">
+      <p class="eyebrow">I 帧到底谁在决定</p>
+      <div class="card-header"><span class="card-dot coral"></span><h3>不是周期 GOP</h3></div>
+      <ul>
+          <li><code>streamType</code> 或 <code>streamSubType</code> 变（切源）</li>
+          <li>exif <code>LensModel</code> 前后置翻转（切摄像头）</li>
+          <li><code>isFirst</code>（开播首帧）</li>
+          <li>外加 R 端下发的 <code>forceInsertKeyFrame</code></li>
+          <li>GOP 常量 600 在 H.264 是<strong>秒</strong>（等于关掉周期 GOP），在 H.265 是<strong>帧</strong></li>
+      </ul>
+    </div>
+    <div class="card">
+      <p class="eyebrow">两条互斥推流链路</p>
+      <div class="card-header"><span class="card-dot ink"></span><h3>isEnableFrameTransfer 一个开关切换</h3></div>
+      <ul>
+          <li>关：<code>AVFormatControl::addH264Data</code> → ASF mux → <code>CTVUTransporterT</code></li>
+          <li>开：<code>TVULiveMediaCenter muxFrameWithStremId:</code> → <code>libtvulive2_mux_frame</code></li>
+          <li>I 帧的拼装顺序固定：<strong>SEI → SPS/PPS → 帧数据</strong></li>
+          <li>录制旁路与两者并行，走 <code>TVURecordMuxHandler</code>，不上网</li>
+      </ul>
+    </div>
+    <div class="card">
+      <p class="eyebrow">dts 的两层兜底</p>
+      <div class="card-header"><span class="card-dot muted"></span><h3>保严格单调</h3></div>
+      <ul>
+          <li><code>dtsAfter = (pts − g_vstarttime) × 1000</code></li>
+          <li>算出 0 → 用 <code>last_dts + 33</code>（假定 30fps）</li>
+          <li>与上一帧相等 → <code>+1</code></li>
+          <li>R 端看到的时间戳秩序，最后一道保障是 Mux 层的 <code>Dispatch_Data()</code> 交错</li>
+      </ul>
+    </div>
+  </div>
+  <footer>TVUAnywhere iOS · share/SPAR-705 @ bc4021368 · 2026-08-24 · Diagram Design 2.6.1</footer>
+</div>
+</body>
+</html>

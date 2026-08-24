@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>合流层四线程与合成分发 — 一个方法一个盒子</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{--paper:#f5f5f5;--ink:#2d3142;--muted:#4f5d75;--soft:#7a8399;--rule:rgba(45,49,66,0.12);--accent:#eb6c36;
+        --sans:'Geist',system-ui,sans-serif;--serif:'Instrument Serif',serif;--mono:'Geist Mono',ui-monospace,monospace}
+  body{font-family:var(--sans);background:var(--paper);color:var(--ink);padding:3rem 2rem 4rem}
+  .frame{max-width:1760px;margin:0 auto}
+  .eyebrow{font-family:var(--mono);font-size:.66rem;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem}
+  h1{font-family:var(--serif);font-size:clamp(1.6rem,2.4vw + .75rem,2.1rem);font-weight:400;letter-spacing:-.02em;line-height:1.15;margin-bottom:.5rem}
+  .lede{font-size:.9rem;color:var(--muted);line-height:1.6;max-width:74ch;margin-bottom:1rem}
+  .hint{font-family:var(--mono);font-size:.68rem;color:var(--soft);margin-bottom:.75rem;letter-spacing:.04em}
+  .scroll{overflow-x:auto;border:1px solid var(--rule);border-radius:8px;background:#fff}
+  svg{display:block;min-width:3440px;width:3440px;height:auto}
+  .cards{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:1rem;margin-top:2rem}
+  .card{background:#fff;border:1px solid var(--rule);border-radius:6px;padding:1.25rem}
+  .card .eyebrow{margin-bottom:.65rem}
+  .card-header{display:flex;align-items:center;gap:.5rem;margin-bottom:.65rem}
+  .card-dot{width:7px;height:7px;border-radius:50%;flex:none}
+  .card-dot.ink{background:var(--ink)} .card-dot.coral{background:var(--accent)} .card-dot.muted{background:var(--muted)}
+  .card h3{font-size:.86rem;font-weight:600}
+  .card ul{list-style:none;display:flex;flex-direction:column;gap:.45rem}
+  .card li{font-size:.8rem;line-height:1.5;color:var(--muted);padding-left:.85rem;position:relative}
+  .card li::before{content:'·';position:absolute;left:.2rem;color:var(--soft)}
+  .card code{font-family:var(--mono);font-size:.74rem;color:var(--ink)}
+  footer{margin-top:2.5rem;padding-top:1rem;border-top:1px solid var(--rule);font-family:var(--mono);font-size:.68rem;color:var(--soft);letter-spacing:.06em}
+  @media (max-width:900px){.cards{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="frame">
+  <p class="eyebrow">Call graph · 方法级 M3</p>
+  <h1>合流层四线程与合成分发 — 一个方法一个盒子</h1>
+  <p class="lede"><code>TVUAVStreamManager</code> 的四条线程、14 种 streamType 到 4 组 handler 的分发、以及双摄的 Metal 直达旁路（②的左列）。橙色是两条互斥的合成路径，蓝线是队列交接。</p>
+  <p class="hint">← 图宽 3440px，可横向拖动 →</p>
+  <div class="scroll">
+<svg viewBox="0 0 3440 760" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="m3-title m3-desc">
+  <title id="m3-title">合流层四线程与合成分发 · 方法级调用图</title>
+  <desc id="m3-desc">TVUAVStreamManager 起四条线程：handle 线程出队并按 streamType 选合成方法，双摄可走 Metal 直达绕过软合成；结果回填到编码、渲染、自动跟拍三路队列；encoder 线程出队后调 sendToEncoderWithSamplebuffer 交给编码层。</desc>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+    <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/></marker>
+    <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#2e5aa8"/></marker>
+  </defs>
+  <rect width="100%" height="100%" fill="#f5f5f5"/>
+  <rect x="80" y="108" width="420" height="560" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+  <rect x="96" y="102" width="204" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="104" y="111" fill="rgba(45,49,66,0.55)" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.10em">① InitHandleAVStreamThread()   四条 pthread</text>
+  <rect x="568" y="108" width="720" height="560" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+  <rect x="584" y="102" width="342" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="592" y="111" fill="rgba(45,49,66,0.55)" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.10em">② handleThread() → handleWithSamplebuffer()   〔handle 线程〕左列为 Metal 直达旁路</text>
+  <rect x="1356" y="108" width="520" height="560" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+  <rect x="1372" y="102" width="108" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="1380" y="111" fill="rgba(45,49,66,0.55)" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.10em">③ 按 streamType 选合成方法</text>
+  <rect x="1944" y="108" width="420" height="560" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+  <rect x="1960" y="102" width="140" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="1968" y="111" fill="rgba(45,49,66,0.55)" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.10em">④ AddBufferToWorkQueue 回填三路</text>
+  <rect x="2432" y="108" width="440" height="560" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+  <rect x="2448" y="102" width="222" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="2456" y="111" fill="rgba(45,49,66,0.55)" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.10em">⑤ encoderThread() → encoderWithSamplebuffer()</text>
+  <rect x="2940" y="108" width="420" height="560" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+  <rect x="2956" y="102" width="172" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="2964" y="111" fill="rgba(45,49,66,0.55)" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.10em">⑥ renderThread() / autoPanThread()</text>
+  <path d="M 1098.0,180 L 1098.0,196" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 1098.0,248 L 1098.0,264" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 1098.0,316 L 1098.0,332" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 460,154.0 L 928,154.0" fill="none" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+  <rect x="694.0" y="134.0" width="37" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="712.5" y="143.0" fill="#2e5aa8" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">线程体</text>
+  <path d="M 748.0,384 L 748.0,400" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 748.0,452 L 748.0,468" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 928,358.0 L 888,358.0" fill="none" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+  <rect x="908.0" y="338.0" width="72" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="944.0" y="347.0" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">双摄且无换背景</text>
+  <path d="M 1268,358.0 H 1314 Q 1322,358.0 1322,350.0 V 230.0 Q 1322,222.0 1330,222.0 H 1396" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <rect x="1290.5" y="284.0" width="63" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="1322.0" y="293.0" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">switch</text>
+  <path d="M 1836,346.0 H 1884 Q 1892,346.0 1892,338.0 V 162.0 Q 1892,154.0 1900,154.0 H 1984" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <rect x="1877.5" y="244.0" width="29" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="1892.0" y="253.0" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">预览</text>
+  <path d="M 1836,358.0 H 1900 Q 1908,358.0 1908,350.0 V 314.0 Q 1908,306.0 1916,306.0 H 1984" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <rect x="1889.5" y="326.0" width="37" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="1908.0" y="335.0" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">合成帧</text>
+  <path d="M 1836,370.0 H 1916 Q 1924,370.0 1924,378.0 V 418.0 Q 1924,426.0 1932,426.0 H 1984" fill="none" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+  <rect x="1909.5" y="392.0" width="29" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="1924.0" y="401.0" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">跟拍</text>
+  <path d="M 888,494.0 H 1932 Q 1940,494.0 1940,486.0 V 434 a 8,8 0 0,1 0,-16 V 314 a 8,8 0 0,1 0,-16 V 282.0 Q 1940,274.0 1948,274.0 H 1984" fill="none" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+  <path d="M 2652.0,316 L 2652.0,332" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 2324,290.0 L 2472,290.0" fill="none" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+  <rect x="2398.0" y="270.0" width="29" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="2412.5" y="279.0" fill="#2e5aa8" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">出队</text>
+  <path d="M 3150.0,180 L 3150.0,196" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 2324,154.0 L 2980,154.0" fill="none" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+  <rect x="2652.0" y="134.0" width="29" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="2666.5" y="143.0" fill="#2e5aa8" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">出队</text>
+  <path d="M 2324,426.0 L 2980,426.0" fill="none" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+  <rect x="120" y="128" width="340" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="120" y="128" width="340" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="290.0" y="151.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">startHandleThreadTask</text>
+  <text x="290.0" y="166.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">→ handleThread()</text>
+  <rect x="120" y="196" width="340" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="120" y="196" width="340" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="290.0" y="219.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">startEncoderThreadTask</text>
+  <text x="290.0" y="234.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">→ encoderThread()</text>
+  <rect x="120" y="264" width="340" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="120" y="264" width="340" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="290.0" y="287.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">startRenderThreadTask</text>
+  <text x="290.0" y="302.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">→ renderThread()</text>
+  <rect x="120" y="332" width="340" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="120" y="332" width="340" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="290.0" y="355.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">startAutoPanThreadTask</text>
+  <text x="290.0" y="370.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">→ autoPanThread()</text>
+  <rect x="928" y="128" width="340" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="928" y="128" width="340" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="1098.0" y="151.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">DeQueue(OSMO / External / OSMORTMP)</text>
+  <text x="1098.0" y="166.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">先取三个外部源队列</text>
+  <rect x="928" y="196" width="340" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="928" y="196" width="340" height="52" rx="6" fill="#ffffff" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="1098.0" y="219.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">主源为空 → return</text>
+  <text x="1098.0" y="234.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">不消费相机队列，避免积压</text>
+  <rect x="928" y="264" width="340" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="928" y="264" width="340" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="1098.0" y="287.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">DeQueue(TVUCameraQueue)</text>
+  <text x="1098.0" y="302.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">再取相机队列</text>
+  <rect x="928" y="332" width="340" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="928" y="332" width="340" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="1098.0" y="355.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">DeQueue(TVUMutiCameraQueue)</text>
+  <text x="1098.0" y="370.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">双摄第二路</text>
+  <rect x="608" y="332" width="280" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="608" y="332" width="280" height="52" rx="6" fill="#ffffff" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="748.0" y="355.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">TVUSampleBufferIsFront(sb)</text>
+  <text x="748.0" y="370.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">按物理身份配对前/后置</text>
+  <rect x="608" y="400" width="280" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="608" y="400" width="280" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="748.0" y="423.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">TVUMetalBeautyFilter 前置合成</text>
+  <text x="748.0" y="438.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">每源帧跑一次，带缓存</text>
+  <rect x="608" y="468" width="280" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="608" y="468" width="280" height="52" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+  <text x="748.0" y="491.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">enqueueDirectEncodeBuffer(sb)</text>
+  <text x="748.0" y="506.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">交付序 == 提交序 ⇒ PTS 单调</text>
+  <rect x="1396" y="128" width="440" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="1396" y="128" width="440" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="1616.0" y="151.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">handleCameraStream / handleCropStream</text>
+  <text x="1616.0" y="166.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Camera · Crop</text>
+  <rect x="1396" y="196" width="440" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="1396" y="196" width="440" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="1616.0" y="219.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">handleExternalSourceStream(node, camera_node)</text>
+  <text x="1616.0" y="234.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">External / OSMO 的全部 PIP·PBP·Picture 变体</text>
+  <rect x="1396" y="264" width="440" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="1396" y="264" width="440" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="1616.0" y="287.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">handleOSMORTMPStream(rtmp_node, camera_node)</text>
+  <text x="1616.0" y="302.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">按 m_osmoRTMPVideoRotation 旋转</text>
+  <rect x="1396" y="332" width="440" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="1396" y="332" width="440" height="52" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+  <text x="1616.0" y="355.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">handleMutiCamStreamMux(back, front, …)</text>
+  <text x="1616.0" y="370.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">双摄 NV12 软合成（回落路径）</text>
+  <rect x="1984" y="128" width="340" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="1984" y="128" width="340" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="2154.0" y="151.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">AddBufferToWorkQueue(…RenderQueue)</text>
+  <text x="2154.0" y="166.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">preview_buffer 优先</text>
+  <rect x="1984" y="264" width="340" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="1984" y="264" width="340" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="2154.0" y="287.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">AddBufferToWorkQueue(…EncoderQueue)</text>
+  <text x="2154.0" y="302.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">带 streamSubType 一起入队</text>
+  <rect x="1984" y="400" width="340" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="1984" y="400" width="340" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="2154.0" y="423.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">AddBufferToWorkQueue(…AutoPanQueue)</text>
+  <text x="2154.0" y="438.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">仅 AutoPan 开启时</text>
+  <rect x="2472" y="264" width="360" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="2472" y="264" width="360" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="2652.0" y="287.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">DeQueue(TVUEncoderQueue)</text>
+  <text x="2652.0" y="302.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">空则 usleep(10ms) return</text>
+  <rect x="2472" y="332" width="360" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="2472" y="332" width="360" height="52" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+  <text x="2652.0" y="355.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">sendToEncoderWithSamplebuffer(…)</text>
+  <text x="2652.0" y="370.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">sb, streamType, streamSubType → M4</text>
+  <rect x="2980" y="128" width="340" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="2980" y="128" width="340" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="3150.0" y="151.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">DeQueue(TVURenderQueue)</text>
+  <text x="3150.0" y="166.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">renderWithSamplebuffer()</text>
+  <rect x="2980" y="196" width="340" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="2980" y="196" width="340" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="3150.0" y="219.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">needSnapImage → 截图</text>
+  <text x="3150.0" y="234.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">shouldUseSystemPreview 决定冻不冻</text>
+  <rect x="2980" y="400" width="340" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="2980" y="400" width="340" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="3150.0" y="423.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">DeQueue(TVUAutoPanQueue)</text>
+  <text x="3150.0" y="438.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">faceTrackWithPixelbuffer:targetView:</text>
+  <text x="120" y="548" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">四条线程各有独立的 threadArray[i].mutex / cond</text>
+  <text x="120" y="563" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">_isSuspendAVStreamThread 为真时 pthread_cond_wait 挂起</text>
+  <text x="120" y="578" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">SuspendAVStreamThread() / ActiveAVStreamThread() 成对使用；</text>
+  <text x="120" y="593" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">进二级页面挂起、回主页恢复 —— 这对被吞过（见 M6 的预览自愈）</text>
+  <text x="608" y="548" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">handleWithSamplebuffer 一轮：processTime &lt; 10ms 就 usleep(10ms)；</text>
+  <text x="608" y="563" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">纯内置相机时 usleep(TVU_EMPTY_TASK_MS)。Camera 模式收到 streamSubType ==</text>
+  <text x="608" y="578" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">kTVUMutiCameraBackIndex 的双摄帧会整轮丢弃。clearExternalSourcePictureCacheBuffer /</text>
+  <text x="608" y="593" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">clearExternalSourceBackgroundCacheBuffer 只在 index 或背景填充开关变化时调。</text>
+  <text x="608" y="608" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">Metal 直达条件：ciPreview != NULL 且 !tvuIsReplaceBackgroundStart；预览直渲 CAMetalLayer，不进 TVURenderQueue。</text>
+  <text x="1396" y="548" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">handleMutiCamStreamMux 两个开关：mirrorFront（预览镜像）、</text>
+  <text x="1396" y="563" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">rotateFront180（竖锁下抵消远端 transpose=2）</text>
+  <text x="1396" y="578" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">所有 handler 返回 CMSampleBufferRef，调用方负责 CFRelease</text>
+  <text x="1396" y="593" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">handleReplaceBackgroundStream / handleOSMOPIPStream 当前被注释或改道</text>
+  <text x="1984" y="548" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">AddBufferToWorkQueue 里顺带做三件事：</text>
+  <text x="1984" y="563" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">g_vstarttime 首帧初始化、checkUseSystemPreview 复检、入队时丢错位帧</text>
+  <text x="1984" y="578" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">free 队列取不到节点只打日志，帧被丢掉 —— 这是合流层唯一的丢帧点</text>
+  <text x="2472" y="548" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">sendToEncoderWithSamplebuffer 整体包在 @autoreleasepool 里 ——</text>
+  <text x="2472" y="563" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">C++ 线程没有 runloop 自动释放池，不包就是持续增长型泄漏</text>
+  <text x="2472" y="578" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">调完之后 ResetWorkQueueNode(bufferNode) 归还 free 队列</text>
+  <text x="2472" y="593" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">M4 从这里接手</text>
+  <text x="2980" y="548" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">renderWithSamplebuffer 在「美颜 → 关闭」的切换窗口里会冻住自定义</text>
+  <text x="2980" y="563" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">DisplayLayer，等系统预览顶上来，避免闪一帧非镜像画面</text>
+  <text x="2980" y="578" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">autoPan 位移超 kTVUAutoPanThreshold 才动 panView，X / Y 交替移动</text>
+  <line x1="40" y1="716" x2="3400" y2="716" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+  <text x="40" y="734" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">图例</text>
+  <rect x="96" y="725" width="16" height="11" rx="2" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="120" y="734" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">方法调用</text>
+  <rect x="192" y="725" width="16" height="11" rx="2" fill="#ffffff" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="216" y="734" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">条件判断</text>
+  <rect x="288" y="725" width="16" height="11" rx="2" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+  <text x="312" y="734" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">两条合成路径</text>
+  <rect x="401" y="725" width="16" height="11" rx="2" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+  <text x="425" y="734" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">交给 M4</text>
+  <line x1="506" y1="730" x2="542" y2="730" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <text x="550" y="734" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">同线程调用</text>
+  <line x1="631" y1="730" x2="667" y2="730" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+  <text x="675" y="734" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">队列交接</text>
+  <line x1="747" y1="730" x2="783" y2="730" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+  <text x="791" y="734" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">旁路 / 可选</text>
+</svg>
+  </div>
+  <div class="cards">
+    <div class="card">
+      <p class="eyebrow">四条线程各守一路队列</p>
+      <div class="card-header"><span class="card-dot coral"></span><h3>互不阻塞是设计目标</h3></div>
+      <ul>
+          <li>handle 线程：唯一会同时碰多个输入队列的线程，合成在这里做</li>
+          <li>encoder 线程：只碰 TVUEncoderQueue，出队即调 sendToEncoder</li>
+          <li>render 线程：只碰 TVURenderQueue，慢了只影响预览，不影响推流</li>
+          <li>autoPan 线程：只碰 TVUAutoPanQueue，人脸检测慢也不拖累前三条</li>
+      </ul>
+    </div>
+    <div class="card">
+      <p class="eyebrow">两条合成路径的分界</p>
+      <div class="card-header"><span class="card-dot ink"></span><h3>Metal 直达只服务双摄</h3></div>
+      <ul>
+          <li>条件：<code>ciPreview != NULL</code> 且 <code>!effectsOn</code> 且双摄 streamType</li>
+          <li>换背景开启 → 回落到 <code>handleMutiCamStreamMux</code></li>
+          <li>美颜已挪进 Metal 管线做前置合成，不再强制回落</li>
+          <li>直达路径的预览不进 TVURenderQueue，直渲 CAMetalLayer</li>
+      </ul>
+    </div>
+    <div class="card">
+      <p class="eyebrow">主源缺帧的处理</p>
+      <div class="card-header"><span class="card-dot muted"></span><h3>宁可整轮不做，也不出半成品</h3></div>
+      <ul>
+          <li>OSMOPIP/PBP 主源是 OSMO 队列；ExternalSource* 是 External；OSMORTMP 是 OSMORTMP</li>
+          <li>主源为空就 <code>return</code>，<strong>不消费</strong>相机队列 —— 否则相机 buffer 积压</li>
+          <li>双摄模式相机帧为空同样整轮跳过</li>
+          <li>过渡帧机制在这一层被硬禁用：外部源断帧没有兜底</li>
+      </ul>
+    </div>
+  </div>
+  <footer>TVUAnywhere iOS · share/SPAR-705 @ bc4021368 · 2026-08-24 · Diagram Design 2.6.1</footer>
+</div>
+</body>
+</html>
