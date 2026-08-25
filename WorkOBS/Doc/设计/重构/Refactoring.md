@@ -82,7 +82,10 @@ public:
 
 ```cpp
 class WLSource {
+    // ── 实例标识（类型 ID + 实例 UUID）──
     wl_source_type_info  info_;           // 按值拷贝（ctor 时从参数拷入）
+    uint32_t             uuid_;           // 全局递增计数器（线程安全原子自增）
+
     WLSourceProtocol    *backend_;        // 协议实现体指针
 
     // ── async_frames 缓冲（ASYNC 位条件分配）──
@@ -97,8 +100,10 @@ class WLSource {
     CVPixelBufferRef     cur_frame_;
     int64_t              cur_frame_pts_;
 
+    static uint32_t next_uuid_;             // 全局递增（atomic_fetch_add）
+
 public:
-    // ctor：info 按值拷入 + 按 ASYNC 位决定是否分配缓冲
+    // ctor：info 按值拷入 + 分配实例 ID + 按 ASYNC 位决定是否分配缓冲
     WLSource(const wl_source_type_info *info);
     ~WLSource();                          // 非虚！第一行 delete backend_
 
@@ -122,6 +127,7 @@ public:
 
     // ── info 访问 ──
     const wl_source_type_info &Info() const { return info_; }
+    uint32_t UUID() const { return uuid_; }     // 实例 UUID（同类型多实例靠此区分）
 };
 ```
 
@@ -171,8 +177,10 @@ WLCore::AddSource("media_file", "/path/to/video.mp4")
   │
   ├─ 1. registry 查找 → 得到 wl_source_type_info *info
   │
-  ├─ 2. new WLSource(info)         ← 壳先建：拷 info + 按 ASYNC 位分配缓冲
-  │     └─ capacity_ = (flags & ASYNC) ? 30 : 0
+  ├─ 2. new WLSource(info)         ← 壳先建
+  │     ├─ uuid_ = atomic_fetch_add(&next_uuid_, 1) ← 分配实例 UUID
+  │     ├─ info_ = *info                              ← 拷入类型信息
+  │     └─ capacity_ = (flags & ASYNC) ? 30 : 0   ← 按 ASYNC 位分配缓冲
   │
   ├─ 3. info->create(settings, src) ← 双参工厂：壳给实现体
   │     └─ new WLMediaSource(path, hw, src)
@@ -274,6 +282,6 @@ WLSourceProtocol:      |██████████████████�
 
 ## 6. 待确认项
 
-- [ ] **壳的 `OutputVideo` 改 public 是否合适？** — 实现体要调，但外部（WLGraphics）不应直接调。考虑 friend 或保持 protected + friend WLMediaSource。
-- [ ] **`GetWidth`/`GetHeight` 透传还是壳缓存？** — OBS 异步源尺寸随帧走，壳在 OutputVideo 时记录 async_width/async_height，消费端直接读壳。当前设计先透传 backend，M3 再对齐。
-- [ ] **info.create 签名改动的影响范围** — 需确认 WLSourceRegistry 只存指针不调 create。
+- [x] **壳的 `OutputVideo` 改 public** — 暂时 public，后续再收紧。
+- [x] **`GetWidth`/`GetHeight` 在实现体中实现** — 先透传 backend，由各实现体（如 WLMediaSource）自行管理尺寸。
+- [x] **info.create 签名改动** — WLSourceRegistry 只存指针，不调 create，零改动。改动范围：WLSource.hpp（typedef）+ WLCore.cpp（调用处）+ WLMediaSource.cpp（工厂实现）。

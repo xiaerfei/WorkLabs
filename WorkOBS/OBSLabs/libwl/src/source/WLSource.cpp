@@ -2,31 +2,42 @@
 //  WLSource.cpp
 //  OBSLabs
 //
-//  原 wl_source.c 的类化：环形缓冲 + 追赶式挑帧逻辑逐行保持不变。
-//  C 版的 create/destroy/控制透传（vtable NULL 检查）由语言接管：
-//  create → 工厂 + 基类 ctor，destroy → 虚析构链，可选回调 → 虚函数默认实现。
+//  源壳实现。环形缓冲 + 追赶式挑帧逻辑逐行保持不变。
+//  析构顺序：第一行 delete backend_（触发虚析构链 join 生产线程），
+//  之后才清缓冲（生产者已死，无并发）。
 //
 
 #include "WLSource.hpp"
+#include "WLSourceProtocol.hpp"
 #include <stdio.h>
 #include <stdlib.h>
 
-// async_frames 默认容量。ctor 时定、运行期固定（要换大小改这里 / 将来给工厂加参数，重启生效）。
+// async_frames 默认容量
 #define WL_DEFAULT_ASYNC_CAPACITY 30
+
+// ---- 静态成员 ----
+
+uint32_t WLSource::next_uuid_ = 0;
 
 // ---- 生命周期 ----
 
-WLSource::WLSource() {
-    // new 不像 calloc 会清零：所有成员逐个初始化
-    info_.id           = NULL;   // 真值由 WLCore::AddSource 按注册表条目填
-    info_.type         = WL_SOURCE_TYPE_INPUT;
-    info_.output_flags = 0;
-    info_.type_name    = NULL;
-    info_.create       = NULL;
+WLSource::WLSource(const wl_source_type_info *info) {
+    // 实例标识
+    info_ = *info;   // 按值拷贝（与注册表解耦）
+    // 简单递增（单线程创建场景够用，多线程需加锁）
+    uuid_ = next_uuid_++;
 
-    frames_   = (wl_async_frame *)calloc(WL_DEFAULT_ASYNC_CAPACITY, sizeof(wl_async_frame));
-    capacity_ = frames_ ? WL_DEFAULT_ASYNC_CAPACITY : 0;   // 0 = 缓冲不可用（output/get 都会短路）
-    if (!frames_) fprintf(stderr, "[source] async_frames alloc failed\n");
+    backend_ = NULL;   // 尚未绑定
+
+    // async_frames：按 ASYNC 位条件分配（同步源不背缓冲）
+    if (info->output_flags & WL_SOURCE_ASYNC) {
+        frames_   = (wl_async_frame *)calloc(WL_DEFAULT_ASYNC_CAPACITY, sizeof(wl_async_frame));
+        capacity_ = frames_ ? WL_DEFAULT_ASYNC_CAPACITY : 0;
+        if (!frames_) fprintf(stderr, "[source] async_frames alloc failed\n");
+    } else {
+        frames_   = NULL;
+        capacity_ = 0;
+    }
     head_  = 0;
     count_ = 0;
     pthread_mutex_init(&async_mutex_, NULL);
@@ -39,8 +50,10 @@ WLSource::WLSource() {
 }
 
 WLSource::~WLSource() {
-    // 执行到这里时子类 dtor 已跑完（C++ 析构顺序：子类先、基类后），
-    // 生产线程已被子类停掉 —— 清缓冲无并发。
+    // ⚠️ 第一行：delete backend_ 触发虚析构链 → 子类 dtor join 生产线程
+    // 之后才清缓冲（生产者已死，无并发）
+    delete backend_;
+
     for (int i = 0; i < count_; i++) {
         int idx = (head_ + i) % capacity_;
         CVPixelBufferRelease(frames_[idx].pixbuf);
@@ -50,18 +63,6 @@ WLSource::~WLSource() {
     free(frames_);
     pthread_mutex_destroy(&async_mutex_);
 }
-
-// ---- 可选控制 / 查询的默认实现（对应 C 版 vtable 条目可为 NULL）----
-
-void WLSource::Pause(bool paused) { (void)paused; }        // 默认不支持暂停
-void WLSource::Seek(int64_t seek_ts_us) { (void)seek_ts_us; } // 默认不支持 seek
-void WLSource::Update(const char *settings) { (void)settings; } // 默认不支持运行时改参
-
-int64_t WLSource::GetDuration() { return -1; }
-int     WLSource::GetWidth()    { return 0; }   // 异步源尺寸随帧走，不必报
-int     WLSource::GetHeight()   { return 0; }
-
-void WLSource::VideoRender() {}   // 异步源不用管；同步源（M3）override
 
 // ---- 生产端 ----
 
@@ -121,3 +122,17 @@ CVPixelBufferRef WLSource::GetFrame(int64_t sys_time_ns, int64_t *out_pts_ns) {
 
     return ret;
 }
+
+// ---- 控制透传（带 backend NULL 防御）----
+
+int WLSource::Start()    { return backend_ ? backend_->Start()    : -1; }
+void WLSource::Stop()    {        if (backend_) backend_->Stop();       }
+void WLSource::Pause(bool p)           { if (backend_) backend_->Pause(p);  }
+void WLSource::Seek(int64_t ts)        { if (backend_) backend_->Seek(ts);  }
+void WLSource::Update(const char *s)   { if (backend_) backend_->Update(s); }
+
+// ---- 信息透传 ----
+
+int64_t WLSource::GetDuration() { return backend_ ? backend_->GetDuration() : -1; }
+int     WLSource::GetWidth()    { return backend_ ? backend_->GetWidth()    : 0; }
+int     WLSource::GetHeight()   { return backend_ ? backend_->GetHeight()   : 0; }

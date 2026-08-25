@@ -15,6 +15,7 @@
 #include "WLCore.hpp"
 #include "WLGraphics.hpp"
 #include "WLSource.hpp"
+#include "WLSourceProtocol.hpp"
 #include "WLSourceRegistry.hpp"
 #include "WLMediaSource.hpp"
 #include <pthread.h>
@@ -72,7 +73,7 @@ void WLCore::Shutdown() {
     g_core.count = 0;
     pthread_mutex_unlock(&g_core.mutex);
 
-    // delete 走虚析构链：子类 dtor 停解码线程 → 基类 dtor 清缓冲
+    // delete 壳 → 壳 dtor 第一行 delete backend → 虚析构链 join 线程 → 清缓冲
     for (int i = 0; i < n; i++) delete snapshot[i];
 
     g_core.started = false;
@@ -92,12 +93,17 @@ WLSource *WLCore::AddSource(const char *type_id, const char *settings) {
         return NULL;
     }
 
-    WLSource *src = info->create(settings);   // 工厂内已做失败检查（失败返回 NULL）
-    if (!src) {
+    // 壳先建：拷 info + 按 ASYNC 位分配缓冲 + 分配 UUID
+    WLSource *src = new WLSource(info);
+
+    // 双参工厂：壳给实现体
+    WLSourceProtocol *backend = info->create(settings, src);
+    if (!backend) {
         fprintf(stderr, "[core] create failed for type '%s'\n", info->id);
+        delete src;
         return NULL;
     }
-    src->SetInfo(*info);   // 实例持有类型信息拷贝（对齐 obs_source_create，obs-source.c:450）
+    src->SetBackend(backend);   // 绑定后入表
 
     pthread_mutex_lock(&g_core.mutex);
     if (g_core.count == WL_CORE_MAX_SOURCES) {

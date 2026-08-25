@@ -10,7 +10,7 @@
 //    2. ReceiveVideo   ← 尝试从 video codec 收帧
 //    3. ReceiveAudio   ← 尝试从 audio codec 收帧
 //    4. Read           ← 若两个 codec 都没产出，读下一个 pkt
-//    5/6. 有帧 → pace（视频）→ 提取 CVPixelBufferRef → 基类缓冲
+//    5/6. 有帧 → pace（视频）→ 提取 CVPixelBufferRef → 壳的缓冲
 //
 //  关键：步骤 2/3 在步骤 4 之前。
 //  原因：一个 packet 可能产出多帧（B 帧延迟），codec 内部缓存了
@@ -18,6 +18,7 @@
 //
 
 #include "WLMediaSource.hpp"
+#include "WLSource.hpp"            // 壳（用于 source_->OutputVideo）
 #include "WLSourceRegistry.hpp"
 #include "WLTime.hpp"            // NowNs / SleepToNs（全库同一把单调钟）
 #include <stdio.h>
@@ -32,8 +33,11 @@ extern "C" {
 
 // ═════════════════ 生命周期 ═════════════════
 
-WLMediaSource::WLMediaSource(const char *path, const char *hw_type) {
-    // 基类 ctor 已跑完（缓冲就绪）；本类成员逐个初始化
+WLMediaSource::WLMediaSource(const char *path, const char *hw_type, WLSource *source) {
+    // 壳的反向引用
+    source_        = source;
+
+    // 本类成员逐个初始化
     path_          = strdup(path ? path : "");
     decoder_       = new WLDecoder(path_, hw_type);
     if (!decoder_->Valid()) {         // ctor 没有返回值，失败靠 Valid() 暴露
@@ -51,8 +55,7 @@ WLMediaSource::WLMediaSource(const char *path, const char *hw_type) {
 }
 
 WLMediaSource::~WLMediaSource() {
-    Stop();   // 先停线程（幂等）——必须在释放资源前，线程还在用它们；
-              // 也必须早于基类 dtor 清缓冲（生产者死透，缓冲才无并发）
+    Stop();   // 先停线程（幂等）——必须在释放资源前，线程还在用它们
 
     if (decoder_) delete decoder_;
     free(path_);
@@ -60,7 +63,7 @@ WLMediaSource::~WLMediaSource() {
     pthread_cond_destroy(&ctrl_cond_);
 }
 
-// ═════════════════ 控制（WLSource 虚接口）═════════════════
+// ═════════════════ 控制（WLSourceProtocol 实现）═════════════════
 
 int WLMediaSource::Start() {
     if (thread_running_) return 0;   // 防重入
@@ -157,11 +160,11 @@ void WLMediaSource::ThreadLoop() {
             if (vr == WL_FRAME_OK) {
                 PaceVideo(vpts);   // 按 pts 节流到 ~实时
 
-                // 硬解帧零拷贝提取 CVPixelBufferRef → 基类缓冲统一入口
-                //（C 版这里是 output 回调跳到 wl_media_source.c；继承后直接调）
+                // 硬解帧零拷贝提取 CVPixelBufferRef → 壳的缓冲统一入口
+                // 通过反向引用 source_->OutputVideo() 回喂帧
                 if (vframe->format == AV_PIX_FMT_VIDEOTOOLBOX) {
                     CVPixelBufferRef pb = (CVPixelBufferRef)vframe->data[3];
-                    if (pb) OutputVideo(pb, vpts);
+                    if (pb) source_->OutputVideo(pb, vpts);
                 }
                 // 软解（format != VIDEOTOOLBOX）：TODO sws_scale → CVPixelBuffer，M1 暂不支持
 
@@ -209,12 +212,13 @@ void WLMediaSource::ThreadLoop() {
     }
 }
 
-// ═════════════════ 类型注册（原 vtable 桥接区，虚函数化后只剩工厂）═════════════════
+// ═════════════════ 类型注册（工厂 + 类型声明）═════════════════
 
-static WLSource *CreateMediaSource(const char *settings) {
-    if (!settings) return NULL;
+// 双参工厂（对齐 OBS create(settings, source)）
+static WLSourceProtocol *CreateMediaSource(const char *settings, WLSource *source) {
+    if (!settings || !source) return NULL;
 
-    WLMediaSource *ms = new WLMediaSource(settings, "videotoolbox");
+    WLMediaSource *ms = new WLMediaSource(settings, "videotoolbox", source);
     if (!ms->Valid()) {        // decoder 打不开（路径/格式错）
         delete ms;
         return NULL;

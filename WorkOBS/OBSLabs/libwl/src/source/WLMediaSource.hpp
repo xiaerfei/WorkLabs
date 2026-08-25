@@ -2,13 +2,13 @@
 //  WLMediaSource.hpp
 //  OBSLabs
 //
-//  "media_file" 源：本地媒体文件解码（WLSource 的第一个子类）。
+//  "media_file" 源：本地媒体文件解码（WLSourceProtocol 的第一个实现体）。
 //  主体是解码主循环 + 视频 pacing（对标 OBS mp_media / ffmpeg_source）。
 //
-//  继承取代了 C 版的三层胶水：
-//    - vtable 函数指针表 → 直接重写基类虚函数
-//    - media_source_data（thread/source/path）→ 本类成员，this 就是 source
-//    - output 回调 + opaque → 解码线程直接调基类 protected OutputVideo()
+//  继承 WLSourceProtocol（纯协议），持有 WLSource* 反向引用（用于回喂帧）。
+//  通过 source_->OutputVideo(pb, pts) 将解码帧送入壳的缓冲。
+//
+//  命名规范：对外 PascalCase，内部 camelCase。
 //
 
 #ifndef WLMediaSource_hpp
@@ -22,11 +22,14 @@ extern "C" {                   // FFmpeg 头没有 extern "C" 守卫，C++ 侧�
 #include <libavutil/avutil.h>  // AV_NOPTS_VALUE（pacing 未锚定哨兵）
 }
 
-#include "WLSource.hpp"        // 基类：async_frames 缓冲 + 挑帧 + 虚控制接口
+#include "WLSourceProtocol.hpp" // 纯协议（虚析构 + 纯虚/默认实现）
 #include "WLDecoder.hpp"       // 解封装 + 解码
 
-class WLMediaSource : public WLSource {
-    // 所有成员在构造函数里逐个初始化：new 不像 calloc 会清零，漏一个就是垃圾值
+class WLSource;                // 前置声明（持有指针，不 include 壳头）
+
+class WLMediaSource : public WLSourceProtocol {
+    WLSource   *source_;       // 反向引用壳（用于回喂帧）
+
     char *path_;               // strdup 拥有拷贝（调用方的 C 串可能是临时缓冲）
 
     WLDecoder *decoder_;       // 创建失败留 NULL，由 Valid() 暴露
@@ -51,18 +54,17 @@ class WLMediaSource : public WLSource {
     void PaceVideo(int64_t pts_ns);           // 按 pts 节流到 ~实时
 
 public:
-    WLMediaSource(const char *path, const char *hw_type);  // hw_type 只在构造时用，不保存
-    // 子类 dtor 必须自己先 Stop（join 解码线程）：等基类 dtor 再停就晚了
-    //（析构期间虚表已退化，且基类清缓冲时生产线程必须已死）。
-    virtual ~WLMediaSource();
+    // 三参 ctor：path + hw_type + 壳指针
+    WLMediaSource(const char *path, const char *hw_type, WLSource *source);
+    ~WLMediaSource();   // dtor 内 Stop() → join 解码线程
 
     bool Valid() const { return decoder_ != NULL; }  // ctor 里 decoder 是否创建成功
 
-    // ---- WLSource 虚接口实现 ----
-    virtual int  Start();      // 一次性：Stop 后不支持再 Start（与 C 版语义一致）
-    virtual void Stop();       // 幂等；join 解码线程
-    virtual void Pause(bool paused);
-    virtual void Seek(int64_t seek_ts_us);
+    // ---- WLSourceProtocol 实现 ----
+    int  Start() override;      // 一次性：Stop 后不支持再 Start（与 C 版语义一致）
+    void Stop()  override;      // 幂等；join 解码线程
+    void Pause(bool paused) override;
+    void Seek(int64_t seek_ts_us) override;
 
     // 注册 "media_file" 类型到全局表（WLCore::Startup 调用一次）
     static void RegisterType();
