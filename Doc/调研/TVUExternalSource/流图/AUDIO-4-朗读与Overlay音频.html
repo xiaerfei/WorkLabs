@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>朗读与 Overlay 音频 — 三路混音</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{--paper:#f5f5f5;--ink:#2d3142;--muted:#4f5d75;--soft:#7a8399;--rule:rgba(45,49,66,0.12);--accent:#eb6c36;
+        --sans:'Geist',system-ui,sans-serif;--serif:'Instrument Serif',serif;--mono:'Geist Mono',ui-monospace,monospace}
+  body{font-family:var(--sans);background:var(--paper);color:var(--ink);padding:3rem 2rem 4rem}
+  .frame{max-width:1760px;margin:0 auto}
+  .eyebrow{font-family:var(--mono);font-size:.66rem;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem}
+  h1{font-family:var(--serif);font-size:clamp(1.6rem,2.4vw + .75rem,2.1rem);font-weight:400;letter-spacing:-.02em;line-height:1.15;margin-bottom:.5rem}
+  .lede{font-size:.9rem;color:var(--muted);line-height:1.6;max-width:74ch;margin-bottom:1rem}
+  .hint{font-family:var(--mono);font-size:.68rem;color:var(--soft);margin-bottom:.75rem;letter-spacing:.04em}
+  .scroll{overflow-x:auto;border:1px solid var(--rule);border-radius:8px;background:#fff}
+  svg{display:block;min-width:2276px;width:2276px;height:auto}
+  .cards{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:1rem;margin-top:2rem}
+  .card{background:#fff;border:1px solid var(--rule);border-radius:6px;padding:1.25rem}
+  .card .eyebrow{margin-bottom:.65rem}
+  .card-header{display:flex;align-items:center;gap:.5rem;margin-bottom:.65rem}
+  .card-dot{width:7px;height:7px;border-radius:50%;flex:none}
+  .card-dot.ink{background:var(--ink)} .card-dot.coral{background:var(--accent)} .card-dot.muted{background:var(--muted)}
+  .card h3{font-size:.86rem;font-weight:600}
+  .card ul{list-style:none;display:flex;flex-direction:column;gap:.45rem}
+  .card li{font-size:.8rem;line-height:1.5;color:var(--muted);padding-left:.85rem;position:relative}
+  .card li::before{content:'·';position:absolute;left:.2rem;color:var(--soft)}
+  .card code{font-family:var(--mono);font-size:.74rem;color:var(--ink)}
+  footer{margin-top:2.5rem;padding-top:1rem;border-top:1px solid var(--rule);font-family:var(--mono);font-size:.68rem;color:var(--soft);letter-spacing:.06em}
+  @media (max-width:900px){.cards{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="frame">
+  <p class="eyebrow">Call graph · 音频 A4</p>
+  <h1>朗读与 Overlay 音频 — 三路混音</h1>
+  <p class="lede">上带是 Overlay 网页声（JS 抓 Web Audio）与混音器主循环，下带是弹幕朗读的合成与喂流。橙色是线程入口与混音；灰虚框是算了但被丢弃的值。</p>
+  <p class="hint">← 图宽 2276px，可横向拖动 →</p>
+  <div class="scroll">
+<svg viewBox="0 0 2276 1330" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="audio4-title audio4-desc">
+  <title id="audio4-title">朗读与 Overlay 音频 · 方法级调用图</title>
+  <desc id="audio4-desc">Overlay 混音器有三路：主源（mic / Accsoon / DJI 之一）当节拍源，辅源是 Overlay 网页声与弹幕朗读。两个辅源都不产生有效 PTS，混音输出一律用主源的 pts 与 index；辅源块长与主源不一致时直接跳过不混。</desc>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+    <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/></marker>
+    <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#2e5aa8"/></marker>
+  </defs>
+  <rect width="100%" height="100%" fill="#f5f5f5"/>
+  <rect x="80" y="108" width="660" height="560" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+  <rect x="96" y="102" width="154" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="104" y="111" fill="rgba(45,49,66,0.55)" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.10em">① Overlay 网页声 · WKWebView JS 侧</text>
+  <rect x="808" y="108" width="660" height="560" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+  <rect x="824" y="102" width="103" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="832" y="111" fill="rgba(45,49,66,0.55)" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.10em">② Overlay 网页声 · 原生侧</text>
+  <rect x="1536" y="108" width="660" height="560" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+  <rect x="1552" y="102" width="75" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="1560" y="111" fill="rgba(45,49,66,0.55)" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.10em">③ 混音器主循环 + 出口</text>
+  <rect x="80" y="740" width="660" height="560" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+  <rect x="96" y="734" width="66" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="104" y="743" fill="rgba(45,49,66,0.55)" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.10em">④ 弹幕朗读 · 触发</text>
+  <rect x="808" y="740" width="660" height="560" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+  <rect x="824" y="734" width="75" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="832" y="743" fill="rgba(45,49,66,0.55)" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.10em">⑤ 弹幕朗读 · 本地合成</text>
+  <rect x="1536" y="740" width="660" height="560" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+  <rect x="1552" y="734" width="94" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="1560" y="743" fill="rgba(45,49,66,0.55)" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.10em">⑥ 弹幕朗读 · 喂流（三道闸门）</text>
+  <path d="M 410.0,180 L 410.0,198" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 410.0,250 L 410.0,268" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 410.0,320 L 410.0,338" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 410.0,390 L 410.0,408" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 1138.0,180 L 1138.0,198" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 1138.0,250 L 1138.0,268" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 1138.0,320 L 1138.0,338" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 1138.0,390 L 1138.0,408" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 710,434.0 H 766 Q 774,434.0 774,426.0 V 162.0 Q 774,154.0 782,154.0 H 838" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <rect x="746.5" y="288.0" width="55" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="774.0" y="297.0" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">JS→OC</text>
+  <path d="M 1866.0,180 L 1866.0,198" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 1866.0,250 L 1866.0,268" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 1866.0,320 L 1866.0,338" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 1866.0,390 L 1866.0,408" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 1866.0,460 L 1866.0,478" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 1438,434.0 H 1494 Q 1502,434.0 1502,426.0 V 162.0 Q 1502,154.0 1510,154.0 H 1566" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 410.0,812 L 410.0,830" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 410.0,882 L 410.0,900" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 410.0,952 L 410.0,970" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 410.0,1022 L 410.0,1040" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 1138.0,812 L 1138.0,830" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 1138.0,882 L 1138.0,900" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 1138.0,952 L 1138.0,970" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 1138.0,1022 L 1138.0,1040" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 1138.0,1092 L 1138.0,1110" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 710,1066.0 H 766 Q 774,1066.0 774,1058.0 V 794.0 Q 774,786.0 782,786.0 H 838" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 1866.0,812 L 1866.0,830" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 1866.0,882 L 1866.0,900" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 1866.0,952 L 1866.0,970" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 1866.0,1022 L 1866.0,1040" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 1866.0,1092 L 1866.0,1110" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 1438,1136.0 H 1494 Q 1502,1136.0 1502,1128.0 V 794.0 Q 1502,786.0 1510,786.0 H 1566" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 2166,1136.0 H 2228 Q 2236,1136.0 2236,1128.0 V 162.0 Q 2236,154.0 2228,154.0 H 2166" fill="none" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+  <rect x="2187.0" y="639.0" width="98" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="2236.0" y="648.0" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">进 queue[2]</text>
+  <rect x="110" y="128" width="600" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="110" y="128" width="600" height="52" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+  <text x="410.0" y="151.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">AudioContextProxy → setupIntercept(context)</text>
+  <text x="410.0" y="166.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">TVUWebviewAudioOutputManager.mm:307〔注入的 JS〕</text>
+  <rect x="110" y="198" width="600" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="110" y="198" width="600" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="410.0" y="221.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">patch AudioNode.prototype.connect</text>
+  <text x="410.0" y="236.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">:318-329 · 任何 connect(destination) 额外连 captureNode</text>
+  <rect x="110" y="268" width="600" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="110" y="268" width="600" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="410.0" y="291.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">AudioCaptureProcessor.process(inputs, outputs)</text>
+  <text x="410.0" y="306.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">:232 · 只取 inputs[0][0]；最近邻重采样到 48k</text>
+  <rect x="110" y="338" width="600" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="110" y="338" width="600" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="410.0" y="361.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">flush() → port.postMessage({pcm})</text>
+  <text x="410.0" y="376.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">:254 · 攒满 4096 个 Float32 才发</text>
+  <rect x="110" y="408" width="600" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="110" y="408" width="600" height="52" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+  <text x="410.0" y="431.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">sendToOC(base64) → audioHandler.postMessage</text>
+  <text x="410.0" y="446.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">:285-288 · WKScriptMessage 过桥</text>
+  <rect x="838" y="128" width="600" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="838" y="128" width="600" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="1138.0" y="151.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">-userContentController:didReceiveScriptMessage:</text>
+  <text x="1138.0" y="166.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">TVUWebSnapshotView.mm:618〔主线程〕</text>
+  <rect x="838" y="198" width="600" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="838" y="198" width="600" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="1138.0" y="221.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">dispatch_async(audioWriteQueue)</text>
+  <text x="1138.0" y="236.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">:52〔com.tvu.webAudioWriteQueue〕</text>
+  <rect x="838" y="268" width="600" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="838" y="268" width="600" height="52" rx="6" fill="#ffffff" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="1138.0" y="291.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">-initWithBase64EncodedString: → resampleFloat32ToInt16:</text>
+  <text x="1138.0" y="306.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">:55 / :161 · ⚠️ 无 vDSP_vclip，会回绕爆音</text>
+  <rect x="838" y="338" width="600" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="838" y="338" width="600" height="52" rx="6" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.20)" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="1138.0" y="361.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">-getCurrentTimeStamp（CMClockGetHostTimeClock）× 1000</text>
+  <text x="1138.0" y="376.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">:62 / :80 · 算出来的 pts 最终被丢弃</text>
+  <rect x="838" y="408" width="600" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="838" y="408" width="600" height="52" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+  <text x="1138.0" y="431.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">convertToStereo → addDataToAudioMixer(queue[1])</text>
+  <text x="1138.0" y="446.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">:143 / :154 · 4096B / 2ch / 48000</text>
+  <rect x="1566" y="128" width="600" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="1566" y="128" width="600" height="52" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+  <text x="1866.0" y="151.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">audioMixer()</text>
+  <text x="1866.0" y="166.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">TVUOverlayAudioMixerManager.mm:269〔TVUOverlayAudioMixerManagerThread〕</text>
+  <rect x="1566" y="198" width="600" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="1566" y="198" width="600" height="52" rx="6" fill="#ffffff" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="1866.0" y="221.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">取主源节点；连续 1s 无 mic 才丢辅源</text>
+  <text x="1866.0" y="236.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">:281 · kTVUOverlayMixerLocalSilenceDropMs = 1000</text>
+  <rect x="1566" y="268" width="600" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="1566" y="268" width="600" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="1866.0" y="291.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">data_mix 按需扩容（capacity + malloc 失败保护）</text>
+  <text x="1866.0" y="306.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">:318-330 · 全仓唯一改对了的那份</text>
+  <rect x="1566" y="338" width="600" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="1566" y="338" width="600" height="52" rx="6" fill="#ffffff" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="1866.0" y="361.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">辅源块长 == 主源块长 ?</text>
+  <text x="1866.0" y="376.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">:338 / :344 · 不一致则跳过该辅源，只打日志</text>
+  <rect x="1566" y="408" width="600" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="1566" y="408" width="600" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="1866.0" y="431.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">mix(mic, others, n, …) → index 取【主源】</text>
+  <text x="1866.0" y="446.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">:353 / :366 · mic 系数恒 1.0，辅源乘 coefficient</text>
+  <rect x="1566" y="478" width="600" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="1566" y="478" width="600" height="52" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+  <text x="1866.0" y="501.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">-[TVUAudioEncoderManager encode:]</text>
+  <text x="1866.0" y="516.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">:367 · pts 也取主源（:362）</text>
+  <rect x="110" y="760" width="600" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="110" y="760" width="600" height="52" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+  <text x="410.0" y="783.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">TVUChatAggregator.messageAdmitted</text>
+  <text x="410.0" y="798.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">TVUWebChatManager.m:105〔平台 client 线程〕</text>
+  <rect x="110" y="830" width="600" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="110" y="830" width="600" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="410.0" y="853.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">-[TVUChatTTSManager say:]</text>
+  <text x="410.0" y="868.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">TVUChatTTSManager.mm:536</text>
+  <rect x="110" y="900" width="600" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="110" y="900" width="600" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="410.0" y="923.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">-trySpeakNextLocked</text>
+  <text x="410.0" y="938.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">:852〔com.tvu.chat.tts〕</text>
+  <rect x="110" y="970" width="600" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="110" y="970" width="600" height="52" rx="6" fill="#ffffff" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="410.0" y="993.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">mixesIntoStream = enabled &amp;&amp; mode==Both &amp;&amp; streamMixReady</text>
+  <text x="410.0" y="1008.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">:305 · 展开是六个条件</text>
+  <rect x="110" y="1040" width="600" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="110" y="1040" width="600" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="410.0" y="1063.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">-applyMixerState → mixer-&gt;start(TTS)</text>
+  <text x="410.0" y="1078.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">:329 · 四个入口，幂等（按位而非计数）</text>
+  <rect x="838" y="760" width="600" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="838" y="760" width="600" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="1138.0" y="783.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">-[TVUChatTTSStreamSpeaker speakText:…]</text>
+  <text x="1138.0" y="798.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">TVUChatTTSStreamSpeaker.mm:103〔主线程〕</text>
+  <rect x="838" y="830" width="600" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="838" y="830" width="600" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="1138.0" y="853.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">-scheduleSilence:seq:</text>
+  <text x="1138.0" y="868.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">:145 · preDelay：本地排静音 + 推流推等量零字节</text>
+  <rect x="838" y="900" width="600" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="838" y="900" width="600" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="1138.0" y="923.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">[synthesizer writeUtterance:toBufferCallback:]</text>
+  <text x="1138.0" y="938.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">:182 · AVSpeechSynthesizer 本地合成</text>
+  <rect x="838" y="970" width="600" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="838" y="970" width="600" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="1138.0" y="993.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">-convertBuffer:seq:（AVAudioConverter，按句重建）</text>
+  <text x="1138.0" y="1008.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">:354 · → 48k / Float32 / mono</text>
+  <rect x="838" y="1040" width="600" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="838" y="1040" width="600" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="1138.0" y="1063.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">-appendToBatch: 攒 300ms → -emitBatchBuffer:</text>
+  <text x="1138.0" y="1078.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">:220 / :275</text>
+  <rect x="838" y="1110" width="600" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="838" y="1110" width="600" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="1138.0" y="1133.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">-stereoInt16FromMonoBuffer:（vDSP，含 vDSP_vclip）</text>
+  <text x="1138.0" y="1148.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">:399 · stride=2 一步转交错双声道</text>
+  <rect x="1566" y="760" width="600" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="1566" y="760" width="600" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="1866.0" y="783.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">pcmOutput block → dispatch_async(streamFeedQueue)</text>
+  <text x="1866.0" y="798.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">TVUChatTTSManager.mm:236〔com.tvu.chat.tts.stream〕</text>
+  <rect x="1566" y="830" width="600" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="1566" y="830" width="600" height="52" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+  <text x="1866.0" y="853.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">-feedStreamPCM: → -drainStreamAccumFromTimer:</text>
+  <text x="1866.0" y="868.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">:435 / :453〔com.tvu.chat.tts.mixfeed〕</text>
+  <rect x="1566" y="900" width="600" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="1566" y="900" width="600" height="52" rx="6" fill="#ffffff" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="1866.0" y="923.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">闸① !mixesIntoStream → return</text>
+  <text x="1866.0" y="938.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">:438</text>
+  <rect x="1566" y="970" width="600" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="1566" y="970" width="600" height="52" rx="6" fill="#ffffff" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="1866.0" y="993.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">闸② workQueueSize() ≥ 节点数−1 → break</text>
+  <text x="1866.0" y="1008.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">:466 · 水位闸，刻意留一格余量</text>
+  <rect x="1566" y="1040" width="600" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="1566" y="1040" width="600" height="52" rx="6" fill="#ffffff" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="1866.0" y="1063.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">闸③ !mixer-&gt;isSourceActive(TTS) → break</text>
+  <text x="1866.0" y="1078.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">:472 · 活性闸，紧贴入队（stop 先改标记再清队列）</text>
+  <rect x="1566" y="1110" width="600" height="52" rx="6" fill="#f5f5f5"/>
+  <rect x="1566" y="1110" width="600" height="52" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+  <text x="1866.0" y="1133.0" fill="#2d3142" font-size="11" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">addDataToAudioMixer(queue[2])  ·  4096B / 2ch / pts=0</text>
+  <text x="1866.0" y="1148.0" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">:482 · 失败则 dispatch_after(0.5s) 重试</text>
+  <text x="110" y="570" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">重采样在 JS 的 AudioWorklet 里做，而且是【最近邻】不是线性插值。</text>
+  <text x="110" y="585" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">采样率 48000 在原生侧是硬编码信任 JS 的（.mm:13 / :75），没有校验。</text>
+  <text x="838" y="570" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">一次 JS 消息（4096 个 Float32）正好产出 4 个 4096 字节的 overlay 块。</text>
+  <text x="838" y="585" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">start/stop：TVUWebSnapshotManager.mm:116 checkAudioOutputState —— 任一 TVUWebSnapshotView 的</text>
+  <text x="838" y="600" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">shouldOutputAudioStream（= enableAudioStreamOutput &amp;&amp; viewMode == Live）为真则 start，全假则 stop。</text>
+  <text x="1566" y="570" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">三路：queue[0] 主源（mic / Accsoon / DJI，节拍源，不在 TVUOverlayMixerSource 枚举里）</text>
+  <text x="1566" y="585" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">· queue[1] Overlay 网页声 · queue[2] 弹幕朗读。activeSources 是按位标记而非引用计数。</text>
+  <text x="1566" y="600" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">⚠️ DJI 源非 48kHz 时块长对不上，朗读和 overlay 两路会被静默跳过、只透传主源。</text>
+  <text x="110" y="1202" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">六个条件：朗读开 / mix 开 / 推到弹幕平台 / html 显示 / mode 是 Live / 输出非内建扬声器。</text>
+  <text x="110" y="1217" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">后四个由 TVUWebChatManager.syncStreamMixReady（.m:195，6 个调用点）合成。</text>
+  <text x="110" y="1232" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">没有服务端 TTS —— TtsMonster 枚举存在但未实现，setEngine: 直接回落 System（:377）。</text>
+  <text x="838" y="1202" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">TTS 没有采集时钟，靠【借主源时钟】解决：pts 显式写 0（TVUChatTTSManager.mm:479）。</text>
+  <text x="838" y="1217" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">代价是必须按实时速率喂 —— 所以有 500ms 重试 + 消息间隙推等量零字节。</text>
+  <text x="838" y="1232" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">注释原话：只在本地插静音会让「观众听到的两条消息比主播那边贴得更近，时间轴越读越漂」。</text>
+  <text x="1566" y="1202" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">streamDrainScheduled 保证重试链单条，不会并发排两条。</text>
+  <text x="1566" y="1217" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">闸③ 必须紧贴入队：stop() 是「先改 activeSources、再清队列」，</text>
+  <text x="1566" y="1232" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="start">overlay 还开着时混音器不挂起，addDataToAudioMixer 自己不会丢，得在这里挡。</text>
+  <line x1="40" y1="1286" x2="2236" y2="1286" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+  <text x="40" y="1304" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">图例</text>
+  <rect x="96" y="1295" width="16" height="11" rx="2" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="120" y="1304" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">方法调用</text>
+  <rect x="192" y="1295" width="16" height="11" rx="2" fill="#ffffff" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="216" y="1304" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">闸门 / 判断</text>
+  <rect x="313" y="1295" width="16" height="11" rx="2" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+  <text x="337" y="1304" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">线程入口 / 混音</text>
+  <rect x="450" y="1295" width="16" height="11" rx="2" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+  <text x="474" y="1304" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">入队混音器</text>
+  <rect x="555" y="1295" width="16" height="11" rx="2" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.20)" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="579" y="1304" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">算了但被丢弃</text>
+  <rect x="668" y="1295" width="16" height="11" rx="2" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+  <text x="692" y="1304" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">过桥 / 出口</text>
+  <line x1="789" y1="1300" x2="825" y2="1300" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <text x="833" y="1304" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">同线程调用</text>
+  <line x1="914" y1="1300" x2="950" y2="1300" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+  <text x="958" y="1304" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">跨带 / 旁路</text>
+</svg>
+  </div>
+  <div class="cards">
+    <div class="card">
+      <p class="eyebrow">两个辅源都不产生有效 PTS</p>
+      <div class="card-header"><span class="card-dot coral"></span><h3>全部借主源时钟</h3></div>
+      <ul>
+          <li>Overlay：host 时钟 − cache 残留，逐块 +21ms（<code>.mm:131/:150/:157</code>）→ <strong>丢弃</strong></li>
+          <li>TTS：显式写 <code>0</code>（<code>TVUChatTTSManager.mm:479</code>）→ <strong>丢弃</strong></li>
+          <li>混音输出的 pts 与 index 一律取主源（<code>:362</code> / <code>:366</code>）</li>
+          <li>代价：辅源必须按实时速率喂，否则时间轴会漂</li>
+      </ul>
+    </div>
+    <div class="card">
+      <p class="eyebrow">data_mix 这份改对了</p>
+      <div class="card-header"><span class="card-dot ink"></span><h3>另两套还没改</h3></div>
+      <ul>
+          <li><code>:318-330</code> 按需扩容 + <code>data_mix_capacity</code> + malloc 失败保护</li>
+          <li>注释原话：「原来是 malloc(size*2) 一次就不管了，块大小变大就会溢出」</li>
+          <li><code>TVUScreenRecordingQueueManager.mm:532</code> 与 <code>…ExternalSourceAudioMixer…mm:228</code> 仍是旧写法</li>
+          <li>修法现成，照搬即可</li>
+      </ul>
+    </div>
+    <div class="card">
+      <p class="eyebrow">辅源块长不符就跳过</p>
+      <div class="card-header"><span class="card-dot muted"></span><h3>宁可不混，不读野内存</h3></div>
+      <ul>
+          <li><code>mix()</code> 是按主源长度逐样本读的，辅源短了就越界读</li>
+          <li>三路现在都是 4096 字节（1024 帧 × 双声道 × int16）</li>
+          <li>不一致时只打日志、跳过该辅源，主源原样透传</li>
+          <li>⚠️ DJI 非 48k 源会命中这条，朗读和 overlay 静默失效</li>
+      </ul>
+    </div>
+  </div>
+  <footer>TVUAnywhere iOS · share/SPAR-705 @ 736863f1f · 2026-08-25 · Diagram Design 2.6.1</footer>
+</div>
+</body>
+</html>

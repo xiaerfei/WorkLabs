@@ -148,6 +148,12 @@ YCbCrMatrix = ITU_R_2020
 
 ## 四、TVUAudioEncoderManager — AAC 编码
 
+> 📌 **本节是简版。** 完整分析见 [07-音频编码器-TVUAudioEncoderManager.md](./07-音频编码器-TVUAudioEncoderManager.md)
+> （基线 `736863f1f`，晚约 1473 个 commit）：8 个生产者、10 道闸门、index 守门三分支、
+> 二次混音、4 路出口、并发模型与 10 条已核实风险。**冲突时以 07 为准**——本节的
+> 「优先硬件 codec」「异源过滤 mm:243-265」「来源：TVURecorder / 混音输出」三处已过时，
+> 差异表在 07 的第十节。
+
 ### 4.1 编码器参数（TVUAudioEncoderManager.h:13-18, mm:562-646）
 
 | 参数 | 值 |

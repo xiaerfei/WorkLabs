@@ -3,6 +3,8 @@
 > 调研对象：tvuanywhere_ios 仓库（行号基线：`share/DefaultTitle` 分支 commit `89e4c235a`，2026-06-12；01 文档及时间戳专题成文更早，行号可能有少量漂移）
 >
 > 范围：从外部源解析 → 合流合成 → 硬件编码 → Mux/推流的完整非 UI 链路，外加时间戳/时钟同步专题。
+>
+> **例外**：07 文档与流图集是后补的，基线更新（分别为 `736863f1f` / `bc4021368`），与 01–06 冲突时以它们为准。
 
 ---
 
@@ -22,7 +24,7 @@ flowchart LR
     end
     subgraph M3["03 编码层 TVUEncoder"]
         V[H264/H265<br/>VTCompressionSession]
-        A[AAC<br/>AudioConverter]
+        A["AAC — 见 07<br/>AudioConverter"]
     end
     subgraph M4["04 推流层"]
         X[AVFormatControl<br/>ASF mux] --> T[CTVUTransporterT<br/>callback_data_in]
@@ -50,6 +52,18 @@ flowchart LR
 | 04 | [04-推流层-Mux与Transport.md](./04-推流层-Mux与Transport.md) | 双链路（ASF/FFmpeg vs libtvulive2）、SEI、NTP 门槛、码率反馈闭环、传输库边界 | `TVUAnywhereSDK/TVUFormat/`、`TVUSEI/`、`transoprtlib/` |
 | 05 | [05-多源采集入队.md](./05-多源采集入队.md) | 输入端补全：相机/双摄/屏录/图片/USB/DJI 各源采集→入队、源索引语义、入队丢错位帧 | `TVUScreenRecording/`、`TVUExternSourceLocalPicture/`、`Accsoon/`、`TVUAnywhere.mm` |
 | 06 | [06-本地录制旁路.md](./06-本地录制旁路.md) | 两条录制路径、ASF mux、文件分段/容错、ASF→MP4 转换、录制vs直播来源对照 | `TVUAnywhereSDK/TVURecorder/` |
+| 07 | [07-音频编码器-TVUAudioEncoderManager.md](./07-音频编码器-TVUAudioEncoderManager.md) | AAC 编码器专题（基线 `736863f1f`）：8 个生产者、10 道闸门、index 守门、二次混音、4 路出口、并发模型、10 条风险 | `TVUAnywhereSDK/TVUEncoder/TVUAudioEncoderManager.mm` |
+
+### 音频专题（07 的上游，2026-08-25）
+
+| 文档 | 内容 |
+|---|---|
+| [音频专题/A0-音频链路总表.md](./音频专题/A0-音频链路总表.md) | 交叉接线：谁往哪个队列塞、哪些是死代码、五套混音器怎么串 |
+| [A1-本地麦克风采集.md](./音频专题/A1-本地麦克风采集.md) | 两套采集实现、9 道闸门、增益静音、PCM 分包 |
+| [A2-屏幕录制音频.md](./音频专题/A2-屏幕录制音频.md) | 扩展进程封包、三路队列、25ms 对齐、mixType 真值表 |
+| [A3-会议音频与播放侧.md](./音频专题/A3-会议音频与播放侧.md) | Agora/WebRTC/RTIL 上下行、AudioPlayer 六职责、开关真值链 |
+| [A4-朗读与Overlay音频.md](./音频专题/A4-朗读与Overlay音频.md) | Web Audio 抓取、TTS 合成与喂流、三路混音器 |
+| [A5-DJI与Accsoon音频.md](./音频专题/A5-DJI与Accsoon音频.md) | DJI 块长公式、PTS 重锚与 clamp、Accsoon USB 链路 |
 
 ## 时间戳专题（横切视角）
 
@@ -80,6 +94,21 @@ M 系列是**方法级调用图**（一个方法一个盒子，外框是 `Class:
 
 索引、旧图过时点清单与事实速记见 [流图/README.md](./流图/README.md)。生成脚本在 [流图/_gen/](./流图/_gen/README.md)。
 
+### AUDIO 系列 · 音频全链路（基线 `736863f1f`）
+
+M 系列偏视频主干。这一组把所有音频源补齐 —— 本地采集、屏录、会议、朗读、Overlay、DJI、Accsoon：
+
+| # | 图 | 内容 |
+|---|---|---|
+| A0 | [音频全景](./流图/AUDIO-0-音频全景.html) | **先看这张**：7 个活源 → 四级改道 → 3 套混音器 → encode: → 4 路出口 |
+| A1 | [本地麦克风采集](./流图/AUDIO-1-本地麦克风采集.html) | AudioUnit / AudioQueue 双实现、9 道闸门、重采样分包 |
+| A2 | [屏幕录制音频](./流图/AUDIO-2-屏幕录制音频.html) | 跨进程两带、四份 static 副本改道、25ms 对齐 |
+| A3 | [会议音频双向](./流图/AUDIO-3-会议音频双向.html) | 上行三路 / 下行拉流播放 / 二次混音三选一 |
+| A4 | [朗读与 Overlay 音频](./流图/AUDIO-4-朗读与Overlay音频.html) | JS 抓 Web Audio、TTS 合成、混音器三路 |
+| A5 | [DJI 与 Accsoon 音频](./流图/AUDIO-5-DJI与Accsoon音频.html) | DJI 抖动缓冲 + PTS 重锚、Accsoon USB 软解 |
+
+配套文字见 [音频专题/](./音频专题/)：A0 接线总表 + A1–A5 五篇链路文档。
+
 ---
 
 ## 方案（非源码分析）
@@ -92,7 +121,7 @@ M 系列是**方法级调用图**（一个方法一个盒子，外框是 `Class:
 
 ## 建议阅读顺序
 
-1. **建立静态模型**：01 → 02 → 03 → 04（顺着数据流读，每篇开头有上下游链接）
+1. **建立静态模型**：01 → 02 → 03 → 04（顺着数据流读，每篇开头有上下游链接）；音频侧接着读 07
 2. **理解动态时序**：时间戳专题 01 → 02
 3. **重构/评审决策**：时间戳专题 03 + 各模块文档末尾的"风险/注意点"小节
 
@@ -103,3 +132,6 @@ M 系列是**方法级调用图**（一个方法一个盒子，外框是 `Class:
 - 推流前置双门槛：`g_livestate && ntpSynced`。
 - 外部源断帧无兜底：过渡帧机制在 `TVUAVStreamManager.mm:2584` 被硬禁用。
 - 纯内置相机直播不经过合流层（`isOnlyBuildInCameraStream` 直通编码）。
+- 音频没有合流层：源隔离、格式归一、二次混音全压在 `TVUAudioEncoderManager -encode:` 一个方法里，
+  8 个生产者线程在它的 `pthread_mutex` 上串行（详见 07）。
+- 音频 `index` 不匹配是**整块丢弃，不补静音**；混音输出的 index 必须取**主源**的。
