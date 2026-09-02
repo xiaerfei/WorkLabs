@@ -1486,3 +1486,220 @@ static int last_externalSourceIndex = -2;
 | C3 | 6 个函数局部 static 跨两条线程；补丁本身就是"再调一次" | 中 |
 | C4 | 屏共检查在 `_TVUSDKANYWHERE` 非 IRL 分支缺失 | 中 |
 | — | 分支 B 少了美颜/换背景/模糊三条件 | 待核实 |
+
+---
+
+## Q11 — `handleWithSamplebuffer()` 方法级走查（三并行子代理 + 交叉核对）
+
+**做法**：函数 619 行切三段并行走读（475-613 取帧门控 + TVUAVQueue 全文 / 614-916 分发矩阵与双摄 /
+917-1094 尾部分发），我做跨段交叉核对。**成果已整合进 02 文档 §6（全面重写，含 §6.7 合并问题清单 H1-H12/L1-L4）**，
+此处只记录交叉核对本身与勘误。
+
+### 交叉核对结论
+
+1. **node 生命周期配平**（跨 A/C 两段才能确认）：开头 5 取（mm:485-487/526/557）、
+   `NODE_RELEASE`（mm:1085-1090）5 放，队列归属正确；5 处早退全部发生在"未出队者"之前 →
+   **整个函数无 node/CMSampleBuffer 泄漏**。真实问题是**队列级饥饿**（H2），不是引用计数。
+2. **两个子代理对 `mm:2333-2457` 的矛盾**：B 报告说 encoderThread 在 mm:2332/2396/2452 取帧，
+   C 报告说该区间整块被注释。亲自扫块注释边界裁决：**C 对** ——
+   `/*` mm:2333 … `*/` mm:2457，`encoderWithSamplebuffer()` 活体只有 mm:2324-2332 三步。
+3. **连带勘误两处我此前的记录**：
+   - 昨天行号对齐时写进 02 §8.1 的"PTS 守门两个活调用点（mm:2334 与 mm:2485）"**错**，
+     mm:2334 在注释块内，唯一活调用点 mm:2485。已当日改回（02 §8.1 现注明复核过程）。
+     ——教训：grep 有调用 ≠ 活代码，必须查块注释归属。
+   - Q9 时画进图并写进记录的"encoderWithSamplebuffer → Agora `mm:2389`"**错**：
+     mm:2389 也在同一注释块内。活的 Agora 送帧在 **mm:2613**（`sendToEncoderWithSamplebuffer` 内，
+     另一处 Partyline build 的直送在 TVUCameraManager.mm:1928）。图已改。
+4. **顺带核出的新死代码**（并入 02 §6.7 L2）：`handleOSMOStream`（mm:1213，声明 .h:217）、
+   `handleOSMOPIPStream`（mm:1685，声明 .h:220）均零调用方；`handleOSMORTMPStream` 的
+   camera_node 形参从不使用；mm:1556 把 OSMORTMP 列入纯外部源判断但该类型已不进此函数（死条件）。
+
+### 与此前各问的挂钩
+
+- Q5-D3 的"stopAddDataToDecoder 阻塞主线程"上界取决于 sortQueue 排空速度 ——
+  本轮确认 sort 出口进的是 `TVUExternalQueue`（池深 5、每拍最多消费 1 帧、拍间隔 ≥10ms），
+  即 sortQueue 的下游消费上限 100fps，正常不会长时间不排空；但若 handleThread 正睡 200ms
+  （Q10-C2，isOnlyBuildInCameraStream 误判窗口），上界叠加 200ms。
+- Q8-E2 的"合流路是否另有抓图入口"有了答案：抓图在 renderThread 的 `renderWithSamplebuffer` mm:2061
+  服务；但双摄 GPU 直达跳过 RenderQueue 且 mm:1114 被注释 → **直达期间截图请求永不被服务**（H7）。
+
+### 待核实（转入后续）
+
+- [ ] H1（未初始化 mutex 上 EnQueue）在 iOS 的 pthread 实现下是否实际可观测（静态 UB 已坐实）
+- [ ] H4（屏录拦截）与屏录源自身入队路径的 subType=100 是否闭环（对照 A2 文档）
+- [ ] `renderWithSamplebuffer()`（mm:2050-2178）本轮未走查——步骤 4 的对象
+
+---
+
+## Q12 — `renderWithSamplebuffer()` 走查（渲染侧 + 预览栈 + 截图链）
+
+**成果写进 02 §七之二**（活体流程 / 两块死注释 / 预览栈三态工厂 / 截图链全景 / 问题 V1-V7）。
+此处记探寻过程里的三个转折：
+
+1. **`TVUPreView::displaySampleBuffer` 不渲染像素** —— 基类只算 FPS、判前后摄、更新几何状态。
+   顺藤摸到三态工厂（`TVUAnywhere.mm:3730`），再发现 `preViewType` 全文件唯一写点是 `:312` 恒
+   `DisplayLayer` → **OpenGL（485 行）/ Metal（143 行）两个渲染器是死配置**，现役只有
+   `AVSampleBufferDisplayLayer` 那条（2023-09 为外置源 HDR 引入）。
+2. **截图链在纯相机模式是断的**（V1）：`snapImageWithBufferRef` 的唯一活服务点在 renderThread，
+   吃 RenderQueue；而 RenderQueue 的活投递点只有 `handleWithSamplebuffer` 尾部两处（mm:1024/1074）
+   —— 纯相机直通根本不经过它。坐实方法：全文件 grep `m_total_queue[TVURenderQueue]` 共 8 处，
+   逐一判活性（mm:170 在 IRL 不注册的美颜回调里、mm:3317 在 mm:3224 已禁用的补帧里）。
+   结论：纯相机模式 `tvuGetSnapShot` 返回**上一次多源模式的陈旧截图**。
+3. **`checkUseSystemPreview` 有三份**：活体 mm:2220（Q10 走查的那份）、`renderWithSamplebuffer`
+   内注释死副本 mm:2102-2151、还有 Q10 记过的第二调用点 mm:2801。之前 Q10-C3 说"6 个 static 跨两条
+   线程"仍成立（两个活调用点），本轮补上的是第三份**死**副本的存在 —— 改这个函数时要认准 mm:2220。
+
+**正面记录**（不是问题）：mm:2163 的 `static bool drop`（高帧率隔帧丢）只有 renderThread 访问，
+是本仓函数级 static 里少见的安全用法；IRL 的 `freezeForSystemPreviewSwitch`（mm:2157）防闪设计
+配合注释（mm:2152-2155）是这段里质量最好的部分。
+
+### 待核实
+- [ ] V1 的实际表现：真机纯相机模式调 `tvuGetSnapShot`，确认返回陈旧图还是 nil（首次调用时）
+- [ ] `renderCompeleteHandle` 的注册方与用途（TVUPreView.h:41，本轮未追）
+
+---
+
+## Q13 — `handleMutiCamStreamMux()` 走查（双摄合成本体）
+
+**成果写进 02 §七之三**（三分支结构 / 判定条件不一致 / M1-M8 / 正面记录）。此处只记两个纠偏：
+
+1. **纠 Agent B 报告可能造成的误读**：PIP 分支把 `mu_camera_node` 存进名为 `..._back` 的变量、
+   `backCameraNode` 存进 `..._front`，看起来像"参数传反"。核对 `TVUAVStreamHandleManager` 的
+   槽位语义（Camera 槽=小窗、External 槽=底图）与外置源用法（mm:1612）后确认：**槽位是对的**，
+   陷阱只在本函数的局部变量名。—— 判定方法：对照同一合成函数的另一个调用方。
+2. **`getTheWidthProportionally` 是查表**（TVUVideoFilter.mm:1304-1330，1280→320 等 ~1/4 档），
+   随后的两段重算让小窗实际是 16:9 而非注释声称的 4:3（02-M6）。
+
+### 待核实（并入 02 §7c.3）
+- [x] ~~M7~~ → 已核实（02 §7c.2/③）：PBP 左路不匹配直接 return NULL 丢帧、右路不查；与 PIP 的缩放适配策略相反
+- [ ] M2 的切换窗口在真机上是否可观测（replaceBg 开→关瞬间 PIP 黑帧/卡帧）
+
+---
+
+## Q14 — 相机 session 配置侧（initCaptureSession / adjustCaptureFrameRate / updateActiveFormat）
+
+> Q7-C3 的另一半：format/fps/分辨率是怎么协商出来的。相机侧无专门文档，结论记在本条。
+> 文件：`TVUAnywhereSDK/TVUVideoCapture/TVUCameraManager.mm`。
+
+### 0. 配置链全景
+
+```
+initCaptureSession (mm:134) = resetSessionZoom:YES (mm:139-199)
+  ├─ canAddInput/canAddOutput 不过 → 整个函数 return            ← K1
+  ├─ addInput + addOutput
+  ├─ 分辨率：SettingStorage.resolutionInfo → switch{640/1280/1920/3840} → preset
+  │     无匹配 → getBestSessionPreset()（设备最高）              ← K8
+  │     → adjustCaptureSessionPreset (mm:530)
+  │        canSet && supports 双守卫 → sessionCommitBlock 提交
+  │        → convertPreset2Resolution 查表 → cameraResolutionWidth/Height（持 mutex）← K9
+  ├─ fps：getSaveFrameRate()（UserDefaults + vaildFrameRate 兜底）
+  │     H264 && fps>30 && 编码宽≥3840 → 强制 30 并回写 UserDefaults
+  │     → adjustCaptureFrameRate (mm:554)
+  │        ① getMaxFrameRate 钳制
+  │        ② centerStage（iPad+前摄）→ 钳到 25/30
+  │        ③ 选 format：外置 / HDR(失败回落 SDR ← K7) / NV12    ← K4 在这里
+  │        ④ rateRange(lastObject) 再钳一次
+  │        → self.frameRate + saveFrameRateToUserDefaults        ← K2
+  │        → updateActiveFormat（两个分离的 commit ← K5）
+  │        → updateVideoEncoderFrameRate（编码器 fps 跟随相机 ← K3）
+  └─ 防抖 / 旋转 / zoom 复位 / centerStage Cooperative / iOS18 controls
+
+sessionCommitBlock (mm:2286)：session 未运行 → 直接执行 handler（零重配）；
+                              运行中 → beginConfiguration + handler + commitConfiguration ← K6
+```
+
+### K4 — format 选择器在循环里 lock 从不 unlock（**高，API 契约违约**）
+
+`getCaptureDeviceFormatWithFrameRate:andVideoFormat:`（mm:416-445）：
+
+```objc
+for (AVCaptureDeviceFormat *vFormat in [self.device formats]) {
+    ...
+    if (maxRate < frameRate || 媒体子类型不符 || ![self.device lockForConfiguration:NULL]) {
+        continue;      // ← lock 成功的迭代走不到这里
+    }
+    ...               // 后续 continue / break —— 函数内【0 个 unlockForConfiguration】
+}
+```
+
+每个通过前两个条件的 format 迭代都 lock 一次设备且**永不解锁**。`lockForConfiguration` 本就不该
+出现在"选 format"的只读逻辑里。功能上没炸是因为同进程后续 lock 仍能成功（mm:358/363 的
+`updateActiveFormat` 照常工作），但设备配置锁被本 app 长期持有，违反 AVFoundation 配对契约
+（系统自动对焦/曝光协调、其它组件的配置请求都可能受影响）。调用频度：每次 `adjustCaptureFrameRate`
+（初始化、切 HDR、切帧率、`setVideoHDREnabled`）。**外置版 `getExternalDeviceFormatWithFrameRate`
+（mm:2322-2362）无此模式** —— 循环里根本不 lock，反证普通版的 lock 是多余的。
+全文件 lock 53 次 / unlock 27 次（其余不配对处未逐一核验，已知这一处是净泄漏）。
+
+### K2 — 钳制结果回写用户设置（**中高，设置被永久降级**）
+
+fps 经过至少四层钳制（4K-H264→30 / getMaxFrameRate / centerStage→25 / rateRange），
+钳完的值 `saveFrameRateToUserDefaults`（mm:609）**写回 UserDefaults**。
+用户设 60 → iPad 前摄开 centerStage 被钳到 25 → **持久化 25**；之后关掉 centerStage、换回后摄，
+读回来的也是 25，除非用户手动再设一次。4K-H264 那处（mm:180-183）同样直接回写。
+钳制本身合理，回写把"临时限制"变成了"永久降级"。
+
+### K3 — 编码器 fps 单向跟随相机 fps（**中**）
+
+`updateVideoEncoderFrameRate`（mm:372-383）：相机 fps ≠ 编码器 fps 时直接
+`tvuSetVideoEncoderWidth:encoderHeight:encoderFrameRate:` 改编码器（注释：防补黑帧/屏幕闪烁）。
+方向是 capture→encoder。与 K2 连起来：一次临时钳制会把**输出流帧率**也拖下来，且被持久化。
+
+### K5/K6 — 两个分离 commit 与 C3 的机制确认（**中**）
+
+`updateActiveFormat`（mm:335-370）把 activeFormat 与 FrameDuration 拆成**两个** `sessionCommitBlock`
+（alfredfu 2024-09-24：合并会在 1080P50 切相机时卡死，原因未知）。每个 commit 在 session 运行中
+= 一次 begin/commitConfiguration = 一次画面重配（mm:870 的注释自己说"重配会话，画面会闪一下"）。
+
+`sessionCommitBlock` 的分支正是 Q7-C3 的机制解释：**session 未运行时直接执行、零重配**。
+startCaptureSession 现在的顺序（mm:290 startRunning → mm:295 setVideoHDREnabled →
+updateActiveFormat）让两个 commit 都落在"运行中"分支 → 起流后连闪两次。
+若 format 配置在 startRunning 之前完成，就自动走零重配路径 —— C3 的修法在机制上是成立的（仅记录）。
+
+### K1 — initCaptureSession 的幂等即 no-op（**记录，设计特征**）
+
+`resetSessionZoom:` 开头 `canAddInput/canAddOutput` 不过就整体 return。input 已加过的第二次调用
+= **静默跳过全部分辨率/fps/防抖/旋转配置**。`startMuCaptureSession`（TVUMutiCameraManager.mm:206）
+每次都调 `initCaptureSession`，依赖的正是这个"已加过就跳过"来防重复 addInput —— 幂等是故意的，
+副作用是"想重新配置"的调用者会误以为配置生效了。7 个调用点（TVUAnywhere.mm:643、
+PartylineSDKJoin:544、MutiCam+ExtDevice:52/75/108、CameraManager:1517、MutiCameraManager:207）。
+
+### K7~K9 — 低
+
+| # | 内容 |
+|---|---|
+| K7 | HDR format（要求 HLG_BT2020）找不到时静默回落 SDR，用户无提示（debugActiveFormatInfo 的 `cf:` 字段可查） |
+| K8 | 分辨率 switch 只认 640/1280/1920/3840 四档，其它宽度落 `getBestSessionPreset`（设备最高）——采集>编码时靠下游缩放，注释已声明该行为 |
+| K9 | `cameraResolutionWidth/Height` 来自 preset 查表（convertPreset2Resolution）而非实际 activeFormat；后续 format 过滤用它做尺寸匹配（mm:425-427），一致性依赖查表覆盖所有 preset |
+
+### 待核实
+
+- [ ] K4 的运行时影响：Instruments/Console 看长持配置锁是否影响系统自动曝光/对焦协调
+- [ ] K2 的实际用户反馈：是否有"帧率设置自己变了"类工单
+- [ ] `TVUCameraManager.mm:1517` 那次 initCaptureSession 的场景（switchCamera 路径？）是否期望重新配置（若是，撞上 K1）
+
+---
+
+## Q15 — 编码层走查（Manager 主线 + H264/H265 双子代理 + 交叉核对）
+
+**成果**：03 文档视频三节全部重写（259 行），行号全对齐，新增 **§三之二 双编码器不对称总表 D1-D12**。
+此处记交叉核对本身：
+
+1. **git 考证双向印证**：两个子代理独立得出同一结论 —— "8·25 改动"实为 commit `d78972e54`
+   （author 08-14 / commit 08-21，两个编码器同时改 lastAppliedBitRate），08-25 只是集成分支检出时间。
+2. **交叉核对的核心产出是 D 表**：单看任一文件都发现不了的"修一边忘一边"——
+   D2（SPAR-556 死锁修复只落 H265，H264 closeEncoder 仍整段持锁）、
+   D3（GOP：H265 用 600 帧是对的，H264 用 `MaxKeyFrameIntervalDuration`=600 **秒**是错键）、
+   D6（4K 录制 20.48Mbps 地板只在 H264）、
+   D7（同一 commit d78972e54 给 H265 加了失败重试、H264 却是先记账失败永久跳过）、
+   D8（H265 帧传输 IDR 守卫 `vpsSize && vpsSize && ppsSize` 漏查 spsSize 的 copy-paste 笔误，H264 侧是对的）。
+3. **与前几问的连线**：Manager-W6（用 `VTIsHardwareDecodeSupported` 判编码支持）在 H265 侧有下游
+   后果（H5：标志为 NO 时 NULL 指针下发理论路径）；W1 的自动重启放大 H264-P3 的 spspps 泄漏；
+   K2/K3（Q14）与 Manager 的 setter 回写构成降级值双路径持久化闭环。
+4. **两侧同款的系统性问题**：P1（propertyArray 支持位从不读 boolValue，恒真/恒假两态）、
+   P2（static 群跨会话不清零，lastPts 在 DJI↔相机切换后**每帧静默丢**到追上历史水位）、
+   P4（VT 回调线程与主路径零互斥）—— 这三条在两个文件里逐字同款，d78972e54 只修了其中一个 static。
+
+### 待核实
+- [ ] D1（RealTime 两侧相反）的现网影响：H264 非屏共场景 60fps 实编 ~53fps 是否可测
+- [ ] D3：把 H264 的 GOP 改成 `MaxKeyFrameInterval`=600 帧是否影响下游对 IDR 间隔的假设
+- [ ] W1 的多 timer 累积在真机快速切源时是否可复现（预期：切 N 次源后重启阈值变 3/N 秒）
