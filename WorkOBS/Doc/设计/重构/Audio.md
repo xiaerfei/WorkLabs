@@ -526,12 +526,17 @@ void WLMediaSource::ThreadLoop() {
     while (!atomic_load(&should_stop_)) {
         // 1. 控制检查（pause / stop / seek）——同现状
 
-        // 2. 唯一 sleep：睡到 next_ns_（绝对时刻；0 = 尚未锚定）
-        if (next_ns_ == 0) { ResetTs(); continue; }
-        bool timeout = !WLTime::SleepToNs(next_ns_);
-        // 卡顿保护（对照 OBS 的 200ms）：落后太多时只睡一小段并记日志，别一次性睡死
-        if (timeout && WLTime::NowNs() - next_ns_ > 200000000LL) {
-            fprintf(stderr, "[media] lag %.1fms\n", (WLTime::NowNs() - next_ns_) / 1e6);
+        // 2. 唯一 sleep：睡到 next_ns_ 这个「绝对时刻」（睡多久由推进量决定，见 §4.5.1）
+        //    next_ns_ == 0 = 刚起播 / 刚重锚（seek、暂停恢复）：本轮不睡，以当前时刻
+        //    为基准立即放行第一帧（对标 OBS mp_media_sleep 的 !next_ns 分支，media.c:636）
+        bool timeout = false;
+        if (next_ns_ == 0) {
+            next_ns_ = WLTime::NowNs();
+        } else {
+            int64_t lag = WLTime::NowNs() - next_ns_;      // >0 = 已经落后
+            timeout = !WLTime::SleepToNs(next_ns_);        // 已过去 → 返回 false，不睡
+            if (lag > 200000000LL)                         // 卡顿保护（OBS 的 timeout_ms=200）
+                fprintf(stderr, "[media] lag %.1fms，本轮不睡\n", lag / 1e6);
         }
 
         // 3. 到点才放（视频、音频各自独立判定，互不等待）
@@ -556,6 +561,46 @@ bool WLMediaSource::CanPlay(int64_t pts_ns) const {      // 对标 mp_media_can_
     return pts_ns <= next_pts_ns_ || (pts_ns - next_pts_ns_ > 2000000000LL);   // 2s 跳变强放
 }
 ```
+
+**§4.5.1 每轮 sleep 多久、怎么算**
+
+**核心：sleep 的参数不是"时长"，是"绝对时刻"。** 睡多久 = `next_ns_ − now`，而 `next_ns_` 的推进量来自**媒体时基上相邻两个事件的间隔**：
+
+```
+delta_ns  = min_next_pts − next_pts_ns_     // 下一位出场帧 − 当前放行线（pts 已是 ns，与系统钟 1:1）
+next_ns_ += delta_ns                        // 绝对时刻推进（增量式 → 误差不累积）
+实际睡眠  = next_ns_ − NowNs() ≈ delta_ns − 本轮处理耗时
+```
+
+| 场景 | 每轮 sleep 时长 |
+|---|---|
+| 纯视频 60 fps | 恒 16.667 ms |
+| 纯音频 48k / 1024 帧 | 恒 21.333 ms |
+| **视频 + 音频（常见）** | **合并事件序列的相邻间隔，逐轮变化** |
+
+60 fps + 48k/AAC 的合并事件序列与每轮睡眠量（前 10 轮）：
+
+| 轮 | 放行线推进到（媒体时基 ms） | 本轮出场 | delta = 本轮 sleep（ms） |
+|---|---|---|---|
+| 1 | 0 | V0 + A0（同 pts） | **0**（首轮不睡，见骨架 `next_ns_ == 0` 分支） |
+| 2 | 16.667 | V1 | 16.667 |
+| 3 | 21.333 | A1 | 4.667 |
+| 4 | 33.333 | V2 | 12.000 |
+| 5 | 42.667 | A2 | 9.333 |
+| 6 | 50.000 | V3 | 7.333 |
+| 7 | 64.000 | A3 | 14.000 |
+| 8 | 66.667 | V4 | 2.667 |
+| 9 | 83.333 | V5 | 16.667 |
+| 10 | 85.333 | A4 | 2.000 |
+
+- 事件密度 = 60（视频）+ 46.875（音频）= **106.875 个/秒** → 平均每轮睡 **9.36 ms**；
+- 时长在 **0.67 ~ 16.67 ms** 之间抖动，但**总和严格等于墙钟推进**（绝对时刻 + 增量推进的必然结果）；
+- 若某轮处理耗时超过 delta（如解码尖峰 20 ms > 2.667 ms），`SleepToNs` 对已过去的时刻直接返回 false → **不睡、本轮立即放行**，自动追赶（OBS 同：`delta_ms <= 0` 就跳过 sleep，`media.c:643`）。
+
+**自检方法（并入 A2 验证点）**：跑 60 秒后核对
+1. `累计 delta ≈ 60 s`（不是 1.28 × 60 s）→ 证明未超产；
+2. 累计事件数 ≈ 106.875 × 60 ≈ 6410；
+3. 视频 `lagged_frames` 不涨。
 
 **三个方案的定量对比**（48 kHz / AAC 1024 帧 = 21.333 ms；60 fps = 16.667 ms）
 
